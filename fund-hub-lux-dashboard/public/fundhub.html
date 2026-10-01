@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-[#f7f8fa]">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FundHub Lux — Luxembourg Fund Services Directory & Price Comparator</title>
+    <meta
+      name="description"
+      content="Institutional-grade B2B directory and empirical price comparator for the Luxembourg fund services market."
+    />
+    <!-- Tailwind via CDN (no build step, no React) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide icons (vanilla) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+              mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
+            },
+            colors: {
+              ink: {
+                DEFAULT: "#1e2632",
+                50: "#f4f6f8",
+                600: "#3b4658",
+                700: "#2b3442",
+                800: "#232b37",
+                900: "#1a212b",
+              },
+              emerald: {
+                DEFAULT: "#0f9d78",
+                50: "#e7f6f1",
+                600: "#0f9d78",
+                700: "#0c8265",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      }
+      .tnum {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+      }
+      /* Custom slim scrollbar for panes */
+      .thin-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      .thin-scroll::-webkit-scrollbar-thumb {
+        background: #cbd2dc;
+        border-radius: 9999px;
+      }
+      /* Range slider styling */
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        background: #e2e6ec;
+        border-radius: 9999px;
+        outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 9999px;
+        background: #0f9d78;
+        border: 2px solid #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+        cursor: pointer;
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 9999px;
+        background: #0f9d78;
+        border: 2px solid #ffffff;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body class="bg-[#f7f8fa] text-ink antialiased">
+    <div class="flex min-h-screen">
+      <!-- ============ LEFT NAV RAIL (navy) ============ -->
+      <aside
+        class="hidden lg:flex w-64 shrink-0 flex-col bg-ink-900 text-slate-200 border-r border-ink-700"
+      >
+        <div class="flex items-center gap-2.5 px-5 h-16 border-b border-ink-700">
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-md bg-emerald text-white"
+          >
+            <i data-lucide="layers" class="h-4 w-4"></i>
+          </div>
+          <div class="leading-tight">
+            <p class="text-sm font-semibold text-white">FundHub<span class="text-emerald"> Lux</span></p>
+            <p class="text-[10px] uppercase tracking-widest text-slate-400">Fund Services Index</p>
+          </div>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto thin-scroll px-3 py-4 space-y-6">
+          <div>
+            <p class="px-2 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Discovery</p>
+            <a href="#" class="flex items-center gap-3 rounded-md bg-ink-700 px-3 py-2 text-sm font-medium text-white">
+              <i data-lucide="search" class="h-4 w-4 text-emerald"></i> Comparator Grid
+            </a>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="bookmark" class="h-4 w-4"></i> Saved Shortlists
+            </a>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="git-compare" class="h-4 w-4"></i> Side-by-Side
+            </a>
+          </div>
+          <div>
+            <p class="px-2 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Intelligence</p>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="trending-up" class="h-4 w-4"></i> Fee Benchmarks
+            </a>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="scale" class="h-4 w-4"></i> Regulatory Watch
+            </a>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="file-text" class="h-4 w-4"></i> RFI Pipeline
+            </a>
+          </div>
+          <div>
+            <p class="px-2 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Workspace</p>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="building-2" class="h-4 w-4"></i> My Organisation
+            </a>
+            <a href="#" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800">
+              <i data-lucide="settings" class="h-4 w-4"></i> Preferences
+            </a>
+          </div>
+        </nav>
+
+        <div class="border-t border-ink-700 p-4">
+          <div class="flex items-center gap-3">
+            <div class="flex h-9 w-9 items-center justify-center rounded-full bg-ink-700 text-xs font-semibold text-emerald">AL</div>
+            <div class="leading-tight">
+              <p class="text-sm font-medium text-white">A. Lambert</p>
+              <p class="text-[11px] text-slate-400">Odyssey Capital SICAV</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ============ MAIN COLUMN ============ -->
+      <div class="flex min-w-0 flex-1 flex-col">
+        <!-- Top bar: search + filters -->
+        <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div class="flex items-center gap-3 px-4 sm:px-6 h-16">
+            <button class="lg:hidden flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-ink-600">
+              <i data-lucide="menu" class="h-4 w-4"></i>
+            </button>
+            <div class="relative flex-1 max-w-2xl">
+              <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+              <input
+                type="text"
+                placeholder="Search fund service providers, software stacks, or regulations..."
+                class="w-full rounded-md border border-slate-200 bg-[#f7f8fa] py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-slate-400 focus:border-emerald focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald/20"
+              />
+            </div>
+            <button class="hidden sm:flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-ink-600 hover:bg-slate-50">
+              <i data-lucide="bell" class="h-4 w-4"></i>
+            </button>
+            <button class="flex items-center gap-2 rounded-md bg-ink-900 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-ink-800">
+              <i data-lucide="plus" class="h-4 w-4"></i><span class="hidden sm:inline">New RFI</span>
+            </button>
+          </div>
+
+          <!-- Active filters bar -->
+          <div class="flex flex-wrap items-center gap-2 px-4 sm:px-6 pb-3">
+            <div class="relative">
+              <select
+                class="appearance-none rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-ink-600 focus:border-emerald focus:outline-none"
+              >
+                <option>Macro-Category: All</option>
+                <option>Fund Operations</option>
+                <option>Compliance</option>
+                <option>Tax</option>
+                <option>Legal</option>
+              </select>
+              <i data-lucide="chevron-down" class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"></i>
+            </div>
+            <div class="relative">
+              <select
+                class="appearance-none rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-ink-600 focus:border-emerald focus:outline-none"
+              >
+                <option>Scale / Headcount: Any</option>
+                <option>1–50</option>
+                <option>51–250</option>
+                <option>251–1,000</option>
+                <option>1,000+</option>
+              </select>
+              <i data-lucide="chevron-down" class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"></i>
+            </div>
+
+            <span class="mx-1 hidden h-5 w-px bg-slate-200 sm:block"></span>
+            <span class="hidden text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:inline">Tech stack</span>
+
+            <button data-stack class="rounded-full border border-emerald bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700" data-active="true">eFront</button>
+            <button data-stack class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-ink-600 hover:border-slate-300" data-active="false">Yardi</button>
+            <button data-stack class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-ink-600 hover:border-slate-300" data-active="false">Investran</button>
+            <button data-stack class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-ink-600 hover:border-slate-300" data-active="false">Paxus</button>
+          </div>
+        </header>
+
+        <!-- Ecosystem status cards -->
+        <section class="grid grid-cols-2 gap-px border-b border-slate-200 bg-slate-200 md:grid-cols-4">
+          <div class="bg-white px-5 py-4">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500"><i data-lucide="database" class="h-3.5 w-3.5"></i> Indexed Providers</p>
+            <p class="mt-1 text-2xl font-semibold tnum text-ink">142</p>
+          </div>
+          <div class="bg-white px-5 py-4">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500"><i data-lucide="file-search" class="h-3.5 w-3.5"></i> Active RFIs</p>
+            <p class="mt-1 text-2xl font-semibold tnum text-ink">1,204</p>
+          </div>
+          <div class="bg-white px-5 py-4">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500"><i data-lucide="trending-down" class="h-3.5 w-3.5"></i> Avg. Fee Deviation</p>
+            <p class="mt-1 text-2xl font-semibold tnum text-emerald-700">-14%</p>
+          </div>
+          <div class="bg-white px-5 py-4">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500"><i data-lucide="badge-check" class="h-3.5 w-3.5"></i> Verified This Qtr</p>
+            <p class="mt-1 text-2xl font-semibold tnum text-ink">37</p>
+          </div>
+        </section>
+
+        <!-- Comparator: filter pane + grid -->
+        <main class="flex flex-1 items-start">
+          <!-- LEFT FILTER PANE -->
+          <aside class="hidden xl:block w-72 shrink-0 self-stretch border-r border-slate-200 bg-white">
+            <div class="sticky top-[calc(4rem+2.6rem)] max-h-[calc(100vh-6.6rem)] overflow-y-auto thin-scroll p-5 space-y-6">
+              <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-ink">Strict Parameters</h2>
+                <button class="text-xs font-medium text-emerald-700 hover:underline">Reset</button>
+              </div>
+
+              <!-- Price bounds -->
+              <div class="space-y-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Price Bounds (€/qtr)</p>
+                <div class="flex items-center justify-between text-xs tnum text-ink-600">
+                  <span>Min €<span id="minVal">800</span></span>
+                  <span>Max €<span id="maxVal">4,500</span></span>
+                </div>
+                <input id="minRange" type="range" min="500" max="6000" step="100" value="800" class="w-full" />
+                <input id="maxRange" type="range" min="500" max="6000" step="100" value="4500" class="w-full" />
+              </div>
+
+              <hr class="border-slate-100" />
+
+              <!-- Provider type -->
+              <div class="space-y-2.5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Provider Type</p>
+                <label class="flex items-center gap-2.5 text-sm text-ink-600"><input type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-emerald focus:ring-emerald" /> Boutique <span class="ml-auto text-xs tnum text-slate-400">41</span></label>
+                <label class="flex items-center gap-2.5 text-sm text-ink-600"><input type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-emerald focus:ring-emerald" /> Mid-Market <span class="ml-auto text-xs tnum text-slate-400">63</span></label>
+                <label class="flex items-center gap-2.5 text-sm text-ink-600"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-emerald focus:ring-emerald" /> Institutional <span class="ml-auto text-xs tnum text-slate-400">38</span></label>
+              </div>
+
+              <hr class="border-slate-100" />
+
+              <!-- Client portfolio density -->
+              <div class="space-y-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Client Portfolio Density</p>
+                <div class="flex items-center justify-between text-xs tnum text-ink-600">
+                  <span>Min mandates</span>
+                  <span id="densVal" class="font-medium text-ink">25+</span>
+                </div>
+                <input id="densRange" type="range" min="0" max="150" step="5" value="25" class="w-full" />
+              </div>
+
+              <hr class="border-slate-100" />
+
+              <!-- Regulatory scope -->
+              <div class="space-y-2.5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Regulatory Scope</p>
+                <label class="flex items-center gap-2.5 text-sm text-ink-600"><input type="checkbox" checked class="h-4 w-4 rounded border-slate-300 text-emerald focus:ring-emerald" /> AIFMD</label>
+                <label class="flex items-center gap-2.5 text-sm text-ink-600"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-emerald focus:ring-emerald" /> UCITS</label>
+                <label class="flex items-center gap-2.5 text-sm text-ink-600"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-emerald focus:ring-emerald" /> RAIF</label>
+              </div>
+            </div>
+          </aside>
+
+          <!-- RIGHT GRID -->
+          <section class="min-w-0 flex-1 p-4 sm:p-6">
+            <div class="mb-4 flex items-center justify-between">
+              <p class="text-sm text-ink-600"><span id="resultCount" class="font-semibold text-ink tnum">6</span> providers matched</p>
+              <div class="relative">
+                <select class="appearance-none rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-ink-600 focus:border-emerald focus:outline-none">
+                  <option>Sort: Peer Opinion Score</option>
+                  <option>Sort: Lowest Fee</option>
+                  <option>Sort: Headcount</option>
+                </select>
+                <i data-lucide="chevron-down" class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"></i>
+              </div>
+            </div>
+
+            <div id="cardGrid" class="space-y-3"></div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <!-- ============ FLOATING AI ADVISOR ============ -->
+    <div class="fixed bottom-5 right-5 z-40">
+      <!-- Toggle pill -->
+      <button
+        id="advisorToggle"
+        class="flex items-center gap-2 rounded-full bg-ink-900 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-ink-900/20 hover:bg-ink-800"
+      >
+        <i data-lucide="sparkles" class="h-4 w-4 text-emerald"></i> FundHub AI Advisor
+      </button>
+
+      <!-- Panel -->
+      <div
+        id="advisorPanel"
+        class="hidden absolute bottom-0 right-0 w-[22rem] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+      >
+        <div class="flex items-center justify-between bg-ink-900 px-4 py-3 text-white">
+          <div class="flex items-center gap-2">
+            <i data-lucide="sparkles" class="h-4 w-4 text-emerald"></i>
+            <div class="leading-tight">
+              <p class="text-sm font-semibold">FundHub AI Advisor</p>
+              <p class="text-[10px] text-slate-400">Operational & regulatory guidance</p>
+            </div>
+          </div>
+          <button id="advisorClose" class="text-slate-400 hover:text-white"><i data-lucide="x" class="h-4 w-4"></i></button>
+        </div>
+
+        <div class="thin-scroll max-h-80 space-y-3 overflow-y-auto bg-[#f7f8fa] p-4">
+          <!-- user -->
+          <div class="flex justify-end">
+            <div class="max-w-[80%] rounded-lg rounded-br-sm bg-ink-900 px-3 py-2 text-xs leading-relaxed text-white">
+              We're launching a RAIF and need a depositary + central admin. What should our RFI scope cover?
+            </div>
+          </div>
+          <!-- assistant -->
+          <div class="flex justify-start">
+            <div class="max-w-[88%] rounded-lg rounded-bl-sm border border-slate-200 bg-white px-3 py-2 text-xs leading-relaxed text-ink-600">
+              <p class="mb-1.5 flex items-center gap-1 font-semibold text-ink"><i data-lucide="shield-check" class="h-3.5 w-3.5 text-emerald"></i> Suggested RFI scope</p>
+              For a Luxembourg <span class="font-medium text-ink">RAIF</span> you'll want the depositary and central administration bundled under a single SLA. Key comparison points:
+              <ul class="mt-1.5 list-disc space-y-0.5 pl-4">
+                <li>AIFMD Art. 21 depositary duties &amp; oversight model</li>
+                <li>NAV frequency and cut-off (T+1 vs T+3)</li>
+                <li>eFront / Investran connectivity for LP reporting</li>
+              </ul>
+              <p class="mt-1.5">Providers tagged <span class="font-medium text-emerald-700">RAIF-ready</span> in the grid typically price this at <span class="tnum font-medium text-ink">€2,000–€3,200/qtr</span> at your mandate density.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
+          <input
+            type="text"
+            placeholder="Ask about fees, regs, or providers..."
+            class="flex-1 rounded-md border border-slate-200 bg-[#f7f8fa] px-3 py-2 text-xs text-ink placeholder:text-slate-400 focus:border-emerald focus:bg-white focus:outline-none"
+          />
+          <button class="flex h-8 w-8 items-center justify-center rounded-md bg-emerald text-white hover:bg-emerald-700">
+            <i data-lucide="send" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ VANILLA JS ============ -->
+    <script>
+      // ---- Provider dataset ----
+      const providers = [
+        {
+          name: "Lumen Fund Services S.A.",
+          type: "Institutional",
+          verified: true,
+          employees: "1,240",
+          stack: ["eFront", "Yardi"],
+          clients: ["Odyssey Capital", "Baltica PE", "Silverline SICAV"],
+          priceMin: 2400,
+          priceMax: 3200,
+          score: 4.7,
+          reviews: 128,
+          tags: ["AIFMD", "RAIF-ready"],
+        },
+        {
+          name: "Ardennes Administration Partners",
+          type: "Mid-Market",
+          verified: true,
+          employees: "410",
+          stack: ["Investran", "Paxus"],
+          clients: ["Meridian Growth", "Kingsway RE", "Talos Debt Fund"],
+          priceMin: 1500,
+          priceMax: 2200,
+          score: 4.4,
+          reviews: 86,
+          tags: ["AIFMD", "UCITS"],
+        },
+        {
+          name: "Moselle Compliance & Depositary",
+          type: "Boutique",
+          verified: true,
+          employees: "72",
+          stack: ["eFront"],
+          clients: ["Verta Ventures", "Nord Yield"],
+          priceMin: 900,
+          priceMax: 1600,
+          score: 4.8,
+          reviews: 54,
+          tags: ["RAIF-ready", "AIFMD"],
+        },
+        {
+          name: "Grand-Ducal Tax & Reporting",
+          type: "Mid-Market",
+          verified: false,
+          employees: "265",
+          stack: ["Yardi", "Paxus"],
+          clients: ["Helios Infra", "Castellan RE", "Auric Fund"],
+          priceMin: 1800,
+          priceMax: 2600,
+          score: 4.1,
+          reviews: 47,
+          tags: ["Tax", "UCITS"],
+        },
+        {
+          name: "Vianden Legal Structuring LLP",
+          type: "Boutique",
+          verified: true,
+          employees: "58",
+          stack: ["Investran"],
+          clients: ["Pelican SCSp", "Rhine Credit"],
+          priceMin: 1200,
+          priceMax: 2000,
+          score: 4.6,
+          reviews: 39,
+          tags: ["Legal", "AIFMD"],
+        },
+        {
+          name: "Kirchberg Global Fund Ops",
+          type: "Institutional",
+          verified: true,
+          employees: "2,050",
+          stack: ["eFront", "Investran", "Paxus"],
+          clients: ["Atlas Sovereign", "Northgate PE", "Pinnacle SICAV"],
+          priceMin: 2800,
+          priceMax: 4200,
+          score: 4.5,
+          reviews: 173,
+          tags: ["AIFMD", "UCITS", "RAIF-ready"],
+        },
+      ];
+
+      // ---- Star rating renderer ----
+      function stars(score) {
+        let html = "";
+        for (let i = 1; i <= 5; i++) {
+          if (score >= i) {
+            html += '<i data-lucide="star" class="h-3.5 w-3.5 fill-amber-400 text-amber-400"></i>';
+          } else if (score >= i - 0.5) {
+            html += '<i data-lucide="star-half" class="h-3.5 w-3.5 fill-amber-400 text-amber-400"></i>';
+          } else {
+            html += '<i data-lucide="star" class="h-3.5 w-3.5 text-slate-300"></i>';
+          }
+        }
+        return html;
+      }
+
+      const typeColors = {
+        Boutique: "bg-sky-50 text-sky-700 border-sky-200",
+        "Mid-Market": "bg-indigo-50 text-indigo-700 border-indigo-200",
+        Institutional: "bg-ink-50 text-ink-700 border-slate-300",
+      };
+
+      // ---- Card renderer ----
+      function renderCards(list) {
+        const grid = document.getElementById("cardGrid");
+        grid.innerHTML = list
+          .map(
+            (p) => `
+          <article class="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-emerald/50 hover:shadow-sm">
+            <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-base font-semibold text-ink">${p.name}</h3>
+                  ${
+                    p.verified
+                      ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald/30"><i data-lucide="badge-check" class="h-3 w-3"></i> FundHub Verified</span>`
+                      : `<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500"><i data-lucide="clock" class="h-3 w-3"></i> Pending review</span>`
+                  }
+                  <span class="rounded-full border px-2 py-0.5 text-[11px] font-medium ${typeColors[p.type]}">${p.type}</span>
+                </div>
+
+                <!-- structured metadata tags -->
+                <div class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs">
+                  <div>
+                    <p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Headcount (RCS)</p>
+                    <p class="tnum font-medium text-ink">${p.employees}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Tech Stack</p>
+                    <p class="font-medium text-ink">${p.stack.join(" + ")}</p>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Top Clients</p>
+                    <p class="truncate font-medium text-ink">${p.clients.join(", ")}</p>
+                  </div>
+                </div>
+
+                <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                  ${p.tags
+                    .map(
+                      (t) =>
+                        `<span class="rounded bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-ink-600 ring-1 ring-slate-200">${t}</span>`
+                    )
+                    .join("")}
+                </div>
+              </div>
+
+              <!-- right column: price + rating + actions -->
+              <div class="flex shrink-0 flex-col gap-3 md:w-56 md:items-end md:text-right">
+                <div>
+                  <p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Empirical Price Range</p>
+                  <p class="tnum text-lg font-semibold text-ink">€${p.priceMin.toLocaleString()} – €${p.priceMax.toLocaleString()}<span class="text-xs font-normal text-slate-400">/qtr</span></p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Peer Opinion Score</p>
+                  <div class="mt-0.5 flex items-center gap-1 md:justify-end">
+                    <div class="flex items-center gap-0.5">${stars(p.score)}</div>
+                    <span class="tnum text-xs font-medium text-ink">${p.score.toFixed(1)}</span>
+                    <span class="text-[11px] text-slate-400">(${p.reviews})</span>
+                  </div>
+                </div>
+                <div class="flex w-full gap-2 md:justify-end">
+                  <button class="flex-1 rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-ink-600 hover:bg-slate-50 md:flex-none">View Full Profile</button>
+                  <button class="flex-1 rounded-md bg-emerald px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 md:flex-none">Request RFI / Audit Fee</button>
+                </div>
+              </div>
+            </div>
+          </article>`
+          )
+          .join("");
+        document.getElementById("resultCount").textContent = list.length;
+        lucide.createIcons();
+      }
+
+      // ---- Filtering by price bounds ----
+      const minRange = document.getElementById("minRange");
+      const maxRange = document.getElementById("maxRange");
+      const densRange = document.getElementById("densRange");
+
+      function applyFilters() {
+        let min = parseInt(minRange.value, 10);
+        let max = parseInt(maxRange.value, 10);
+        if (min > max) {
+          [min, max] = [max, min];
+        }
+        document.getElementById("minVal").textContent = min.toLocaleString();
+        document.getElementById("maxVal").textContent = max.toLocaleString();
+        const filtered = providers.filter(
+          (p) => p.priceMax >= min && p.priceMin <= max
+        );
+        renderCards(filtered);
+      }
+
+      minRange.addEventListener("input", applyFilters);
+      maxRange.addEventListener("input", applyFilters);
+      densRange.addEventListener("input", (e) => {
+        document.getElementById("densVal").textContent = e.target.value + "+";
+      });
+
+      // ---- Tech stack toggle chips ----
+      document.querySelectorAll("[data-stack]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const active = btn.dataset.active === "true";
+          btn.dataset.active = (!active).toString();
+          if (!active) {
+            btn.className =
+              "rounded-full border border-emerald bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700";
+          } else {
+            btn.className =
+              "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-ink-600 hover:border-slate-300";
+          }
+        });
+      });
+
+      // ---- AI advisor toggle ----
+      const panel = document.getElementById("advisorPanel");
+      const toggle = document.getElementById("advisorToggle");
+      document.getElementById("advisorClose").addEventListener("click", () => panel.classList.add("hidden"));
+      toggle.addEventListener("click", () => panel.classList.toggle("hidden"));
+
+      // Open advisor by default on large screens
+      if (window.matchMedia("(min-width: 1024px)").matches) {
+        panel.classList.remove("hidden");
+      }
+
+      // ---- Init ----
+      renderCards(providers);
+      lucide.createIcons();
+    </script>
+  </body>
+</html>

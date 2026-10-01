@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+@theme {
+  --color-canvas: #f7f8fa;
+
+  --color-ink: #1e2632;
+  --color-ink-50: #f4f6f8;
+  --color-ink-600: #3b4658;
+  --color-ink-700: #2b3442;
+  --color-ink-800: #232b37;
+  --color-ink-900: #1a212b;
+
+  /* Emerald is the single action accent. */
+  --color-emerald: #0f9d78;
+  --color-emerald-50: #e7f6f1;
+  --color-emerald-600: #0f9d78;
+  --color-emerald-700: #0c8265;
+}
+
+@layer base {
+  body {
+    @apply bg-canvas text-ink antialiased;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@utility thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd2dc transparent;
+}
+
+/* Range slider */
+input[type="range"].range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #e2e6ec;
+  border-radius: 9999px;
+  outline: none;
+}
+input[type="range"].range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--color-emerald);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
+input[type="range"].range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--color-emerald);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+input[type="range"].range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgb(15 157 120 / 0.25);
+}
+
+input[type="checkbox"].check {
+  accent-color: var(--color-emerald);
+}
