@@ -33,7 +33,7 @@ const TOPICS: Topic[] = [
       "NAV frequency and cut-off (quarterly NAV is typical for closed-ended RAIFs)",
       "Notarial deed + registration with RCS within 5 days; listing on the RAIF list",
     ],
-    filters: { reg: "RAIF", sort: "score" },
+    filters: { reg: "RAIF", category: "fund-administration", sort: "score" },
   },
   {
     keywords: ["ucits", "sicav", "kiid", "kid", "priips"],
@@ -44,7 +44,7 @@ const TOPICS: Topic[] = [
       "Transfer agency with distributor oversight and AML/KYC on investors",
       "Subscription tax at 0.05% p.a. (0.01% for institutional classes)",
     ],
-    filters: { reg: "UCITS", sort: "score" },
+    filters: { reg: "UCITS", category: "aifm-manco", sort: "score" },
   },
   {
     keywords: ["depositary", "custody", "custodian", "art. 21", "article 21"],
@@ -55,7 +55,7 @@ const TOPICS: Topic[] = [
       "Cash-flow monitoring frequency and escalation process",
       "Liability regime and any discharge via contract",
     ],
-    filters: { q: "depositary", sort: "fee" },
+    filters: { category: "depositary-banking", sort: "fee" },
   },
   {
     keywords: ["aml", "kyc", "mlro", "anti-money", "18/698", "rc ", "compliance officer"],
@@ -66,7 +66,7 @@ const TOPICS: Topic[] = [
       "Annual AML/CFT questionnaire and reporting to the CSSF",
       "Board-level oversight of delegated AML functions",
     ],
-    filters: { category: "Compliance", sort: "score" },
+    filters: { category: "regulatory-compliance", sort: "score" },
   },
   {
     keywords: ["subscription tax", "taxe d'abonnement", "tax d'abonnement"],
@@ -77,7 +77,7 @@ const TOPICS: Topic[] = [
       "Exemptions for money-market, pension pooling and certain ESG/ELTIF products",
       "Reduced rates for UCITS investing in sustainable activities (Taxonomy-aligned)",
     ],
-    filters: { category: "Tax", sort: "score" },
+    filters: { category: "tax", sort: "score" },
   },
   {
     keywords: ["fatca", "crs"],
@@ -88,7 +88,7 @@ const TOPICS: Topic[] = [
       "Annual XML filing to the Administration des Contributions Directes",
       "CRS policies and procedures + annual compliance review",
     ],
-    filters: { category: "Tax", q: "fatca" },
+    filters: { service: "FATCA & CRS Reporting" },
   },
   {
     keywords: ["dac6", "mandatory disclosure"],
@@ -99,7 +99,7 @@ const TOPICS: Topic[] = [
       "Intermediary vs. taxpayer reporting obligations",
       "Documented assessment retained even when not reportable",
     ],
-    filters: { category: "Tax", q: "dac6" },
+    filters: { category: "tax" },
   },
   {
     keywords: ["atad", "interest limitation", "hybrid", "transfer pricing", "tp "],
@@ -110,7 +110,7 @@ const TOPICS: Topic[] = [
       "Transfer-pricing report for shareholder loans and profit-participating loans",
       "Reverse-hybrid rules for transparent partnerships (SCSp) since 2022",
     ],
-    filters: { q: "transfer pricing", category: "Tax" },
+    filters: { service: "Transfer Pricing Documentation" },
   },
   {
     keywords: ["sfdr", "esg", "article 8", "article 9", "taxonomy"],
@@ -121,7 +121,7 @@ const TOPICS: Topic[] = [
       "Data sourcing for PAIs and taxonomy alignment",
       "ESMA fund-naming guidelines (80% threshold for ESG terms)",
     ],
-    filters: { q: "sfdr" },
+    filters: { category: "regulatory-compliance", q: "sfdr" },
   },
   {
     keywords: ["annex iv", "aifmd reporting", "aifmd ii", "aifmd"],
@@ -132,7 +132,7 @@ const TOPICS: Topic[] = [
       "Liquidity management tools for open-ended AIFs (at least two from Annex V)",
       "Loan-origination leverage caps and risk-retention rules",
     ],
-    filters: { reg: "AIFMD", q: "annex iv" },
+    filters: { service: "AIFMD Annex IV Reporting" },
   },
   {
     keywords: ["scsp", "scs", "partnership", "lpa", "fund formation", "launch", "set up a fund", "structuring"],
@@ -143,7 +143,7 @@ const TOPICS: Topic[] = [
       "LPA, side-letter management and MFN process",
       "Typical launch timeline: 8–12 weeks for a RAIF SCSp",
     ],
-    filters: { category: "Legal", sort: "score" },
+    filters: { category: "governance-domiciliation", sort: "score" },
   },
   {
     keywords: ["eltif"],
@@ -154,7 +154,7 @@ const TOPICS: Topic[] = [
       "Redemption gates and liquidity pocket design",
       "Retail suitability and marketing rules",
     ],
-    filters: { q: "eltif" },
+    filters: { reg: "ELTIF" },
   },
   {
     keywords: ["valuation", "nav", "level 3", "risk management", "stress test"],
@@ -165,7 +165,7 @@ const TOPICS: Topic[] = [
       "Independent valuer liability and professional indemnity insurance",
       "Liquidity stress testing per ESMA guidelines",
     ],
-    filters: { q: "valuation" },
+    filters: { service: "Independent Valuation" },
   },
   {
     keywords: ["manco", "aifm", "third-party", "substance", "conducting officer"],
@@ -176,7 +176,7 @@ const TOPICS: Topic[] = [
       "At least two conducting officers resident or present in Luxembourg",
       "Fee models: bps of AuM with a minimum annual fee",
     ],
-    filters: { q: "aifm" },
+    filters: { category: "aifm-manco", sort: "score" },
   },
   {
     keywords: ["fee", "price", "cost", "cheap", "budget", "quote", "how much"],
@@ -189,20 +189,64 @@ const TOPICS: Topic[] = [
     ],
     filters: { sort: "fee" },
   },
+  {
+    keywords: ["referral", "kickback", "commission", "independent", "conflict", "recommend", "law firm"],
+    title: "Avoiding referral-driven choices",
+    body: "In Luxembourg, providers are often recommended by the law firm or administrator that set up your fund, sometimes under referral fees or reciprocal deals. Ask every adviser to confirm in writing that they receive no benefit from your choice. FundHub takes no referral fees or commissions.",
+    points: [
+      "Ask: do you receive any fee or benefit if we appoint this provider?",
+      "Compare the full market, not a pre-selected shortlist",
+      "Use a standardized RFI so proposals are comparable",
+    ],
+    filters: { sort: "score" },
+  },
+  {
+    keywords: ["audit", "proposal", "overcharg", "negotiat", "too expensive", "hidden"],
+    title: "Independent fee audit",
+    body: "FundHub's advisors benchmark proposals and invoices line by line against our market data and negotiate on your behalf. We're paid by you (flat fee or share of savings), never by the provider. See /advisory.",
+    points: [
+      "Hidden per-SPV, per-investor and per-transaction charges",
+      "Out-of-pocket and 'technology' expenses",
+      "Minimum fees and indexation clauses vs. market",
+    ],
+    filters: { sort: "fee" },
+  },
+  {
+    keywords: ["domicil", "registered office", "director", "corporate secretar", "rbe", "liquidation"],
+    title: "Domiciliation & governance",
+    body: "Every Luxembourg entity needs a registered office with a licensed domiciliation agent, board meetings held in Luxembourg for substance, and timely RCS/RBE filings.",
+    points: [
+      "Check the agent's licence under the Law of 31 May 1999",
+      "Limit how many mandates each independent director holds",
+      "Prefer a fixed annual fee per entity over hourly billing",
+    ],
+    filters: { category: "governance-domiciliation", sort: "score" },
+  },
+  {
+    keywords: ["spv", "holdco", "soparfi", "bookkeeping", "consolidation", "statutory accounts"],
+    title: "SPV & HoldCo accounting",
+    body: "Private-markets structures hold assets through SOPARFIs and SPVs that each need bookkeeping, statutory accounts (eCDF filing) and often consolidation.",
+    points: [
+      "Price per entity, including eCDF filing",
+      "Lux GAAP vs IFRS and consolidation capability",
+      "Combine with CIT/NWT compliance to avoid double handling",
+    ],
+    filters: { category: "corporate-accounting", sort: "score" },
+  },
 ];
 
 const FALLBACK: Omit<Topic, "keywords"> = {
   title: "How I can help",
-  body: "I can guide you on Luxembourg fund structures and servicing: RAIF, UCITS, SCSp, depositary models, AML/MLRO, subscription tax, FATCA/CRS, DAC6, ATAD, SFDR, AIFMD reporting and fee benchmarking.",
+  body: "I can guide you on Luxembourg fund structures and servicing: RAIF, UCITS, SCSp, depositary models, ManCos, domiciliation, SPV accounting, AML/MLRO, tax, SFDR, AIFMD reporting, fee benchmarking and avoiding referral-driven choices.",
   points: [
     "Try: “What do I need for a RAIF depositary?”",
     "Try: “Who handles transfer pricing for SPVs?”",
-    "Try: “Cheapest compliance providers using eFront”",
+    "Try: “Is my administration proposal too expensive?”",
   ],
   filters: { sort: "score" },
 };
 
-const STACKS = ["efront", "yardi", "investran", "paxus"];
+const STACKS = ["efront", "yardi", "investran", "paxus", "multifonds", "allvue"];
 
 function scoreTopic(text: string, t: Topic) {
   return t.keywords.reduce((s, k) => (text.includes(k) ? s + k.length : s), 0);
@@ -245,6 +289,6 @@ export async function answerAdvisorQuestion(question: string): Promise<AdvisorRe
       priceMax: p.priceMax,
       verified: p.verified,
     })),
-    filterHref: qs ? `/?${qs}` : "/",
+    filterHref: qs ? `/compare?${qs}` : "/compare",
   };
 }

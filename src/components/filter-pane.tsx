@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PROVIDER_TYPES, REGULATORY_SCOPES } from "@/db/schema";
+import { ASSET_CLASSES, LICENCES, PROVIDER_TYPES, REGULATORY_SCOPES, TECH_STACKS } from "@/db/schema";
 import { DENSITY_CEILING, PRICE_CEILING, PRICE_FLOOR } from "@/lib/filters";
 import { formatNumber } from "@/lib/format";
 import { useFilterParams } from "./use-filter-params";
@@ -18,6 +18,35 @@ function useDebounced(fn: (v: Record<string, number | undefined>) => void, ms = 
 const Heading = ({ children }: { children: React.ReactNode }) => (
   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</p>
 );
+
+function CheckGroup({
+  title,
+  options,
+  selected,
+  onToggle,
+  counts,
+}: {
+  title: string;
+  options: readonly string[];
+  selected: string[];
+  onToggle: (v: string) => void;
+  counts?: Record<string, number>;
+}) {
+  return (
+    <fieldset className="space-y-2.5">
+      <legend className="mb-2.5">
+        <Heading>{title}</Heading>
+      </legend>
+      {options.map((o) => (
+        <label key={o} className="flex cursor-pointer items-center gap-2.5 text-sm text-ink-600">
+          <input type="checkbox" className="check h-4 w-4" checked={selected.includes(o)} onChange={() => onToggle(o)} />
+          {o}
+          {counts && <span className="ml-auto text-xs tnum text-slate-400">{counts[o] ?? 0}</span>}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
 
 export function FilterPane({ typeCounts }: { typeCounts: Record<string, number> }) {
   const { get, getList, update, toggleInList, reset } = useFilterParams();
@@ -42,8 +71,6 @@ export function FilterPane({ typeCounts }: { typeCounts: Record<string, number> 
       max: hi < PRICE_CEILING ? hi : undefined,
     });
 
-  const types = getList("type");
-  const regs = getList("reg");
   const [lo, hi] = min <= max ? [min, max] : [max, min];
 
   return (
@@ -96,23 +123,13 @@ export function FilterPane({ typeCounts }: { typeCounts: Record<string, number> 
 
       <hr className="border-slate-100" />
 
-      <fieldset className="space-y-2.5">
-        <legend className="mb-2.5">
-          <Heading>Provider Type</Heading>
-        </legend>
-        {PROVIDER_TYPES.map((t) => (
-          <label key={t} className="flex cursor-pointer items-center gap-2.5 text-sm text-ink-600">
-            <input
-              type="checkbox"
-              className="check h-4 w-4"
-              checked={types.includes(t)}
-              onChange={() => toggleInList("type", t)}
-            />
-            {t}
-            <span className="ml-auto text-xs tnum text-slate-400">{typeCounts[t] ?? 0}</span>
-          </label>
-        ))}
-      </fieldset>
+      <CheckGroup
+        title="Provider Type"
+        options={PROVIDER_TYPES}
+        selected={getList("type")}
+        onToggle={(v) => toggleInList("type", v)}
+        counts={typeCounts}
+      />
 
       <hr className="border-slate-100" />
 
@@ -140,22 +157,39 @@ export function FilterPane({ typeCounts }: { typeCounts: Record<string, number> 
 
       <hr className="border-slate-100" />
 
-      <fieldset className="space-y-2.5">
-        <legend className="mb-2.5">
-          <Heading>Regulatory Scope</Heading>
-        </legend>
-        {REGULATORY_SCOPES.map((r) => (
-          <label key={r} className="flex cursor-pointer items-center gap-2.5 text-sm text-ink-600">
-            <input
-              type="checkbox"
-              className="check h-4 w-4"
-              checked={regs.includes(r)}
-              onChange={() => toggleInList("reg", r)}
-            />
-            {r}
-          </label>
-        ))}
-      </fieldset>
+      <CheckGroup
+        title="Asset Classes"
+        options={ASSET_CLASSES}
+        selected={getList("asset")}
+        onToggle={(v) => toggleInList("asset", v)}
+      />
+
+      <hr className="border-slate-100" />
+
+      <CheckGroup
+        title="Licences & Authorisations"
+        options={LICENCES}
+        selected={getList("licence")}
+        onToggle={(v) => toggleInList("licence", v)}
+      />
+
+      <hr className="border-slate-100" />
+
+      <CheckGroup
+        title="Regulatory Scope"
+        options={REGULATORY_SCOPES}
+        selected={getList("reg")}
+        onToggle={(v) => toggleInList("reg", v)}
+      />
+
+      <hr className="border-slate-100" />
+
+      <CheckGroup
+        title="Tech Stack"
+        options={TECH_STACKS}
+        selected={getList("stack")}
+        onToggle={(v) => toggleInList("stack", v)}
+      />
     </div>
   );
 }

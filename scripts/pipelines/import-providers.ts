@@ -7,7 +7,9 @@
  *   npm run pipeline:import -- file.csv --dry-run            (validate only)
  *
  * CSV: header row with the field names from data/providers.json.
- * List fields (techStack, topClients, regulatoryScope, services, tags) use "|" as separator.
+ * List fields (secondaryCategories, techStack, topClients, regulatoryScope, services, assetClasses,
+ * licences, certifications, footprint, tags) use "|" as separator. `category` is a taxonomy slug and
+ * `services` must use the canonical names from src/lib/taxonomy.ts.
  */
 import "dotenv/config";
 import { readFile } from "node:fs/promises";

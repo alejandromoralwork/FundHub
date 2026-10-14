@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { sql } from "drizzle-orm";
-import { CATEGORIES, PROVIDER_TYPES, providers, type NewProvider, type ProviderStatus } from "@/db/schema";
+import { PROVIDER_TYPES, providers, type NewProvider, type ProviderStatus } from "@/db/schema";
 import { slugify } from "./format";
+import { ALL_SERVICES, CATEGORY_SLUGS } from "./taxonomy";
 
 const stringList = z
   .union([z.array(z.string()), z.string()])
@@ -19,17 +20,25 @@ export const providerInputSchema = z
   .object({
     name: z.string().trim().min(2),
     slug: optionalString,
-    category: z.enum(CATEGORIES),
+    category: z.enum(CATEGORY_SLUGS),
+    secondaryCategories: stringList.pipe(z.array(z.enum(CATEGORY_SLUGS))),
     providerType: z.enum(PROVIDER_TYPES),
     headcount: z.coerce.number().int().positive(),
     mandates: z.coerce.number().int().min(0).default(0),
     techStack: stringList,
     topClients: stringList,
     regulatoryScope: stringList,
-    services: stringList,
+    services: stringList.refine((list) => list.every((s) => ALL_SERVICES.includes(s)), {
+      message: "services must use the canonical names from src/lib/taxonomy.ts",
+    }),
     tags: stringList,
+    assetClasses: stringList,
+    licences: stringList,
+    certifications: stringList,
+    footprint: stringList,
     priceMin: z.coerce.number().int().positive(),
     priceMax: z.coerce.number().int().positive(),
+    setupFee: z.coerce.number().int().positive().optional().catch(undefined),
     rating: z.coerce.number().min(0).max(5).default(0),
     reviewCount: z.coerce.number().int().min(0).default(0),
     verified: z
@@ -47,7 +56,12 @@ export const providerInputSchema = z
 export type ProviderInput = z.infer<typeof providerInputSchema>;
 
 export function toNewProvider(input: ProviderInput, status: ProviderStatus): NewProvider {
-  return { ...input, slug: input.slug ?? slugify(input.name), status };
+  return {
+    ...input,
+    slug: input.slug ?? slugify(input.name),
+    status,
+    lastVerifiedAt: input.verified ? new Date() : null,
+  };
 }
 
 /** Insert-or-update by slug. Returns the number of rows written. */
@@ -66,6 +80,7 @@ export async function upsertProviders(
       set: {
         name: sql`excluded.name`,
         category: sql`excluded.category`,
+        secondaryCategories: sql`excluded.secondary_categories`,
         providerType: sql`excluded.provider_type`,
         headcount: sql`excluded.headcount`,
         mandates: sql`excluded.mandates`,
@@ -74,8 +89,13 @@ export async function upsertProviders(
         regulatoryScope: sql`excluded.regulatory_scope`,
         services: sql`excluded.services`,
         tags: sql`excluded.tags`,
+        assetClasses: sql`excluded.asset_classes`,
+        licences: sql`excluded.licences`,
+        certifications: sql`excluded.certifications`,
+        footprint: sql`excluded.footprint`,
         priceMin: sql`excluded.price_min`,
         priceMax: sql`excluded.price_max`,
+        setupFee: sql`excluded.setup_fee`,
         rating: sql`excluded.rating`,
         reviewCount: sql`excluded.review_count`,
         verified: sql`excluded.verified`,
@@ -84,6 +104,7 @@ export async function upsertProviders(
         headquarters: sql`excluded.headquarters`,
         website: sql`excluded.website`,
         description: sql`excluded.description`,
+        lastVerifiedAt: sql`excluded.last_verified_at`,
         status: sql`excluded.status`,
         updatedAt: sql`(unixepoch())`,
       },

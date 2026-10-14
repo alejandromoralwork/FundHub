@@ -1,4 +1,4 @@
-import { BadgeCheck, Clock } from "lucide-react";
+import { BadgeCheck, Clock, ShieldCheck } from "lucide-react";
 import type { ProviderType } from "@/db/schema";
 import { cn } from "@/lib/cn";
 
@@ -26,10 +26,29 @@ export function TypeBadge({ type }: { type: ProviderType }) {
   );
 }
 
-export function Tag({ children }: { children: React.ReactNode }) {
+export function Tag({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
   return (
-    <span className="rounded bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-ink-600 ring-1 ring-slate-200">
+    <span
+      className={cn(
+        "rounded px-2 py-0.5 text-[11px] font-medium ring-1",
+        accent ? "bg-emerald-50 text-emerald-700 ring-emerald/30" : "bg-slate-50 text-ink-600 ring-slate-200",
+      )}
+    >
       {children}
+    </span>
+  );
+}
+
+/** Small pill stating FundHub's independence; used across marketing sections. */
+export function IndependentBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald/30",
+        className,
+      )}
+    >
+      <ShieldCheck className="h-3 w-3" /> Independent · No referral fees
     </span>
   );
 }

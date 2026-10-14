@@ -14,11 +14,12 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "FundHub Lux — Luxembourg Fund Services Directory & Price Comparator",
+    default: "FundHub Lux · Independent Fund Services Comparator & Advisor in Luxembourg",
     template: "%s · FundHub Lux",
   },
   description:
-    "Institutional-grade B2B directory and empirical price comparator for the Luxembourg fund services market. Compare providers by tech stack, scale, and audited fee ranges.",
+    "Independent comparator and buy-side advisor for Luxembourg fund services. Compare administrators, depositaries, ManCos, tax and legal providers on real fees, tech and peer reviews. No referral fees, no commissions.",
+  openGraph: { type: "website", siteName: "FundHub Lux", locale: "en_GB" },
   metadataBase: process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? new URL(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`)
     : undefined,

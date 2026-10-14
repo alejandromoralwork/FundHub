@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // libSQL ships native bindings; keep it out of the server bundle.
   serverExternalPackages: ["@libsql/client", "libsql"],
+  async redirects() {
+    return [{ source: "/about", destination: "/methodology", permanent: true }];
+  },
 };
 
 export default nextConfig;

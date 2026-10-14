@@ -25,7 +25,7 @@ const INTRO: Message[] = [
         "eFront / Investran connectivity for LP reporting",
       ],
       providers: [],
-      filterHref: "/?reg=RAIF",
+      filterHref: "/compare?reg=RAIF",
     },
   },
 ];
@@ -195,7 +195,7 @@ export function AdvisorWidget() {
             </button>
           </form>
           <p className="border-t border-slate-100 bg-white px-3 py-1.5 text-[10px] text-slate-400">
-            General information only — not legal or tax advice.
+            General information only, not legal or tax advice. Independent: no referral fees.
           </p>
         </div>
       )}

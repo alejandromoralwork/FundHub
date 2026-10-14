@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CATEGORIES, PROVIDER_TYPES, REGULATORY_SCOPES, TECH_STACKS } from "@/db/schema";
+import { ASSET_CLASSES, LICENCES, PROVIDER_TYPES, REGULATORY_SCOPES, TECH_STACKS } from "@/db/schema";
+import { ALL_SERVICES, CATEGORY_SLUGS } from "./taxonomy";
 
 export const PRICE_FLOOR = 500;
 export const PRICE_CEILING = 6000;
@@ -38,7 +39,10 @@ const optionalInt = (min: number, max: number) =>
 
 const filterSchema = z.object({
   q: z.string().trim().max(120).optional().catch(undefined),
-  category: z.enum(CATEGORIES).optional().catch(undefined),
+  category: z.enum(CATEGORY_SLUGS).optional().catch(undefined),
+  service: csvOf(ALL_SERVICES).catch([]),
+  asset: csvOf(ASSET_CLASSES).catch([]),
+  licence: csvOf(LICENCES).catch([]),
   scale: z.enum(Object.keys(SCALE_BANDS) as [ScaleBand, ...ScaleBand[]]).optional().catch(undefined),
   stack: csvOf(TECH_STACKS).catch([]),
   type: csvOf(PROVIDER_TYPES).catch([]),

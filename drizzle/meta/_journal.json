@@ -8,6 +8,13 @@
       "when": 1790836132035,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791968423820,
+      "tag": "0001_business_plan_taxonomy",
+      "breakpoints": true
     }
   ]
 }

@@ -2,11 +2,11 @@
 
 import { Loader2, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useFilterParams } from "./use-filter-params";
+import { COMPARATOR_PATH, useFilterParams } from "./use-filter-params";
 
 export function TopSearch() {
   const { get, update, isPending, pathname } = useFilterParams();
-  const urlQuery = pathname === "/" ? get("q") : "";
+  const urlQuery = pathname === COMPARATOR_PATH ? get("q") : "";
   const [value, setValue] = useState(urlQuery);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -37,12 +37,12 @@ export function TopSearch() {
           const q = e.target.value;
           setValue(q);
           // Live-filter on the comparator; elsewhere wait for Enter.
-          if (pathname === "/") {
+          if (pathname === COMPARATOR_PATH) {
             clearTimeout(timer.current);
             timer.current = setTimeout(() => commit(q), 300);
           }
         }}
-        placeholder="Search fund service providers, software stacks, or regulations..."
+        placeholder="Search providers, services, software stacks or regulations…"
         className="w-full rounded-md border border-slate-200 bg-canvas py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-slate-400 focus:border-emerald focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald/20 [&::-webkit-search-cancel-button]:hidden"
       />
       <span className="absolute right-3 top-1/2 -translate-y-1/2">

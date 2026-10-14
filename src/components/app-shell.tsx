@@ -3,26 +3,82 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { BookOpen, FileText, Layers, Menu, Plus, Search, TrendingUp, X, type LucideIcon } from "lucide-react";
+import {
+  Award,
+  BookOpen,
+  FileText,
+  Handshake,
+  Home,
+  LayoutGrid,
+  Layers,
+  Menu,
+  Newspaper,
+  Search,
+  ShieldCheck,
+  Store,
+  TrendingUp,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { SiteFooter } from "./site-footer";
 import { TopSearch } from "./top-search";
 import { cn } from "@/lib/cn";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 const NAV: { section: string; items: NavItem[] }[] = [
-  { section: "Discovery", items: [{ href: "/", label: "Comparator Grid", icon: Search }] },
+  { section: "Overview", items: [{ href: "/", label: "Home", icon: Home }] },
   {
-    section: "Intelligence",
+    section: "Compare",
     items: [
+      { href: "/compare", label: "Provider Comparator", icon: Search },
+      { href: "/services", label: "Service Categories", icon: LayoutGrid },
       { href: "/benchmarks", label: "Fee Benchmarks", icon: TrendingUp },
-      { href: "/rfi", label: "Request an RFI", icon: FileText },
     ],
   },
-  { section: "Platform", items: [{ href: "/about", label: "Methodology & API", icon: BookOpen }] },
+  {
+    section: "Advisory",
+    items: [
+      { href: "/advisory", label: "Independent Advisory", icon: Handshake },
+      { href: "/rfi", label: "Request Quotes", icon: FileText },
+    ],
+  },
+  {
+    section: "Knowledge",
+    items: [
+      { href: "/insights", label: "Insights", icon: Newspaper },
+      { href: "/methodology", label: "Methodology & Data", icon: BookOpen },
+    ],
+  },
+  {
+    section: "FundHub",
+    items: [
+      { href: "/independence", label: "Independence Charter", icon: ShieldCheck },
+      { href: "/for-providers", label: "For Service Providers", icon: Store },
+    ],
+  },
 ];
 
 function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" || pathname.startsWith("/providers") : pathname.startsWith(href);
+  if (href === "/") return pathname === "/";
+  if (href === "/compare") return pathname.startsWith("/compare") || pathname.startsWith("/providers");
+  return pathname.startsWith(href);
+}
+
+/** Persistent statement of independence, shown on every page. */
+function IndependenceBanner() {
+  return (
+    <div className="flex items-center justify-center gap-2 bg-ink-900 px-4 py-1.5 text-center text-[11px] text-slate-300">
+      <ShieldCheck className="hidden h-3.5 w-3.5 shrink-0 text-emerald sm:block" />
+      <p>
+        <span className="font-semibold text-white">Independent by design.</span> FundHub accepts no referral fees or
+        commissions from service providers.{" "}
+        <Link href="/independence" className="font-medium text-emerald hover:underline">
+          Read our charter →
+        </Link>
+      </p>
+    </div>
+  );
 }
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -37,7 +93,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <span className="block text-sm font-semibold text-white">
             FundHub<span className="text-emerald"> Lux</span>
           </span>
-          <span className="block text-[10px] uppercase tracking-widest text-slate-400">Fund Services Index</span>
+          <span className="block text-[10px] uppercase tracking-widest text-slate-400">Independent Comparator</span>
         </span>
       </Link>
 
@@ -67,9 +123,12 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-ink-700 p-4 text-[11px] leading-relaxed text-slate-400">
-        <p className="font-medium text-slate-300">Public beta · v0.1</p>
-        <p>Fee ranges are indicative quarterly quotes, not offers.</p>
+      <div className="space-y-2 border-t border-ink-700 p-4 text-[11px] leading-relaxed text-slate-400">
+        <p className="flex items-center gap-1.5 font-semibold text-emerald">
+          <Award className="h-3.5 w-3.5" /> Independent · No referral fees
+        </p>
+        <p>Paid by buyers, never by referrals. Rankings can&apos;t be bought.</p>
+        <p className="text-slate-500">Public beta · fee ranges are indicative, not offers.</p>
       </div>
     </div>
   );
@@ -115,6 +174,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <IndependenceBanner />
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
             <button
@@ -129,14 +189,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Suspense>
             <Link
               href="/rfi"
+              className="hidden items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-ink-600 hover:bg-slate-50 md:flex"
+            >
+              <FileText className="h-4 w-4" />
+              Request quotes
+            </Link>
+            <Link
+              href="/advisory"
               className="flex items-center gap-2 rounded-md bg-ink-900 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800 sm:px-4"
             >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">New RFI</span>
+              <Handshake className="h-4 w-4" />
+              <span className="hidden sm:inline">Talk to an advisor</span>
             </Link>
           </div>
         </header>
         {children}
+        <SiteFooter />
       </div>
     </div>
   );

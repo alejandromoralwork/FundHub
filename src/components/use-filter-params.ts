@@ -3,6 +3,8 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useTransition } from "react";
 
+export const COMPARATOR_PATH = "/compare";
+
 /** Reads and writes comparator filters in the URL query string. */
 export function useFilterParams() {
   const router = useRouter();
@@ -21,17 +23,18 @@ export function useFilterParams() {
   const update = useCallback(
     (changes: Record<string, string | string[] | number | undefined>) => {
       // Other pages' query params (e.g. /rfi?provider=) don't belong on the comparator.
-      const next = new URLSearchParams(pathname === "/" ? searchParams.toString() : "");
+      const onComparator = pathname === COMPARATOR_PATH;
+      const next = new URLSearchParams(onComparator ? searchParams.toString() : "");
       for (const [key, value] of Object.entries(changes)) {
         const str = Array.isArray(value) ? value.join(",") : value === undefined ? "" : String(value);
         if (str) next.set(key, str);
         else next.delete(key);
       }
       const qs = next.toString();
-      const href = qs ? `/?${qs}` : "/";
+      const href = qs ? `${COMPARATOR_PATH}?${qs}` : COMPARATOR_PATH;
       startTransition(() => {
         // Filters only apply on the comparator, so navigate there from other pages.
-        if (pathname === "/") router.replace(href, { scroll: false });
+        if (onComparator) router.replace(href, { scroll: false });
         else router.push(href);
       });
     },
@@ -47,7 +50,7 @@ export function useFilterParams() {
   );
 
   const reset = useCallback(() => {
-    startTransition(() => router.replace("/", { scroll: false }));
+    startTransition(() => router.replace(COMPARATOR_PATH, { scroll: false }));
   }, [router]);
 
   return { get, getList, update, toggleInList, reset, isPending, pathname };

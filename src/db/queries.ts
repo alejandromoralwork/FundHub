@@ -1,14 +1,20 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, inArray, like, lte, or, sql, type Column, type SQL } from "drizzle-orm";
 import { db } from "./index";
-import { CATEGORIES, providers, rfiRequests, type Provider } from "./schema";
+import { providers, rfiRequests, type Provider } from "./schema";
 import { SCALE_BANDS, type ProviderFilters } from "@/lib/filters";
+import { CATEGORY_SLUGS, type CategorySlug } from "@/lib/taxonomy";
 
 const published = eq(providers.status, "published");
 
 /** True when the JSON array column contains any of the given values. */
 function jsonArrayHasAny(column: Column, values: string[]): SQL {
   return sql`exists (select 1 from json_each(${column}) where json_each.value in ${values})`;
+}
+
+/** Primary category, or listed as a secondary category. */
+function inCategory(slug: CategorySlug): SQL {
+  return or(eq(providers.category, slug), jsonArrayHasAny(providers.secondaryCategories, [slug]))!;
 }
 
 function buildWhere(f: ProviderFilters): SQL | undefined {
@@ -25,10 +31,15 @@ function buildWhere(f: ProviderFilters): SQL | undefined {
         like(sql`lower(${providers.services})`, term),
         like(sql`lower(${providers.tags})`, term),
         like(sql`lower(${providers.category})`, term),
+        like(sql`lower(${providers.assetClasses})`, term),
+        like(sql`lower(${providers.licences})`, term),
       ),
     );
   }
-  if (f.category) conditions.push(eq(providers.category, f.category));
+  if (f.category) conditions.push(inCategory(f.category));
+  if (f.service.length) conditions.push(jsonArrayHasAny(providers.services, f.service));
+  if (f.asset.length) conditions.push(jsonArrayHasAny(providers.assetClasses, f.asset));
+  if (f.licence.length) conditions.push(jsonArrayHasAny(providers.licences, f.licence));
   if (f.scale) {
     const band = SCALE_BANDS[f.scale];
     conditions.push(gte(providers.headcount, band.min), lte(providers.headcount, band.max));
@@ -91,12 +102,34 @@ export async function listProviderOptions() {
 }
 
 export async function getSimilarProviders(p: Provider, limit = 3): Promise<Provider[]> {
+  // Same category first, ranked by how many services overlap, then by score.
+  const overlap = p.services.length
+    ? sql<number>`(select count(*) from json_each(${providers.services}) where json_each.value in ${p.services})`
+    : sql<number>`0`;
   return db
     .select()
     .from(providers)
-    .where(and(published, eq(providers.category, p.category), sql`${providers.id} <> ${p.id}`))
-    .orderBy(desc(providers.rating))
+    .where(and(published, inCategory(p.category), sql`${providers.id} <> ${p.id}`))
+    .orderBy(desc(overlap), desc(providers.rating))
     .limit(limit);
+}
+
+export async function getTopRatedProviders(limit = 4): Promise<Provider[]> {
+  return db
+    .select()
+    .from(providers)
+    .where(and(published, eq(providers.verified, true)))
+    .orderBy(desc(providers.rating), desc(providers.reviewCount))
+    .limit(limit);
+}
+
+export async function getCategoryCounts(): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ category: providers.category, n: count() })
+    .from(providers)
+    .where(published)
+    .groupBy(providers.category);
+  return Object.fromEntries(rows.map((r) => [r.category, r.n]));
 }
 
 export async function getProviderTypeCounts(): Promise<Record<string, number>> {
@@ -125,7 +158,10 @@ export async function getEcosystemStats(): Promise<EcosystemStats> {
       })
       .from(providers)
       .where(published),
-    db.select({ n: count() }).from(rfiRequests).where(eq(rfiRequests.status, "open")),
+    db
+      .select({ n: count() })
+      .from(rfiRequests)
+      .where(and(eq(rfiRequests.status, "open"), eq(rfiRequests.requestType, "rfi"))),
   ]);
 
   return {
@@ -161,7 +197,7 @@ export async function getFeeBenchmarks(): Promise<CategoryBenchmark[]> {
     .where(published)
     .groupBy(providers.category);
 
-  const order = (c: string) => CATEGORIES.indexOf(c as (typeof CATEGORIES)[number]);
+  const order = (c: string) => CATEGORY_SLUGS.indexOf(c as CategorySlug);
   return rows
     .map((r) => ({
       ...r,

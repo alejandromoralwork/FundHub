@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getEcosystemStats, getFeeBenchmarks, getFeeBenchmarksByType } from "@/db/queries";
 import { formatEur, formatNumber } from "@/lib/format";
+import { categoryLabel } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Fee Benchmarks" };
@@ -44,8 +45,8 @@ export default async function BenchmarksPage() {
               {byCategory.map((b) => (
                 <tr key={b.category}>
                   <td className="px-4 py-3 font-medium">
-                    <Link href={`/?category=${encodeURIComponent(b.category)}`} className="hover:underline">
-                      {b.category}
+                    <Link href={`/compare?category=${b.category}`} className="hover:underline">
+                      {categoryLabel(b.category)}
                     </Link>
                   </td>
                   <td className={td}>{b.providers}</td>
@@ -98,7 +99,7 @@ export default async function BenchmarksPage() {
               {byType.map((b) => (
                 <tr key={b.type}>
                   <td className="px-4 py-3 font-medium">
-                    <Link href={`/?type=${encodeURIComponent(b.type)}`} className="hover:underline">
+                    <Link href={`/compare?type=${encodeURIComponent(b.type)}`} className="hover:underline">
                       {b.type}
                     </Link>
                   </td>
@@ -116,7 +117,11 @@ export default async function BenchmarksPage() {
 
       <p className="text-xs text-slate-500">
         Ranges are indicative quarterly fees reported by providers and verified against RFI responses. They exclude
-        one-off set-up fees and out-of-pocket expenses.
+        one-off set-up fees and out-of-pocket expenses. Holding a proposal above the typical range?{" "}
+        <Link href="/advisory?service=fee-audit#contact" className="font-medium text-emerald-700 hover:underline">
+          Get an independent fee audit
+        </Link>
+        .
       </p>
     </main>
   );
