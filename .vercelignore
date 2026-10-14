@@ -1,0 +1,11 @@
+# Never upload local secrets, the local database, build output or private docs.
+node_modules
+.next
+.env
+.env*.local
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.tsbuildinfo
+*.pdf
