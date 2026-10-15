@@ -40,6 +40,8 @@ export const INGEST_JOB_STATUSES = ["queued", "running", "done", "failed"] as co
 export const INGEST_RECORD_STATUSES = ["pending", "accepted", "rejected", "partial"] as const;
 export const EMAIL_STATUSES = ["queued", "sent", "delivered", "bounced", "complained", "failed"] as const;
 export const PRO_TIERS = ["boutique", "mid_market", "institutional"] as const;
+/** Everything a Stripe subscription can be: provider Pro tiers, or a Data Intelligence membership. */
+export const SUBSCRIPTION_PLANS = [...PRO_TIERS, "data_member"] as const;
 
 // Content & marketing
 export const POST_KINDS = ["news", "learn"] as const;
@@ -81,3 +83,4 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 export type ReportVisibility = (typeof REPORT_VISIBILITY)[number];
 export type IngestSource = (typeof INGEST_SOURCES)[number];
 export type ProTier = (typeof PRO_TIERS)[number];
+export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];

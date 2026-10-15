@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Tag, TypeBadge, VerifiedBadge } from "@/components/badges";
 import { Stars } from "@/components/stars";
+import { ScoreBadge, ScoreBar } from "@/components/score-badge";
 import { getPublishedReviews, isProviderSaved } from "@fundhub/db/account-queries";
 import { getCurrentUser } from "@/lib/auth/session";
 import { toggleSavedProvider } from "@/lib/saved-actions";
@@ -170,6 +171,18 @@ export default async function ProviderPage({ params }: Props) {
           </div>
         </div>
       </header>
+
+      <section aria-label="FundHub Score" className="mt-4 grid gap-5 rounded-lg border border-slate-200 bg-white p-5 md:grid-cols-[auto_1fr_1fr_1fr]">
+        <ScoreBadge score={p.score} align="start" />
+        <ScoreBar label="Quality Score" value={p.score.quality} hint="75% verified peer reviews, 25% data credibility (verification, licences, certifications, freshness)." />
+        <ScoreBar label="Price Score" value={p.score.price} hint={p.score.price === null ? "Too few providers in this category to compare fees yet." : `Share of ${category.label} peers with a higher typical fee.`} />
+        <div className="text-xs text-slate-500">
+          <p>FundHub Score = 60% Quality + 40% Price, computed only from FundHub data. Providers cannot pay to change it.</p>
+          <Link href="/fundhub-score" className="mt-2 inline-block font-medium text-emerald-700 hover:underline">
+            How the score works →
+          </Link>
+        </div>
+      </section>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

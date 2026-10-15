@@ -1,80 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, Clock } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { Panel, SectionTitle } from "@/components/marketing";
+import { PostGrid } from "@/components/post-grid";
 import { listPublishedPosts } from "@fundhub/db/queries";
-import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "News & Learn",
-  description: "News about the Luxembourg fund services sector and independent guides on choosing providers, fees and structuring.",
+  title: "News",
+  description: "News about the Luxembourg fund services sector: regulation, market moves and FundHub announcements.",
 };
 
-const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
-const TABS = [
-  { key: "all", label: "All" },
-  { key: "news", label: "News" },
-  { key: "learn", label: "Learn" },
-] as const;
-
-export default async function NewsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const { type } = await searchParams;
-  const active = type === "news" || type === "learn" ? type : "all";
-  const items = await listPublishedPosts({ kind: active === "all" ? undefined : active });
-
+export default async function NewsPage() {
+  const items = await listPublishedPosts({ kind: "news" });
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 sm:p-6">
       <SectionTitle
         as="h1"
-        eyebrow="News & Learn"
-        title="Sector news and independent guides"
-        lead="What's changing in Luxembourg fund services, and practical guides on choosing providers, reading fee proposals and structuring your service chain. Written for buyers, never sponsored by providers."
+        eyebrow="News"
+        title="Luxembourg fund services news"
+        lead="What's changing in the sector: regulation, market moves, provider news and FundHub announcements. Written for buyers, never sponsored by providers."
       />
-
-      <nav aria-label="Filter articles" className="flex gap-1 border-b border-slate-200">
-        {TABS.map((t) => (
-          <Link
-            key={t.key}
-            href={t.key === "all" ? "/news" : `/news?type=${t.key}`}
-            aria-current={active === t.key ? "page" : undefined}
-            className={cn(
-              "-mb-px border-b-2 px-3 py-2 text-sm font-medium",
-              active === t.key ? "border-emerald text-ink" : "border-transparent text-slate-500 hover:text-ink",
-            )}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {items.map((i) => (
-          <Link
-            key={i.slug}
-            href={`/news/${i.slug}`}
-            className="flex flex-col rounded-lg border border-slate-200 bg-white p-5 hover:border-emerald/50 hover:shadow-sm"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-              {i.kind === "news" ? "News" : "Learn"} · {i.topic}
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-ink">{i.title}</h2>
-            <p className="mt-1.5 flex-1 text-sm leading-relaxed text-ink-600">{i.summary}</p>
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
-              {i.publishedAt && dateFmt.format(i.publishedAt)} · <Clock className="h-3 w-3" /> {i.readMinutes} min read
-            </p>
-          </Link>
-        ))}
-      </div>
-
+      <PostGrid items={items} empty="No news published yet." />
       <Panel className="flex flex-col gap-3 border-dashed sm:flex-row sm:items-center">
-        <BarChart3 className="h-8 w-8 shrink-0 text-emerald" />
+        <BookOpen className="h-8 w-8 shrink-0 text-emerald" />
         <div>
-          <h2 className="text-sm font-semibold text-ink">Looking for market data?</h2>
+          <h2 className="text-sm font-semibold text-ink">Looking for practical guides?</h2>
           <p className="mt-0.5 text-sm text-ink-600">
-            Live statistics and quarterly PDF reports are in{" "}
-            <Link href="/data-intelligence" className="font-medium text-emerald-700 hover:underline">
-              Data Intelligence
+            How to choose providers, read fee proposals and structure your service chain:{" "}
+            <Link href="/learn" className="font-medium text-emerald-700 hover:underline">
+              Learn
             </Link>
             .
           </p>

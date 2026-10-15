@@ -10,17 +10,20 @@ const COLUMNS = [
     links: [
       { href: "/compare", label: "Provider comparator" },
       { href: "/services", label: "Service categories" },
-      { href: "/benchmarks", label: "Fee benchmarks" },
-      { href: "/rfi", label: "Request quotes" },
+      { href: "/benchmarks", label: "Fee benchmarks & rankings" },
+      { href: "/fundhub-score", label: "FundHub Score" },
     ],
   },
   {
     title: "Services",
     links: [
-      { href: "/advisory", label: "Advisory" },
+      { href: "/advisory", label: "Selection & negotiation" },
+      { href: "/advisory/fund-setup", label: "Fund set-up advisory" },
       { href: "/data-intelligence", label: "Data Intelligence" },
+      { href: "/data-intelligence/membership", label: "Membership" },
+      { href: "/news", label: "News" },
+      { href: "/learn", label: "Learn" },
       { href: "/awards", label: "FundHub Awards" },
-      { href: "/news", label: "News & Learn" },
     ],
   },
   {

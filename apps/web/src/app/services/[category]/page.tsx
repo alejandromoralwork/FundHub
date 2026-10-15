@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { articleHref } from "@/lib/articles";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { ButtonLink, CheckList, CtaBand, Panel } from "@/components/marketing";
@@ -123,7 +124,7 @@ export default async function CategoryGuidePage({ params }: Props) {
             {related.map((i) => (
               <Link
                 key={i.slug}
-                href={`/news/${i.slug}`}
+                href={articleHref(i.kind, i.slug)}
                 className="block rounded-lg border border-slate-200 bg-white p-4 hover:border-emerald/50"
               >
                 <p className="text-sm font-semibold text-ink">{i.title}</p>

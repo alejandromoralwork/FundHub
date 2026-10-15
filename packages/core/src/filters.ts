@@ -15,7 +15,9 @@ export const SCALE_BANDS = {
 export type ScaleBand = keyof typeof SCALE_BANDS;
 
 export const SORTS = {
-  score: "Peer Opinion Score",
+  score: "FundHub Score",
+  quality: "Quality Score",
+  price: "Price Score",
   fee: "Lowest Fee",
   headcount: "Headcount",
 } as const;

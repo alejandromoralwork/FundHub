@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { articleHref } from "@/lib/articles";
 import {
   ArrowRight,
   BadgeCheck,
@@ -355,15 +356,20 @@ export default async function HomePage() {
           <div>
             <div className="flex items-end justify-between">
               <h2 className="text-lg font-semibold text-ink">News & Learn</h2>
-              <Link href="/news" className="text-xs font-medium text-emerald-700 hover:underline">
-                All articles →
-              </Link>
+              <span className="flex gap-3 text-xs font-medium text-emerald-700">
+                <Link href="/news" className="hover:underline">
+                  News →
+                </Link>
+                <Link href="/learn" className="hover:underline">
+                  Learn →
+                </Link>
+              </span>
             </div>
             <ul className="mt-3 space-y-3">
               {latest.map((i) => (
                 <li key={i.slug}>
                   <Link
-                    href={`/news/${i.slug}`}
+                    href={articleHref(i.kind, i.slug)}
                     className="block rounded-lg border border-slate-200 bg-white p-4 hover:border-emerald/50"
                   >
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">{i.topic}</p>

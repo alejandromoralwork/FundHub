@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { listProviderOptions, listPublishedPosts } from "@fundhub/db/queries";
+import { articleHref } from "@/lib/articles";
 import { siteUrl } from "@/lib/site";
 import { TAXONOMY } from "@fundhub/core/taxonomy";
 
@@ -15,6 +16,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/advisory",
     "/rfi",
     "/news",
+    "/learn",
+    "/fundhub-score",
+    "/advisory/fund-setup",
+    "/data-intelligence/membership",
     "/data-intelligence",
     "/awards",
     "/methodology",
@@ -26,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticPaths.map((p) => ({ url: `${base}${p}` })),
     ...TAXONOMY.map((c) => ({ url: `${base}/services/${c.slug}` })),
-    ...posts.map((p) => ({ url: `${base}/news/${p.slug}`, lastModified: p.publishedAt ?? undefined })),
+    ...posts.map((p) => ({ url: `${base}${articleHref(p.kind, p.slug)}`, lastModified: p.publishedAt ?? undefined })),
     ...providers.map((p) => ({ url: `${base}/providers/${p.slug}` })),
   ];
 }

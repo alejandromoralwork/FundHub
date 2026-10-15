@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { Provider } from "@fundhub/db/schema";
+import type { ProviderScore } from "@fundhub/core/score";
 import { formatEur, formatNumber } from "@fundhub/core/format";
 import { getCategory, HIGHLIGHT_LABELS, TAXONOMY, type HighlightField, type ServiceCategory } from "@fundhub/core/taxonomy";
 import { Tag, TypeBadge, VerifiedBadge } from "./badges";
 import { Stars } from "./stars";
+import { ScoreBadge } from "./score-badge";
 
 const Meta = ({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) => (
   <div className={className}>
@@ -22,7 +24,7 @@ function highlightValue(p: Provider, field: HighlightField): string {
  * @param category the category being compared. Card metrics follow its `highlights`;
  * defaults to the provider's primary category.
  */
-export function ProviderCard({ provider: p, category }: { provider: Provider; category?: ServiceCategory }) {
+export function ProviderCard({ provider: p, category }: { provider: Provider & { score?: ProviderScore }; category?: ServiceCategory }) {
   const primary: ServiceCategory = getCategory(p.category) ?? TAXONOMY[0];
   const lens: ServiceCategory = category ?? primary;
   // Services relevant to the category being compared come first.
@@ -89,6 +91,7 @@ export function ProviderCard({ provider: p, category }: { provider: Provider; ca
               <p className="text-[11px] text-slate-400 tnum">+ {formatEur(p.setupFee)} typical set-up</p>
             )}
           </div>
+          {p.score && <ScoreBadge score={p.score} />}
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Peer Opinion Score</p>
             <div className="mt-0.5 flex items-center gap-1 md:justify-end">

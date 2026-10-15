@@ -31,6 +31,10 @@ const DEFINITIONS = [
     "Average rating (0–5) from authenticated fund-industry reviewers in a closed, double-blind loop. Written client reviews are published only after FundHub verifies the reviewer's work email and client relationship; reviewer identities are never shown. Providers cannot remove, edit or pay for reviews, and their staff cannot review themselves.",
   ],
   [
+    "FundHub Score",
+    "An independent 0–100 grade (A+ to D) combining a Quality Score (verified peer reviews and data credibility) and a Price Score (how the provider's typical fee compares with its category peers). The full formula is published on the FundHub Score page.",
+  ],
+  [
     "Avg. Fee Deviation",
     "The average fee midpoint of the providers matching your filters compared with the average across the whole index.",
   ],
@@ -63,7 +67,7 @@ const params = [
   ["reg", `Comma list: ${REGULATORY_SCOPES.join(", ")} (matches any)`],
   ["min / max", "Quarterly fee bounds in EUR (range overlap)"],
   ["density", "Minimum number of active client mandates"],
-  ["sort", "score (default) | fee | headcount"],
+  ["sort", "score (FundHub Score, default) | quality | price | fee | headcount"],
 ];
 
 export default function MethodologyPage() {

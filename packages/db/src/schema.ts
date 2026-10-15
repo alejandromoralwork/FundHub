@@ -23,6 +23,7 @@ import {
   INGEST_RUN_STATUSES,
   INGEST_SOURCES,
   PRO_TIERS,
+  SUBSCRIPTION_PLANS,
   EXPENSE_STATUSES,
   GDPR_REQUEST_STATUSES,
   GDPR_REQUEST_TYPES,
@@ -391,7 +392,8 @@ export const subscriptions = pgTable("subscriptions", {
   customerId: integer("customer_id")
     .notNull()
     .references(() => billingCustomers.id, { onDelete: "cascade" }),
-  tier: text("tier", { enum: PRO_TIERS }),
+  /** Pro tier for providers, or "data_member" for a Data Intelligence membership. */
+  tier: text("tier", { enum: SUBSCRIPTION_PLANS }),
   status: text("status").notNull(),
   /** Amount per billing period, in cents. */
   amount: integer("amount").notNull().default(0),

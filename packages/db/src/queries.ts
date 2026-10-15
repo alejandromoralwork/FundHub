@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, type Colu
 import { db } from "./client";
 import { posts, providers, rfiRequests, type Provider } from "./schema";
 import { SCALE_BANDS, type ProviderFilters } from "@fundhub/core/filters";
+import { computeScores, type ProviderScore } from "@fundhub/core/score";
 import { CATEGORY_SLUGS, type CategorySlug } from "@fundhub/core/taxonomy";
 
 const published = eq(providers.status, "published");
@@ -64,7 +65,47 @@ function buildWhere(f: ProviderFilters): SQL | undefined {
   return and(...conditions);
 }
 
-export async function searchProviders(f: ProviderFilters): Promise<Provider[]> {
+// ---------------------------------------------------------------- FundHub Score
+
+export type ScoredProvider = Provider & { score: ProviderScore };
+
+let scoreCache: { at: number; map: Map<number, ProviderScore> } | null = null;
+const SCORE_TTL_MS = 60_000;
+
+/** FundHub Scores for every published provider (prices are compared within the whole category). */
+export async function getScores(): Promise<Map<number, ProviderScore>> {
+  if (scoreCache && Date.now() - scoreCache.at < SCORE_TTL_MS) return scoreCache.map;
+  const rows = await db
+    .select({
+      id: providers.id,
+      category: providers.category,
+      priceMin: providers.priceMin,
+      priceMax: providers.priceMax,
+      rating: providers.rating,
+      reviewCount: providers.reviewCount,
+      verified: providers.verified,
+      licences: providers.licences,
+      certifications: providers.certifications,
+      lastVerifiedAt: providers.lastVerifiedAt,
+      providerUpdatedAt: providers.providerUpdatedAt,
+    })
+    .from(providers)
+    .where(published);
+  scoreCache = { at: Date.now(), map: computeScores(rows) };
+  return scoreCache.map;
+}
+
+const NO_SCORE: ProviderScore = { fundhub: 0, grade: "D", quality: 0, price: null, peer: 0, credibility: 0, provisional: true };
+
+export async function withScores(rows: Provider[]): Promise<ScoredProvider[]> {
+  const scores = await getScores();
+  return rows.map((p) => ({ ...p, score: scores.get(p.id) ?? NO_SCORE }));
+}
+
+const byScore = (key: "fundhub" | "quality" | "price") => (a: ScoredProvider, b: ScoredProvider) =>
+  (b.score[key] ?? -1) - (a.score[key] ?? -1) || b.reviewCount - a.reviewCount;
+
+export async function searchProviders(f: ProviderFilters): Promise<ScoredProvider[]> {
   const orderBy =
     f.sort === "fee"
       ? [asc(providers.priceMin), desc(providers.rating)]
@@ -72,21 +113,36 @@ export async function searchProviders(f: ProviderFilters): Promise<Provider[]> {
         ? [desc(providers.headcount)]
         : [desc(providers.rating), desc(providers.reviewCount)];
 
-  return db
-    .select()
-    .from(providers)
-    .where(buildWhere(f))
-    .orderBy(...orderBy)
-    .limit(200);
+  const rows = await withScores(
+    await db
+      .select()
+      .from(providers)
+      .where(buildWhere(f))
+      .orderBy(...orderBy)
+      .limit(500),
+  );
+  if (f.sort === "score" || f.sort === "quality" || f.sort === "price") rows.sort(byScore(f.sort === "score" ? "fundhub" : f.sort));
+  return rows.slice(0, 200);
 }
 
-export async function getProviderBySlug(slug: string): Promise<Provider | undefined> {
+/** Top providers per category by FundHub Score, plus the best-value pick (Price Score among Quality ≥ 60). */
+export async function getCategoryRankings(perCategory = 5) {
+  const rows = await withScores(await db.select().from(providers).where(published));
+  return CATEGORY_SLUGS.map((category) => {
+    const inCat = rows.filter((p) => p.category === category);
+    const top = [...inCat].sort(byScore("fundhub")).slice(0, perCategory);
+    const bestValue = inCat.filter((p) => p.score.price !== null && p.score.quality >= 60).sort(byScore("price"))[0] ?? null;
+    return { category, providers: inCat.length, top, bestValue };
+  }).filter((c) => c.providers > 0);
+}
+
+export async function getProviderBySlug(slug: string): Promise<ScoredProvider | undefined> {
   const [row] = await db
     .select()
     .from(providers)
     .where(and(eq(providers.slug, slug), published))
     .limit(1);
-  return row;
+  return row && (await withScores([row]))[0];
 }
 
 export async function getProviderById(id: number): Promise<Provider | undefined> {
@@ -106,7 +162,7 @@ export async function listProviderOptions() {
     .orderBy(asc(providers.name));
 }
 
-export async function getSimilarProviders(p: Provider, limit = 3): Promise<Provider[]> {
+export async function getSimilarProviders(p: Provider, limit = 3): Promise<ScoredProvider[]> {
   // Same category first, ranked by how many services overlap, then by score.
   const overlap = p.services.length
     ? sql<number>`(select count(*) from jsonb_array_elements_text(${providers.services}) as s(v) where s.v = any(${textArray(p.services)}))`
@@ -116,16 +172,14 @@ export async function getSimilarProviders(p: Provider, limit = 3): Promise<Provi
     .from(providers)
     .where(and(published, inCategory(p.category), sql`${providers.id} <> ${p.id}`))
     .orderBy(desc(overlap), desc(providers.rating))
-    .limit(limit);
+    .limit(limit)
+    .then(withScores);
 }
 
-export async function getTopRatedProviders(limit = 4): Promise<Provider[]> {
-  return db
-    .select()
-    .from(providers)
-    .where(and(published, eq(providers.verified, true)))
-    .orderBy(desc(providers.rating), desc(providers.reviewCount))
-    .limit(limit);
+/** Highest FundHub Scores among verified providers (home page). */
+export async function getTopRatedProviders(limit = 4): Promise<ScoredProvider[]> {
+  const rows = await withScores(await db.select().from(providers).where(and(published, eq(providers.verified, true))));
+  return rows.sort(byScore("fundhub")).slice(0, limit);
 }
 
 export async function getCategoryCounts(): Promise<Record<string, number>> {
