@@ -1,0 +1,12 @@
+html,
+body {
+  margin: 0;
+  background: #f5f6f8;
+  font-family: "Inter Variable", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.mono {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

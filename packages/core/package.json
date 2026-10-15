@@ -1,0 +1,24 @@
+{
+  "name": "@fundhub/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared domain code: taxonomy, enums, filters, formatting, request options, password hashing.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "lucide-react": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "lucide-react": "^1.49.0",
+    "typescript": "5.9"
+  }
+}

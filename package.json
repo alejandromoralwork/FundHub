@@ -1,49 +1,31 @@
 {
   "name": "fundhub",
-  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=20.9.0"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "packageManager": "npm@10.8.2",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "vercel-build": "drizzle-kit migrate && next build",
-    "start": "next start",
-    "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx scripts/seed.ts",
-    "db:setup": "npm run db:migrate && npm run db:seed",
-    "pipeline:import": "tsx scripts/pipelines/import-providers.ts",
-    "pipeline:publish": "tsx scripts/pipelines/publish-staged.ts",
-    "admin": "tsx scripts/admin.ts"
-  },
-  "dependencies": {
-    "@fontsource-variable/inter": "^5.3.0",
-    "@fontsource/ibm-plex-mono": "^5.3.0",
-    "@libsql/client": "^0.18.0",
-    "clsx": "^2.1.1",
-    "drizzle-orm": "^0.45.3",
-    "lucide-react": "^1.49.0",
-    "next": "^16.3.8",
-    "pdf-lib": "^1.17.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "server-only": "^0.0.1",
-    "zod": "^4.6.5"
+    "dev": "turbo run dev",
+    "dev:web": "npm run dev -w @fundhub/web",
+    "dev:admin": "npm run dev -w @fundhub/admin",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "db:local": "npm run db:local -w @fundhub/db",
+    "db:generate": "npm run db:generate -w @fundhub/db",
+    "db:migrate": "npm run db:migrate -w @fundhub/db",
+    "db:seed": "npm run db:seed -w @fundhub/db",
+    "db:setup": "npm run db:setup -w @fundhub/db",
+    "scrape": "npm run scrape -w @fundhub/scraper --"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^20.19.43",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "dotenv": "^18.0.5",
-    "drizzle-kit": "^0.31.11",
-    "postcss": "^8.5.28",
-    "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.15",
+    "turbo": "^2.11.8",
     "typescript": "5.9"
   }
 }

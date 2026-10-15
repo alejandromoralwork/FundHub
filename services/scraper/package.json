@@ -1,0 +1,29 @@
+{
+  "name": "@fundhub/scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FundHub data module: feeds staging tables from providers' websites (AI extraction) and the RCS register.",
+  "scripts": {
+    "scrape": "tsx src/cli.ts",
+    "test": "node --import tsx --test test/crawl.test.ts test/extract.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.134.0",
+    "@fundhub/core": "*",
+    "@fundhub/db": "*",
+    "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.3",
+    "pg": "^8.23.1",
+    "robots-parser": "^3.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "dotenv": "^18.0.5",
+    "lucide-react": "^1.49.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
+  }
+}

@@ -1,0 +1,68 @@
+# FundHub data module (services/scraper). Writes only to the ingest_* staging tables;
+# staff review everything in the admin platform before it reaches a public profile.
+#
+# Secrets: SCRAPER_DATABASE_URL (the fundhub_scraper role), ANTHROPIC_API_KEY
+# Variables (optional): RCS_SOURCE (default "mock"), ANTHROPIC_MODEL, EXTRACTION_EFFORT
+name: Data module
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays 03:00 UTC: AI web extraction for all providers
+    - cron: "30 4 * * *" # daily: sweep jobs queued from the admin platform
+  workflow_dispatch: # also triggered by the admin "Run scrape" button
+    inputs:
+      command:
+        description: What to run
+        type: choice
+        options: [jobs, ai_web, rcs]
+        default: jobs
+      provider:
+        description: Provider slug (optional, ai_web/rcs only)
+        type: string
+        required: false
+
+concurrency:
+  group: data-module
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: ${{ secrets.SCRAPER_DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      RCS_SOURCE: ${{ vars.RCS_SOURCE || 'mock' }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-opus-5-5' }}
+      EXTRACTION_EFFORT: ${{ vars.EXTRACTION_EFFORT || 'medium' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Only the data module and the shared packages it imports.
+      - run: npm ci --workspace @fundhub/scraper --include-workspace-root=false
+      - run: npm test --workspace @fundhub/scraper
+      - name: Decide command
+        id: cmd
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "command=${{ inputs.command }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 3 * * 1" ]; then
+            echo "command=ai_web" >> "$GITHUB_OUTPUT"
+          else
+            echo "command=jobs" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Process queued jobs
+        if: steps.cmd.outputs.command == 'jobs'
+        run: npm run scrape --workspace @fundhub/scraper -- jobs
+      - name: Scrape
+        if: steps.cmd.outputs.command != 'jobs'
+        run: |
+          ARGS="--source ${{ steps.cmd.outputs.command }} --trigger ${{ github.event_name }}"
+          if [ -n "${{ inputs.provider }}" ]; then ARGS="$ARGS --provider ${{ inputs.provider }}"; fi
+          npm run scrape --workspace @fundhub/scraper -- run $ARGS

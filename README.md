@@ -1,107 +1,85 @@
 # FundHub
 
-B2B directory and price comparator for Luxembourg fund service providers.
+Independent comparator and buy-side advisor for Luxembourg fund services (fundhub.lu).
+FundHub is paid by fund managers, never by referral fees or commissions from the providers it compares.
 
-**Stack:** Next.js 16 (App Router) · TypeScript · React 19 · Tailwind CSS v4 · Drizzle ORM · libSQL/SQLite (Turso in production) · pdf-lib · Fontsource (self-hosted fonts) · lucide-react
+## Architecture: three independent parts, one database
 
-## Positioning
+```
+apps/web/          Public website (Next.js) at fundhub.lu
+apps/admin/        Internal management platform (Next.js + Refine + Ant Design) at fundhub.lu/admin
+services/scraper/  Data module (TypeScript): AI web extractor + RCS register adapter, run on GitHub Actions
+packages/db/       Postgres schema (Drizzle), migrations, client, shared queries
+packages/core/     Taxonomy, enums, filters, formatting, request options, password hashing
+packages/email/    React Email templates + Resend sender (logged in email_messages)
+```
 
-FundHub is an **independent** comparator and buy-side advisor for Luxembourg fund services. It is paid by asset managers (advisory fees) and never by referral fees or commissions from providers. Provider subscriptions only buy profile control and reports, never ranking, scores or the Verified badge. See `/independence`.
+The parts only share the Postgres database and the `packages/*` code. Each deploys and fails on its own:
 
-## Sections
-
-| Section | Route | What it is |
-|---|---|---|
-| Provider Comparator | `/compare` | Filter providers by category, sub-service, licence, asset class, stack, size, fees |
-| Service Categories | `/services`, `/services/[category]` | The 8-category taxonomy with buyer's guides |
-| Fee Benchmarks | `/benchmarks` | Typical fee ranges by category and provider size |
-| Advisory | `/advisory` | We accompany clients to negotiate fees and help them set up their activities |
-| News & Learn | `/news` | Sector news and educational guides (`src/content/insights.ts`) |
-| Data Intelligence | `/data-intelligence` | Live stats, quarterly PDF reports (public + private), bespoke data services |
-| FundHub Awards | `/awards` | Award categories, scoring, timeline, nominations |
-
-Also: provider profiles (`/providers/[slug]`) with verified client reviews, Request quotes (`/rfi`), Independence charter, Methodology & data, For service providers.
+- **Website and admin** are two Vercel projects from this repo (Root Directory `apps/web` and `apps/admin`). The website rewrites `/admin/*` to the admin deployment (Next.js multi-zones), so staff use `fundhub.lu/admin`.
+- **Data module** runs on GitHub Actions (`.github/workflows/scrape.yml`): weekly AI web extraction, a daily sweep of jobs queued from the admin, and immediately when staff click "Run scrape" (if `GITHUB_DISPATCH_TOKEN` is set). It writes only to the `ingest_*` staging tables; staff review every field before it reaches a public profile.
+- **Database**: Postgres (Neon in production). `npm run db:roles` creates one login role per part (`fundhub_web`, `fundhub_admin`, `fundhub_scraper`, `fundhub_analyst_ro`) so each can only touch what it needs.
 
 ## Users
 
-- **Visitors** need no login for anything public.
-- **Provider accounts** (`/account/signup`): claim a company listing → a FundHub admin approves → the provider edits its factual profile data (live immediately, every edit logged). Fees, peer scores, reviews, the Verified badge, name and primary category stay FundHub-controlled. Approved accounts can download private reports.
-- **Admins** (`/admin`): approve claims (and create new listings), verify client reviews, upload/manage PDF reports, see all form submissions.
+| Who | Where | How |
+|---|---|---|
+| Visitors | website | No login needed to browse |
+| Visitor accounts (fund managers) | website `/account` | Save providers, verified reviews, newsletter |
+| Provider accounts | website `/account` | Claim a company → staff approve → edit profile, private reports |
+| Staff | `/admin` | Separate accounts, password + mandatory authenticator-app 2FA, roles owner / operations / analyst / sales |
 
-Passwords are hashed with scrypt; sessions are random tokens stored hashed in the database (30 days, httpOnly cookie). There is no email service yet, so admins reset passwords with the CLI:
+## Admin platform modules
 
-```bash
-npm run admin -- create-admin you@fundhub.lu "Your Name"   # prints a temporary password
-npm run admin -- reset-password someone@provider.lu
-npm run admin -- promote someone@fundhub.lu
-npm run admin -- list
-```
-Point `DATABASE_URL`/`DATABASE_AUTH_TOKEN` at the Turso database to run these against production.
-
-## Verified client reviews
-
-Anyone can submit a review at `/providers/[slug]/review` with a work email, role, relationship and evidence. Automatic checks block the provider's own staff (email domain = provider website, or provider account holders) and flag personal email domains. An admin contacts the reviewer, then publishes or rejects. Published reviews show only role, relationship and fund type; the overall score is folded into the Peer Opinion Score.
-
-## Data Intelligence reports
-
-Two built-in reports are generated as PDFs from live data (`src/lib/report-pdf.ts`): the public **Market Snapshot** and the private **Provider Intelligence Report**. Admins can upload more PDFs (≤ 4 MB, public or private) on `/admin`; they are stored in the database and private ones are only served to approved provider accounts.
-
-> Provider data in `data/providers.json` is illustrative sample data (fictional names, `example.com` sites).
+Dashboard · Moderation (company claims, client reviews, provider self-edits) · Inbox (all form submissions, status, notes, email replies) · Email (compose to a person or segment, delivery log via Resend webhook) · Billing & invoices (Stripe: customers, quarterly Pro subscriptions, advisory invoices, reminders, webhook mirror) · Analytics · Data pipeline (runs, jobs, field-by-field review) · Reports (PDF upload) · Database (every table, generic editor, read-only SQL console) · Staff · Audit log (every staff write).
 
 ## Local development
 
-Requires Node.js 20.9+ (22 LTS recommended).
+Requires Node.js 20.9+. No Docker needed.
 
 ```bash
 npm install
-cp .env.example .env        # defaults to a local SQLite file, no setup needed
-npm run db:setup            # create tables + seed 32 providers and sample RFIs
-npm run dev                 # http://localhost:3000
+npm run db:local            # terminal 1: real Postgres on localhost:5433 (data in packages/db/.pg-data)
+npm run db:setup            # terminal 2: migrations + 32 sample providers
+npm run staff -w @fundhub/admin -- create you@fundhub.lu "Your Name" owner   # prints a temporary password
+npm run dev                 # website on :3000, admin on :3001 (also at localhost:3000/admin)
 ```
+
+Without `RESEND_API_KEY`, emails are printed to the server console and still logged in the admin Email module.
+
+### Data module
+
+```bash
+npm run scrape -- run --source rcs --limit 3          # RCS (mock source until a register provider is chosen)
+npm run scrape -- run --source ai_web --provider <slug> --dry-run   # needs ANTHROPIC_API_KEY
+npm run scrape -- jobs                                # process jobs queued from the admin
+npm test -w @fundhub/scraper
+```
+
+The AI extractor uses Claude Opus 5.5 (`claude-opus-5-5`, override with `ANTHROPIC_MODEL`) with a strict JSON schema of FundHub's taxonomy, and the server-side refusal fallback. Page content is treated as untrusted data. Values that already match the live profile are dropped, so only real changes reach review.
+
+The RCS adapter (`services/scraper/src/sources/rcs.ts`) has a `MockRcsClient` that only echoes known data. Add a real client (LBR API or an aggregator) to `CLIENTS` and set `RCS_SOURCE`.
 
 ## Scripts
 
 | Script | What it does |
 |---|---|
-| `npm run dev` / `build` / `start` | Next.js dev server / production build / production server |
-| `npm run typecheck` | TypeScript check |
-| `npm run db:generate` | Generate a new SQL migration after editing `src/db/schema.ts` |
-| `npm run db:migrate` | Apply migrations to the database in `DATABASE_URL` |
-| `npm run db:seed` | Upsert `data/providers.json` (safe to re-run) |
-| `npm run db:setup` | migrate + seed |
-| `npm run pipeline:import -- <file.csv\|.json> [--publish] [--dry-run]` | Validate and import providers as staged |
-| `npm run pipeline:publish [-- <slug>...] [--list]` | Publish staged providers |
+| `npm run dev` / `build` / `typecheck` | All apps via Turborepo |
+| `npm run db:generate` | New migration after editing `packages/db/src/schema.ts` |
+| `npm run db:migrate` / `db:seed` / `db:setup` | Apply migrations / upsert sample providers / both |
+| `npm run db:roles -w @fundhub/db` | Create per-part Postgres roles (run as owner; re-run after new tables) |
+| `npm run db:from-turso -w @fundhub/db` | One-off copy of the old Turso data into Postgres |
+| `npm run staff -w @fundhub/admin -- …` | Create staff, reset password or 2FA, list |
+| `npm run scrape -- …` | Data module (see above) |
 
-CSV format: see `data/import/sample-providers.csv`. List fields use `|` as the separator. `category` is a taxonomy slug and `services` must use the canonical sub-service names from `src/lib/taxonomy.ts`.
+## Deployment
 
-## Deploying to Vercel
+1. **Database:** add Neon from the Vercel Marketplace and connect it to both Vercel projects. Run `npm run db:migrate`, then `db:roles` with the four passwords, and give each part its role's connection string.
+2. **Website** (`fund-hub` project, Root Directory `apps/web`): `DATABASE_URL` (fundhub_web role), `ADMIN_ORIGIN` = the admin deployment URL, optional `RESEND_API_KEY`, `EMAIL_FROM`.
+3. **Admin** (new project, Root Directory `apps/admin`, build command `npm run vercel-build`, which applies migrations): `DATABASE_URL` (fundhub_admin role), `DATABASE_URL_UNPOOLED`, `ANALYST_DATABASE_URL`, `PUBLIC_SITE_URL`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, Stripe keys and price ids, `STRIPE_WEBHOOK_SECRET`, optional `GITHUB_DISPATCH_TOKEN` + `GITHUB_REPO`, `POSTHOG_URL`.
+4. **Data module**: GitHub repo secrets `SCRAPER_DATABASE_URL` (fundhub_scraper role) and `ANTHROPIC_API_KEY`; optional variable `RCS_SOURCE`.
+5. Create the first staff owner with `npm run staff` against the production database.
 
-Vercel's filesystem is read-only, so production uses a hosted **Turso** database (libSQL, with a free tier) instead of the local SQLite file.
+See `.env.example` for every variable.
 
-1. **Push the code to GitHub.** The app lives at the repo root.
-2. **Create the Vercel project:** vercel.com → *Add New → Project* → import the repo.
-   - Framework preset: Next.js (auto-detected). Leave **Root Directory empty** and the build command as default; Vercel runs `vercel-build`, which applies migrations and then builds.
-3. **Create the database.** Pick one:
-   - **Vercel Marketplace** (easiest): Project → *Storage* → *Turso* → create and connect. This sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` automatically.
-   - **Turso CLI:** `turso db create fundhub`, `turso db show fundhub --url`, `turso db tokens create fundhub`, then add `DATABASE_URL` and `DATABASE_AUTH_TOKEN` under Project → *Settings → Environment Variables*.
-4. **Deploy.** Migrations run automatically during the build.
-5. **Seed production once** from your machine, using the production credentials:
-   ```bash
-   # PowerShell
-   $env:DATABASE_URL="libsql://..."; $env:DATABASE_AUTH_TOKEN="..."; npm run db:seed
-   ```
-6. Check `https://<your-app>.vercel.app/api/health`. It should return `{"status":"ok","database":"ok"}`.
-
-## Project structure
-
-```
-src/
-  app/                 routes (pages, API)
-  components/          UI components (client components use the URL for filter state)
-  content/             insights articles
-  db/                  schema, client, env resolution, queries
-  lib/                 taxonomy, filters, formatting, advisor engine, request forms, provider validation
-scripts/               seed + import/publish pipelines
-data/                  seed data and sample import file
-drizzle/               generated SQL migrations (commit these)
-```
+> Provider data in `packages/db/data/providers.json` is illustrative sample data (fictional names, `example.com` sites).

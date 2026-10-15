@@ -22,3 +22,8 @@ next-env.d.ts
 
 # private documents
 business_plan.pdf
+
+# local embedded Postgres data
+.pg-data/
+.turbo/
+!.env.example

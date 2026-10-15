@@ -1,0 +1,27 @@
+{
+  "name": "@fundhub/email",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Transactional and staff-composed emails: React Email templates sent through Resend, logged in email_messages.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fundhub/db": "*",
+    "@react-email/components": "^1.0.12",
+    "drizzle-orm": "^0.45.3",
+    "resend": "^6.33.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
+    "typescript": "5.9"
+  }
+}
