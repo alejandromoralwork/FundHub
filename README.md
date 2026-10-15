@@ -1,29 +1,50 @@
-# FundHub Lux
+# FundHub
 
 B2B directory and price comparator for Luxembourg fund service providers.
 
-**Stack:** Next.js 16 (App Router) · TypeScript · React 19 · Tailwind CSS v4 · Drizzle ORM · libSQL/SQLite (Turso in production) · lucide-react
+**Stack:** Next.js 16 (App Router) · TypeScript · React 19 · Tailwind CSS v4 · Drizzle ORM · libSQL/SQLite (Turso in production) · pdf-lib · Fontsource (self-hosted fonts) · lucide-react
 
 ## Positioning
 
 FundHub is an **independent** comparator and buy-side advisor for Luxembourg fund services. It is paid by asset managers (advisory fees) and never by referral fees or commissions from providers. Provider subscriptions only buy profile control and reports, never ranking, scores or the Verified badge. See `/independence`.
 
-## Features
+## Sections
 
-- **Landing page** (`/`): positioning, the referral-fee problem, how it works, the 8 categories, independence comparison, advisory teaser, live stats.
-- **Comparator** (`/compare`): search plus filters for service category, sub-service, headcount, price bounds, provider type, client density, asset class, licence, regulatory scope and tech stack. Card metrics change with the selected category. All filters live in the URL and filtering runs in the database.
-- **Service taxonomy** (`/services`, `/services/[category]`): the business plan's 8 macro-categories and standardized sub-services, each with a buyer's guide (when you need it, what to compare, red flags, typical fees). Source of truth: `src/lib/taxonomy.ts`.
-- **Provider profiles** (`/providers/[slug]`): services grouped by category, licences, asset classes, certifications, footprint, set-up fee, data sources and last-verified date, fee-audit CTA, similar providers.
-- **Independent advisory** (`/advisory`): fee audit, vendor selection/RFP, negotiation advocacy, fund set-up map; conflict-free fee model; consultation form.
-- **Request quotes** (`/rfi`): standardized RFI using the taxonomy.
-- **For providers** (`/for-providers`): free listing, free verification, Pro tiers (pricing on request), intelligence reports, Market Awards, claim form.
-- **Knowledge hub** (`/insights`): articles in `src/content/insights.ts`.
-- **Methodology & data** (`/methodology`): metric definitions, data-source governance table, API docs. `/about` redirects here.
-- **AI Advisor widget:** rule-based guidance (`src/lib/advisor.ts`) with live provider matches.
-- **Forms:** RFI, advisory and provider-claim submissions are stored in `rfi_requests` with `request_type` = `rfi` | `advisory` | `claim` (server action in `src/lib/request-actions.ts`, honeypot spam trap, works without JavaScript).
-- **JSON API:** `/api/providers`, `/api/providers/[slug]`, `/api/stats`, `/api/health`, `/api/advisor`.
-- **SEO:** `sitemap.xml`, `robots.txt`, icon, per-page metadata.
-- **Data pipelines:** import providers from CSV/JSON as *staged*, review them, then publish.
+| Section | Route | What it is |
+|---|---|---|
+| Provider Comparator | `/compare` | Filter providers by category, sub-service, licence, asset class, stack, size, fees |
+| Service Categories | `/services`, `/services/[category]` | The 8-category taxonomy with buyer's guides |
+| Fee Benchmarks | `/benchmarks` | Typical fee ranges by category and provider size |
+| Advisory | `/advisory` | We accompany clients to negotiate fees and help them set up their activities |
+| News & Learn | `/news` | Sector news and educational guides (`src/content/insights.ts`) |
+| Data Intelligence | `/data-intelligence` | Live stats, quarterly PDF reports (public + private), bespoke data services |
+| FundHub Awards | `/awards` | Award categories, scoring, timeline, nominations |
+
+Also: provider profiles (`/providers/[slug]`) with verified client reviews, Request quotes (`/rfi`), Independence charter, Methodology & data, For service providers.
+
+## Users
+
+- **Visitors** need no login for anything public.
+- **Provider accounts** (`/account/signup`): claim a company listing → a FundHub admin approves → the provider edits its factual profile data (live immediately, every edit logged). Fees, peer scores, reviews, the Verified badge, name and primary category stay FundHub-controlled. Approved accounts can download private reports.
+- **Admins** (`/admin`): approve claims (and create new listings), verify client reviews, upload/manage PDF reports, see all form submissions.
+
+Passwords are hashed with scrypt; sessions are random tokens stored hashed in the database (30 days, httpOnly cookie). There is no email service yet, so admins reset passwords with the CLI:
+
+```bash
+npm run admin -- create-admin you@fundhub.lu "Your Name"   # prints a temporary password
+npm run admin -- reset-password someone@provider.lu
+npm run admin -- promote someone@fundhub.lu
+npm run admin -- list
+```
+Point `DATABASE_URL`/`DATABASE_AUTH_TOKEN` at the Turso database to run these against production.
+
+## Verified client reviews
+
+Anyone can submit a review at `/providers/[slug]/review` with a work email, role, relationship and evidence. Automatic checks block the provider's own staff (email domain = provider website, or provider account holders) and flag personal email domains. An admin contacts the reviewer, then publishes or rejects. Published reviews show only role, relationship and fund type; the overall score is folded into the Peer Opinion Score.
+
+## Data Intelligence reports
+
+Two built-in reports are generated as PDFs from live data (`src/lib/report-pdf.ts`): the public **Market Snapshot** and the private **Provider Intelligence Report**. Admins can upload more PDFs (≤ 4 MB, public or private) on `/admin`; they are stored in the database and private ones are only served to approved provider accounts.
 
 > Provider data in `data/providers.json` is illustrative sample data (fictional names, `example.com` sites).
 

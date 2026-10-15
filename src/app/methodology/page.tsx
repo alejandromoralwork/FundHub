@@ -28,7 +28,7 @@ const DEFINITIONS = [
   ],
   [
     "Peer Opinion Score",
-    "Average rating (0–5) from authenticated fund-industry reviewers in a closed, double-blind loop. Providers cannot remove or edit reviews.",
+    "Average rating (0–5) from authenticated fund-industry reviewers in a closed, double-blind loop. Written client reviews are published only after FundHub verifies the reviewer's work email and client relationship; reviewer identities are never shown. Providers cannot remove, edit or pay for reviews, and their staff cannot review themselves.",
   ],
   [
     "Avg. Fee Deviation",

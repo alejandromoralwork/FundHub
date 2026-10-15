@@ -4,9 +4,9 @@ import { z } from "zod";
 import { db } from "@/db/index";
 import { getProviderById } from "@/db/queries";
 import { REQUEST_TYPES, rfiRequests, type NewRfiRequest, type RequestType } from "@/db/schema";
-import { AUM_BANDS, FUND_STRUCTURES, SERVICE_GROUPS } from "./request-options";
+import { AUM_BANDS, FUND_STRUCTURES, NO_FUND_FIELDS, SERVICE_GROUPS } from "./request-options";
 
-const REFERENCE_PREFIX: Record<RequestType, string> = { rfi: "RFI", advisory: "ADV", claim: "PRO" };
+const REFERENCE_PREFIX: Record<RequestType, string> = { rfi: "RFI", advisory: "ADV", data: "DAT", awards: "AWD", claim: "PRO" };
 
 const baseSchema = z.object({
   providerId: z.coerce.number().int().positive().optional().catch(undefined),
@@ -26,7 +26,7 @@ function servicesSchema(type: RequestType) {
   const allowed = SERVICE_GROUPS[type].flatMap((g) => g.options);
   return z
     .array(z.string().refine((s) => allowed.includes(s)))
-    .min(1, type === "claim" ? "Select at least one option" : "Select at least one service");
+    .min(1, type === "rfi" || type === "advisory" ? "Select at least one service" : "Select at least one option");
 }
 
 export type RequestFormState =
@@ -51,8 +51,8 @@ export async function submitRequest(_prev: RequestFormState, formData: FormData)
     message: formData.get("message") ?? "",
   };
 
-  const schema =
-    type === "claim"
+  const noFund = NO_FUND_FIELDS.includes(type);
+  const schema = noFund
       ? baseSchema.extend({ servicesNeeded: servicesSchema(type) })
       : baseSchema.merge(fundSchema).extend({ servicesNeeded: servicesSchema(type) });
 
@@ -68,7 +68,7 @@ export async function submitRequest(_prev: RequestFormState, formData: FormData)
 
   const data = parsed.data;
   // Already validated above for buyer-side requests; re-parse for a precise type.
-  const fund = type === "claim" ? undefined : fundSchema.parse(raw);
+  const fund = noFund ? undefined : fundSchema.parse(raw);
   const provider = data.providerId ? await getProviderById(data.providerId) : undefined;
 
   const values: NewRfiRequest = {

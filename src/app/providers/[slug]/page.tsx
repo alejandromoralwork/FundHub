@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Tag, TypeBadge, VerifiedBadge } from "@/components/badges";
 import { Stars } from "@/components/stars";
+import { getPublishedReviews } from "@/db/account-queries";
 import { countRfisForProvider, getEcosystemStats, getProviderBySlug, getSimilarProviders } from "@/db/queries";
 import { formatEur, formatNumber, formatPercent, formatPriceRange, initials } from "@/lib/format";
 import { getCategory, TAXONOMY } from "@/lib/taxonomy";
@@ -43,10 +44,11 @@ export default async function ProviderPage({ params }: Props) {
   const p = await getProviderBySlug((await params).slug);
   if (!p) notFound();
 
-  const [similar, stats, rfiCount] = await Promise.all([
+  const [similar, stats, rfiCount, clientReviews] = await Promise.all([
     getSimilarProviders(p),
     getEcosystemStats(),
     countRfisForProvider(p.id),
+    getPublishedReviews(p.id),
   ]);
   const category = getCategory(p.category) ?? TAXONOMY[0];
   const secondary = p.secondaryCategories.map((c) => getCategory(c)).filter((c) => c !== undefined);
@@ -71,6 +73,8 @@ export default async function ProviderPage({ params }: Props) {
     ["Certifications", p.certifications],
     ["Geographical footprint", p.footprint],
   ];
+  const dayFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const providerUpdated = p.providerUpdatedAt ? dayFmt.format(p.providerUpdatedAt) : null;
   const lastVerified = p.lastVerifiedAt
     ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(p.lastVerifiedAt)
     : null;
@@ -105,6 +109,9 @@ export default async function ProviderPage({ params }: Props) {
               <Stars score={p.rating} />
               <span className="tnum text-sm font-medium text-ink">{p.rating.toFixed(1)}</span>
               <span className="text-xs text-slate-400">Peer Opinion Score · {p.reviewCount} reviews</span>
+              <Link href={`/providers/${p.slug}/review`} className="ml-2 text-xs font-medium text-emerald-700 hover:underline">
+                Write a verified review
+              </Link>
             </div>
           </div>
         </div>
@@ -179,6 +186,41 @@ export default async function ProviderPage({ params }: Props) {
             </ul>
           </Section>
 
+          <Section title={`Verified client reviews (${clientReviews.length})`}>
+            {clientReviews.length ? (
+              <ul className="space-y-4">
+                {clientReviews.map((r) => (
+                  <li key={r.id} className="border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Stars score={r.overall} />
+                      <span className="text-sm font-semibold text-ink">{r.title}</span>
+                    </div>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
+                      <ShieldCheck className="h-3 w-3 text-emerald" /> Verified client · {r.reviewerRole}
+                      {r.fundStructure && ` · ${r.fundStructure}`} · {r.relationship}
+                      {r.clientSince && ` since ${r.clientSince}`}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-ink-600">{r.body}</p>
+                    <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                      <span>Service {r.serviceQuality}/5</span>
+                      <span>Responsiveness {r.responsiveness}/5</span>
+                      <span>Pricing transparency {r.pricingTransparency}/5</span>
+                      <span>Technology {r.technology}/5</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-ink-600">No verified written reviews yet.</p>
+            )}
+            <Link
+              href={`/providers/${p.slug}/review`}
+              className="mt-4 inline-block rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-ink-600 hover:bg-slate-50"
+            >
+              Are you a client? Write a verified review
+            </Link>
+          </Section>
+
           <Section title="Licences, technology & coverage">
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               {coverage.map(([label, values]) => (
@@ -239,11 +281,15 @@ export default async function ProviderPage({ params }: Props) {
               </li>
             </ul>
             <p className="mt-3 text-[11px] text-slate-400">
-              {lastVerified ? `Last verified ${lastVerified}.` : "Not yet verified."}{" "}
+              {lastVerified ? `Last verified ${lastVerified}.` : "Not yet verified."}
+              {providerUpdated && ` Profile updated by the provider on ${providerUpdated}.`}{" "}
               <Link href="/methodology" className="hover:underline">
                 Methodology
               </Link>
             </p>
+            <Link href="/account" className="mt-2 inline-block text-[11px] font-medium text-emerald-700 hover:underline">
+              Is this your company? Manage this profile →
+            </Link>
           </Section>
 
           {similar.length > 0 && (

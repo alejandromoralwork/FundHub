@@ -234,3 +234,75 @@ export async function countRfisForProvider(providerId: number): Promise<number> 
   const [row] = await db.select({ n: count() }).from(rfiRequests).where(eq(rfiRequests.providerId, providerId));
   return row.n;
 }
+
+// ---------------------------------------------------------------- data intelligence
+
+export type MarketStats = {
+  providers: number;
+  verified: number;
+  byCategory: CategoryBenchmark[];
+  byType: Awaited<ReturnType<typeof getFeeBenchmarksByType>>;
+  /** Share of providers listing each value (0–1), sorted descending. */
+  techStack: { label: string; count: number; share: number }[];
+  licences: { label: string; count: number; share: number }[];
+  assetClasses: { label: string; count: number; share: number }[];
+  /** Services most requested in RFIs. */
+  demand: { label: string; count: number }[];
+  rfiCount: number;
+};
+
+/** Counts how many published providers list each value of a JSON array column. */
+async function jsonValueCounts(column: Column, total: number) {
+  const rows = await db
+    .select({ label: sql<string>`json_each.value`, n: count() })
+    .from(sql`${providers}, json_each(${column})`)
+    .where(published)
+    .groupBy(sql`json_each.value`)
+    .orderBy(desc(count()));
+  return rows.map((r) => ({ label: r.label, count: r.n, share: total ? r.n / total : 0 }));
+}
+
+export async function getMarketStats(): Promise<MarketStats> {
+  const [stats, byCategory, byType] = await Promise.all([
+    getEcosystemStats(),
+    getFeeBenchmarks(),
+    getFeeBenchmarksByType(),
+  ]);
+  const total = stats.indexedProviders;
+  const [techStack, licences, assetClasses, demandRows, [rfis]] = await Promise.all([
+    jsonValueCounts(providers.techStack, total),
+    jsonValueCounts(providers.licences, total),
+    jsonValueCounts(providers.assetClasses, total),
+    db
+      .select({ label: sql<string>`json_each.value`, n: count() })
+      .from(sql`${rfiRequests}, json_each(${rfiRequests.servicesNeeded})`)
+      .where(eq(rfiRequests.requestType, "rfi"))
+      .groupBy(sql`json_each.value`)
+      .orderBy(desc(count()))
+      .limit(10),
+    db.select({ n: count() }).from(rfiRequests).where(eq(rfiRequests.requestType, "rfi")),
+  ]);
+
+  return {
+    providers: total,
+    verified: stats.verifiedProviders,
+    byCategory,
+    byType,
+    techStack,
+    licences,
+    assetClasses,
+    demand: demandRows.map((r) => ({ label: r.label, count: r.n })),
+    rfiCount: rfis.n,
+  };
+}
+
+/** Highest peer score per category among verified providers (for the Awards page). */
+export async function getPeerScoreLeaders(): Promise<Provider[]> {
+  const rows = await db
+    .select()
+    .from(providers)
+    .where(and(published, eq(providers.verified, true)))
+    .orderBy(desc(providers.rating), desc(providers.reviewCount));
+  const seen = new Set<string>();
+  return rows.filter((p) => !seen.has(p.category) && seen.add(p.category));
+}

@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Award, BadgeCheck, BarChart3, CheckCircle2, PenLine } from "lucide-react";
-import { Panel, SectionTitle } from "@/components/marketing";
-import { RequestForm } from "@/components/request-form";
-import { listProviderOptions } from "@/db/queries";
+import { ButtonLink, Panel, SectionTitle } from "@/components/marketing";
 
-export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "For service providers",
   description:
@@ -51,8 +48,7 @@ const TIERS = [
   },
 ];
 
-export default async function ForProvidersPage() {
-  const providers = await listProviderOptions();
+export default function ForProvidersPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 space-y-12 p-4 sm:p-6">
@@ -144,6 +140,7 @@ export default async function ForProvidersPage() {
               ["Regulatory licences", "CSSF registers, synchronized weekly"],
               ["Tech stack & headcount", "Management DDQ, validated twice a year"],
               ["Fees & reviews", "RFI and audit pools; closed peer-review loop"],
+              ["Your self-edits", "Live immediately, logged, shown as provider-updated"],
             ].map(([k, v]) => (
               <div key={k} className="flex flex-col sm:flex-row sm:gap-4">
                 <dt className="w-44 shrink-0 font-medium text-ink">{k}</dt>
@@ -154,14 +151,20 @@ export default async function ForProvidersPage() {
         </Panel>
       </section>
 
-      <section id="contact" className="scroll-mt-20">
-        <SectionTitle
-          eyebrow="Get in touch"
-          title="Claim your profile or request Pro pricing"
-          lead="Tell us who you are and what you need. Our provider-relations team will reply within two business days."
-        />
-        <div className="mt-5 max-w-3xl">
-          <RequestForm requestType="claim" providers={providers} defaultServices={["Claim / correct my free profile"]} />
+      <section id="contact" className="scroll-mt-20 rounded-xl bg-ink-900 px-6 py-8 text-white sm:px-10">
+        <h2 className="text-xl font-semibold">Manage your company profile</h2>
+        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-300">
+          Create a free provider account, claim your listing and keep your services, team, tech stack and clients up to
+          date yourself. Approved accounts also get the private Data Intelligence reports.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <ButtonLink href="/account/signup">Create a provider account</ButtonLink>
+          <ButtonLink href="/account/login" variant="ghost">
+            Log in
+          </ButtonLink>
+          <ButtonLink href="/awards#nominate" variant="ghost">
+            FundHub Awards
+          </ButtonLink>
         </div>
       </section>
     </main>

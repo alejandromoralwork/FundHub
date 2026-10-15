@@ -2,9 +2,11 @@ export type InsightSection = { heading?: string; paragraphs?: string[]; bullets?
 
 export type Insight = {
   slug: string;
+  /** "news" = sector & FundHub news; "learn" = educational guides. */
+  kind: "news" | "learn";
   title: string;
   summary: string;
-  topic: "Independence" | "Fees" | "Structuring" | "Depositary";
+  topic: "Independence" | "Fees" | "Structuring" | "Depositary" | "Regulation" | "FundHub";
   published: string; // ISO date
   readMinutes: number;
   /** Taxonomy category the article relates to, for cross-links. */
@@ -14,7 +16,86 @@ export type Insight = {
 
 export const INSIGHTS: Insight[] = [
   {
+    slug: "fundhub-market-awards-categories",
+    kind: "news",
+    title: "FundHub Market Awards: categories announced for the first edition",
+    summary:
+      "Eleven award categories will recognise Luxembourg fund service providers on verified peer reviews, an independent jury and data, from boutiques to global players.",
+    topic: "FundHub",
+    published: "2026-10-14",
+    readMinutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          "FundHub has published the categories for the first FundHub Market Awards, covering every part of the Luxembourg fund service chain, from fund administration and depositary services to AIFM platforms, tax, corporate services and technology partners.",
+          "Two cross-category awards, Rising Boutique of the Year and Client Service Excellence, are designed to give specialised firms a stage they rarely get in a market driven by referral networks.",
+        ],
+      },
+      {
+        heading: "How winners will be chosen",
+        bullets: [
+          "50% verified peer reviews from authenticated asset managers",
+          "25% independent jury with no current mandate with any nominee",
+          "15% verified operational data; 10% pricing transparency",
+          "Participation fees cover the data audit and never influence results",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "aifmd-ii-what-changes-for-service-providers",
+    kind: "news",
+    title: "AIFMD II: what changes for Luxembourg AIFMs and their service providers",
+    summary:
+      "The revised AIFM Directive (Directive (EU) 2024/927) had to be transposed by April 2026. Loan origination, liquidity management tools and delegation reporting all affect what managers buy from providers.",
+    topic: "Regulation",
+    published: "2026-09-30",
+    readMinutes: 4,
+    category: "aifm-manco",
+    sections: [
+      {
+        paragraphs: [
+          "AIFMD II amends the 2011 AIFM Directive. Member states had until 16 April 2026 to transpose most of it. For Luxembourg managers, the changes ripple through the service chain: administrators, depositaries, risk and reporting providers all need to adapt.",
+        ],
+      },
+      {
+        heading: "What it means when you buy services",
+        bullets: [
+          "Loan-originating AIFs: new leverage limits and risk-retention rules, so check your administrator's loan-servicing and reporting capabilities",
+          "Open-ended AIFs: at least two liquidity management tools, which need operational support at the administrator and transfer agent",
+          "Delegation: more detailed reporting to the regulator on delegated functions, a point to check with third-party AIFMs",
+          "Depositaries: the option of appointing a depositary in another member state, under conditions",
+        ],
+      },
+      {
+        heading: "Our advice",
+        paragraphs: [
+          "Ask each provider for a written AIFMD II readiness statement and check whether new compliance work will be billed as an add-on. Use FundHub's standardized RFI so the answers are comparable. This is general information, not legal advice.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "fundhub-public-beta-launch",
+    kind: "news",
+    title: "FundHub launches its independent fund services comparator in public beta",
+    summary:
+      "A free, independent index of Luxembourg fund service providers across eight standardized categories, with empirical fee ranges and no referral fees.",
+    topic: "FundHub",
+    published: "2026-10-01",
+    readMinutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          "FundHub has opened its comparator to the public. Asset managers can compare fund administrators, depositaries, ManCos, tax, legal, corporate-services and technology providers on services, licences, technology, scale, peer reviews and empirical fee ranges.",
+          "FundHub is independent: it accepts no referral fees or commissions from providers, and is paid by fund managers for its advisory services. Every provider is listed free of charge and can manage its own profile through a provider account.",
+        ],
+      },
+    ],
+  },
+  {
     slug: "referral-fees-luxembourg-fund-services",
+    kind: "learn",
     title: "How referral fees shape provider selection in Luxembourg",
     summary:
       "Most fund managers arriving in Luxembourg choose their administrator, depositary and ManCo on the recommendation of whoever set up the fund. Here is why that's a problem, and how to run a conflict-free selection.",
@@ -56,6 +137,7 @@ export const INSIGHTS: Insight[] = [
   },
   {
     slug: "hidden-line-items-fund-administration-proposals",
+    kind: "learn",
     title: "7 hidden line items in fund administration proposals",
     summary:
       "Headline fees rarely tell the full story. These are the line items our fee audits most often find buried in central-administration proposals for private-markets funds.",
@@ -90,6 +172,7 @@ export const INSIGHTS: Insight[] = [
   },
   {
     slug: "depositary-lite-vs-full-depositary",
+    kind: "learn",
     title: "Depositary-lite vs full depositary: which does your fund need?",
     summary:
       "For illiquid AIFs, a professional depositary (PSF) can perform AIFMD Art. 21 duties at a fraction of a bank's cost. Here is how to decide.",
@@ -124,6 +207,7 @@ export const INSIGHTS: Insight[] = [
   },
   {
     slug: "raif-setup-service-providers",
+    kind: "learn",
     title: "Setting up a RAIF: the service providers you actually need",
     summary:
       "A RAIF isn't supervised by the CSSF, but its service chain is. This is the minimum set of providers, what each one does and the order to appoint them in.",

@@ -5,59 +5,58 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
   Award,
+  BarChart3,
   BookOpen,
+  CircleUserRound,
   FileText,
   Handshake,
   Home,
   LayoutGrid,
-  Layers,
+  LogIn,
   Menu,
   Newspaper,
   Search,
   ShieldCheck,
   Store,
   TrendingUp,
+  Trophy,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { SiteFooter } from "./site-footer";
+import { Wordmark } from "./wordmark";
 import { TopSearch } from "./top-search";
 import { cn } from "@/lib/cn";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 const NAV: { section: string; items: NavItem[] }[] = [
-  { section: "Overview", items: [{ href: "/", label: "Home", icon: Home }] },
-  {
-    section: "Compare",
-    items: [
-      { href: "/compare", label: "Provider Comparator", icon: Search },
-      { href: "/services", label: "Service Categories", icon: LayoutGrid },
-      { href: "/benchmarks", label: "Fee Benchmarks", icon: TrendingUp },
-    ],
-  },
-  {
-    section: "Advisory",
-    items: [
-      { href: "/advisory", label: "Independent Advisory", icon: Handshake },
-      { href: "/rfi", label: "Request Quotes", icon: FileText },
-    ],
-  },
-  {
-    section: "Knowledge",
-    items: [
-      { href: "/insights", label: "Insights", icon: Newspaper },
-      { href: "/methodology", label: "Methodology & Data", icon: BookOpen },
-    ],
-  },
   {
     section: "FundHub",
     items: [
+      { href: "/", label: "Home", icon: Home },
+      { href: "/compare", label: "Provider Comparator", icon: Search },
+      { href: "/services", label: "Service Categories", icon: LayoutGrid },
+      { href: "/benchmarks", label: "Fee Benchmarks", icon: TrendingUp },
+      { href: "/advisory", label: "Advisory", icon: Handshake },
+      { href: "/news", label: "News & Learn", icon: Newspaper },
+      { href: "/data-intelligence", label: "Data Intelligence", icon: BarChart3 },
+      { href: "/awards", label: "FundHub Awards", icon: Trophy },
+    ],
+  },
+  {
+    section: "More",
+    items: [
+      { href: "/rfi", label: "Request Quotes", icon: FileText },
       { href: "/independence", label: "Independence Charter", icon: ShieldCheck },
+      { href: "/methodology", label: "Methodology & Data", icon: BookOpen },
       { href: "/for-providers", label: "For Service Providers", icon: Store },
     ],
   },
 ];
+
+/** Minimal account info for the shell; null for regular visitors. */
+export type ShellAccount = { name: string; isAdmin: boolean } | null;
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -81,20 +80,13 @@ function IndependenceBanner() {
   );
 }
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+function Sidebar({ onNavigate, account }: { onNavigate?: () => void; account: ShellAccount }) {
   const pathname = usePathname();
   return (
     <div className="flex h-full flex-col bg-ink-900 text-slate-200">
-      <Link href="/" onClick={onNavigate} className="flex h-16 items-center gap-2.5 border-b border-ink-700 px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald text-white">
-          <Layers className="h-4 w-4" />
-        </span>
-        <span className="leading-tight">
-          <span className="block text-sm font-semibold text-white">
-            FundHub<span className="text-emerald"> Lux</span>
-          </span>
-          <span className="block text-[10px] uppercase tracking-widest text-slate-400">Independent Comparator</span>
-        </span>
+      <Link href="/" onClick={onNavigate} aria-label="FundHub home" className="flex h-16 flex-col justify-center border-b border-ink-700 px-5">
+        <Wordmark tone="light" className="text-xl leading-none" />
+        <span className="mt-1 block text-[10px] uppercase tracking-widest text-slate-400">Independent fund services comparator</span>
       </Link>
 
       <nav className="thin-scroll flex-1 space-y-6 overflow-y-auto px-3 py-4">
@@ -123,6 +115,18 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
+      <div className="border-t border-ink-700 p-3">
+        <Link
+          href={account ? "/account" : "/account/login"}
+          onClick={onNavigate}
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-ink-800"
+        >
+          {account ? <CircleUserRound className="h-4 w-4 text-emerald" /> : <LogIn className="h-4 w-4" />}
+          <span className="min-w-0 truncate">{account ? account.name : "Provider login"}</span>
+          {account?.isAdmin && <span className="ml-auto text-[10px] uppercase text-emerald">Admin</span>}
+        </Link>
+      </div>
+
       <div className="space-y-2 border-t border-ink-700 p-4 text-[11px] leading-relaxed text-slate-400">
         <p className="flex items-center gap-1.5 font-semibold text-emerald">
           <Award className="h-3.5 w-3.5" /> Independent · No referral fees
@@ -134,7 +138,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, account }: { children: React.ReactNode; account: ShellAccount }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
 
@@ -150,7 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-ink-700 lg:block">
-        <Sidebar />
+        <Sidebar account={account} />
       </aside>
 
       {drawerOpen && (
@@ -161,7 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-64 shadow-xl">
-            <Sidebar onNavigate={() => setDrawerOpen(false)} />
+            <Sidebar account={account} onNavigate={() => setDrawerOpen(false)} />
             <button
               aria-label="Close navigation"
               onClick={() => setDrawerOpen(false)}

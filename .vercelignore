@@ -9,3 +9,7 @@ node_modules
 *.db-shm
 *.tsbuildinfo
 *.pdf
+.agents
+.claude
+skills-lock.json
+.vercel

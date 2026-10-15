@@ -15,6 +15,20 @@
       "when": 1791968423820,
       "tag": "0001_business_plan_taxonomy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792040259718,
+      "tag": "0002_accounts_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792041115810,
+      "tag": "0003_client_reviews",
+      "breakpoints": true
     }
   ]
 }

@@ -9,24 +9,24 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Independent advisory",
   description:
-    "Buy-side fee audits, vendor selection and negotiation representation for asset managers in Luxembourg. Paid only by you, never by providers.",
+    "We accompany asset managers to negotiate fees with Luxembourg fund service providers and help them set up their activities. Paid only by you, never by providers.",
 };
 
 const ICONS = { "fee-audit": FileSearch, "vendor-selection": Users, negotiation: Handshake, "fund-setup": MapIcon } as const;
 
 const PROCESS = [
-  { title: "Scoping call", body: "A free 30-minute call to understand your structure, current providers or proposals, and objectives." },
+  { title: "Scoping call", body: "A free 30-minute call about your project: a new fund or activity, a renegotiation, or proposals you've received." },
   {
     title: "Data-driven diagnosis",
     body: "We benchmark your fees and scope against FundHub's market data and anonymized RFI and audit pools.",
   },
   {
-    title: "Market test or negotiation",
-    body: "We run a standardized RFP with a balanced shortlist, or negotiate directly with your incumbent provider.",
+    title: "Negotiation, with you in the room",
+    body: "We prepare the negotiation, run a standardized RFP if needed, and attend the pricing meetings with you, physically or virtually.",
   },
   {
-    title: "Decision & onboarding",
-    body: "We help you choose on evidence and accompany you through contract review and onboarding meetings.",
+    title: "Set-up & onboarding",
+    body: "We coordinate the set-up of your activities and providers in Luxembourg and accompany you through contracts and onboarding.",
   },
 ];
 
@@ -65,9 +65,9 @@ export default async function AdvisoryPage({
         <div className="lg:col-span-3">
           <SectionTitle
             as="h1"
-            eyebrow="Independent advisory & negotiation"
-            title="We sit on your side of the table, and only yours"
-            lead="Law firms, administrators and consultants are the usual gatekeepers for managers entering Luxembourg, and their recommendations often come with referral fees attached. FundHub's senior operational experts use our market data to select, audit and negotiate with service providers purely in your interest."
+            eyebrow="Advisory"
+            title="We go with you to the negotiating table, and help you set up in Luxembourg"
+            lead="Two things managers ask us for most: someone experienced on their side when negotiating fees with service providers, and a guide through setting up their fund and activities in Luxembourg. Law firms and administrators often recommend providers under referral fees; we don't. Our senior experts work only for you, backed by FundHub's market data."
           />
         </div>
         <Panel className="border-emerald/40 lg:col-span-2">
@@ -98,7 +98,7 @@ export default async function AdvisoryPage({
       </section>
 
       <section>
-        <SectionTitle eyebrow="Services" title="What we do for asset managers" />
+        <SectionTitle eyebrow="Services" title="What we do for asset managers" lead="Negotiation support and set-up support are our core services; fee audits and RFP management support both." />
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {ADVISORY_SERVICES.map((s) => {
             const Icon = ICONS[s.id];

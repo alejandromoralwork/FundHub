@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TAXONOMY } from "@/lib/taxonomy";
+import { Wordmark } from "./wordmark";
 
 const COLUMNS = [
   {
@@ -12,20 +13,21 @@ const COLUMNS = [
     ],
   },
   {
-    title: "Advisory",
+    title: "Services",
     links: [
-      { href: "/advisory", label: "Independent advisory" },
-      { href: "/advisory?service=fee-audit#contact", label: "Fee audit" },
-      { href: "/insights", label: "Insights" },
-      { href: "/methodology", label: "Methodology & data" },
+      { href: "/advisory", label: "Advisory" },
+      { href: "/data-intelligence", label: "Data Intelligence" },
+      { href: "/awards", label: "FundHub Awards" },
+      { href: "/news", label: "News & Learn" },
     ],
   },
   {
     title: "FundHub",
     links: [
       { href: "/independence", label: "Independence charter" },
+      { href: "/methodology", label: "Methodology & data" },
       { href: "/for-providers", label: "For service providers" },
-      { href: "/methodology#api", label: "Public API" },
+      { href: "/account/login", label: "Provider login" },
     ],
   },
 ];
@@ -35,8 +37,9 @@ export function SiteFooter() {
     <footer className="mt-auto border-t border-slate-200 bg-white">
       <div className="grid gap-8 px-4 py-8 sm:px-6 md:grid-cols-2 xl:grid-cols-5">
         <div className="xl:col-span-2">
-          <p className="text-sm font-semibold text-ink">
-            FundHub<span className="text-emerald"> Lux</span>
+          <p>
+            <Wordmark className="text-lg" />
+            <span className="ml-1 text-xs text-slate-400">FundHub.lu</span>
           </p>
           <p className="mt-2 max-w-sm text-xs leading-relaxed text-ink-600">
             The independent comparator and buy-side advisor for Luxembourg fund services. We are paid by fund
@@ -71,7 +74,7 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-slate-100 px-4 py-4 text-[11px] leading-relaxed text-slate-400 sm:px-6">
         <p>
-          © {new Date().getFullYear()} FundHub Lux. Fee ranges are indicative quarterly quotes, not offers. Content is
+          © {new Date().getFullYear()} FundHub.lu. Fee ranges are indicative quarterly quotes, not offers. Content is
           general information, not legal, tax or investment advice. Public beta: provider profiles shown are
           illustrative sample data.
         </p>

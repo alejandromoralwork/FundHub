@@ -27,7 +27,7 @@ import { TAXONOMY } from "@/lib/taxonomy";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { absolute: "FundHub Lux · Independent Fund Services Comparator & Advisor in Luxembourg" },
+  title: { absolute: "FundHub · Independent Fund Services Comparator & Advisor in Luxembourg" },
   description:
     "Compare Luxembourg fund administrators, depositaries, ManCos, tax and legal providers on real fees, technology and peer reviews. Independent: no referral fees, no commissions.",
 };
@@ -354,16 +354,16 @@ export default async function HomePage() {
           </div>
           <div>
             <div className="flex items-end justify-between">
-              <h2 className="text-lg font-semibold text-ink">Latest insights</h2>
-              <Link href="/insights" className="text-xs font-medium text-emerald-700 hover:underline">
-                Knowledge hub →
+              <h2 className="text-lg font-semibold text-ink">News & Learn</h2>
+              <Link href="/news" className="text-xs font-medium text-emerald-700 hover:underline">
+                All articles →
               </Link>
             </div>
             <ul className="mt-3 space-y-3">
-              {INSIGHTS.slice(0, 3).map((i) => (
+              {[...INSIGHTS].sort((a, b) => b.published.localeCompare(a.published)).slice(0, 3).map((i) => (
                 <li key={i.slug}>
                   <Link
-                    href={`/insights/${i.slug}`}
+                    href={`/news/${i.slug}`}
                     className="block rounded-lg border border-slate-200 bg-white p-4 hover:border-emerald/50"
                   >
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">{i.topic}</p>

@@ -6,7 +6,7 @@ import { CheckCircle2, Loader2, Send } from "lucide-react";
 import type { RequestType } from "@/db/schema";
 import { cn } from "@/lib/cn";
 import { submitRequest, type RequestFormState } from "@/lib/request-actions";
-import { AUM_BAND_LABELS, AUM_BANDS, FUND_STRUCTURES, SERVICE_GROUPS } from "@/lib/request-options";
+import { AUM_BAND_LABELS, AUM_BANDS, FUND_STRUCTURES, NO_FUND_FIELDS, SERVICE_GROUPS } from "@/lib/request-options";
 
 type ProviderOption = { id: number; slug: string; name: string };
 
@@ -56,6 +56,32 @@ const COPY: Record<
     successTitle: "Consultation requested",
     successNote: "A senior FundHub advisor will contact you within one business day.",
     again: "/advisory#contact",
+  },
+  data: {
+    providerLabel: "Your company (if listed on FundHub)",
+    providerEmpty: "Not listed / not a provider",
+    companyLabel: "Company",
+    servicesLegend: "What are you interested in?",
+    messageLabel: "Describe what you need (optional)",
+    messagePlaceholder: "e.g. Fee benchmark for depositary-lite services on RE funds above €500m, by provider size.",
+    privacy: "Confidential. Bespoke analyses use anonymized, aggregated data only.",
+    submit: "Request a proposal",
+    successTitle: "Request received",
+    successNote: "Our Data Intelligence team will send you a proposal within three business days.",
+    again: "/data-intelligence#private-services",
+  },
+  awards: {
+    providerLabel: "Company to nominate (if listed on FundHub)",
+    providerEmpty: "Not listed yet",
+    companyLabel: "Your company",
+    servicesLegend: "Award categories",
+    messageLabel: "Why this provider? (optional)",
+    messagePlaceholder: "Key achievements, client feedback, innovations this year…",
+    privacy: "Nominations are reviewed against verified data. Fees never decide the outcome.",
+    submit: "Submit nomination / register interest",
+    successTitle: "Nomination received",
+    successNote: "We'll confirm eligibility and next steps by email.",
+    again: "/awards#nominate",
   },
   claim: {
     providerLabel: "Your firm (if already listed)",
@@ -206,7 +232,7 @@ export function RequestForm({
             {...invalid("company")}
           />
         </Field>
-        {requestType !== "claim" && (
+        {!NO_FUND_FIELDS.includes(requestType) && (
           <>
             <Field label="Fund structure" name="fundStructure" error={errors.fundStructure}>
               <select

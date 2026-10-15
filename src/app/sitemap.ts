@@ -15,7 +15,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/benchmarks",
     "/advisory",
     "/rfi",
-    "/insights",
+    "/news",
+    "/data-intelligence",
+    "/awards",
     "/methodology",
     "/independence",
     "/for-providers",
@@ -25,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticPaths.map((p) => ({ url: `${base}${p}` })),
     ...TAXONOMY.map((c) => ({ url: `${base}/services/${c.slug}` })),
-    ...INSIGHTS.map((i) => ({ url: `${base}/insights/${i.slug}`, lastModified: i.published })),
+    ...INSIGHTS.map((i) => ({ url: `${base}/news/${i.slug}`, lastModified: i.published })),
     ...providers.map((p) => ({ url: `${base}/providers/${p.slug}` })),
   ];
 }

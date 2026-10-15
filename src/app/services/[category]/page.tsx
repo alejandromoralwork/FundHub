@@ -119,12 +119,12 @@ export default async function CategoryGuidePage({ params }: Props) {
 
       {related.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-ink">Related insights</h2>
+          <h2 className="mb-3 text-lg font-semibold text-ink">Related reading</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {related.map((i) => (
               <Link
                 key={i.slug}
-                href={`/insights/${i.slug}`}
+                href={`/news/${i.slug}`}
                 className="block rounded-lg border border-slate-200 bg-white p-4 hover:border-emerald/50"
               >
                 <p className="text-sm font-semibold text-ink">{i.title}</p>
