@@ -21,6 +21,9 @@ export async function getDashboard() {
       mrr_cents: number;
       unpaid_cents: number;
       downloads_30d: number;
+      gdpr_open: number;
+      gdpr_next_due: string | null;
+      post_drafts: number;
     }>(sql`
       select
         (select count(*) from provider_claims where status = 'pending')::int as pending_claims,
@@ -36,7 +39,10 @@ export async function getDashboard() {
         (select coalesce(sum(case interval when 'quarter' then amount / 3 when 'year' then amount / 12 else amount end), 0)
            from subscriptions where status in ('active', 'trialing', 'past_due'))::int as mrr_cents,
         (select coalesce(sum(amount_due - amount_paid), 0) from invoices where status = 'open')::int as unpaid_cents,
-        (select count(*) from report_downloads where created_at > now() - interval '30 days')::int as downloads_30d`),
+        (select count(*) from report_downloads where created_at > now() - interval '30 days')::int as downloads_30d,
+        (select count(*) from gdpr_requests where status in ('received', 'verifying'))::int as gdpr_open,
+        (select min(due_at) from gdpr_requests where status in ('received', 'verifying')) as gdpr_next_due,
+        (select count(*) from posts where status = 'draft')::int as post_drafts`),
     many<{ source: string; last_success: string | null; last_status: string | null }>(sql`
       select s.source,
              (select max(finished_at) from ingest_runs r where r.source = s.source and r.status = 'succeeded') as last_success,

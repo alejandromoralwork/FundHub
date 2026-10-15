@@ -18,8 +18,7 @@ import { IndependentBadge } from "@/components/badges";
 import { ButtonLink, CtaBand, Panel, SectionTitle } from "@/components/marketing";
 import { StatCards } from "@/components/stat-cards";
 import { Stars } from "@/components/stars";
-import { INSIGHTS } from "@/content/insights";
-import { getCategoryCounts, getEcosystemStats, getFeeBenchmarks, getTopRatedProviders } from "@fundhub/db/queries";
+import { getCategoryCounts, getEcosystemStats, getFeeBenchmarks, getTopRatedProviders, listPublishedPosts } from "@fundhub/db/queries";
 import { formatEur, formatNumber, formatPriceRange } from "@fundhub/core/format";
 import { ADVISORY_SERVICES } from "@fundhub/core/request-options";
 import { TAXONOMY } from "@fundhub/core/taxonomy";
@@ -86,11 +85,12 @@ const ROUTE_ROWS: [string, string, string][] = [
 ];
 
 export default async function HomePage() {
-  const [stats, counts, benchmarks, top] = await Promise.all([
+  const [stats, counts, benchmarks, top, latest] = await Promise.all([
     getEcosystemStats(),
     getCategoryCounts(),
     getFeeBenchmarks(),
     getTopRatedProviders(4),
+    listPublishedPosts({ limit: 3 }),
   ]);
   const bench = new Map(benchmarks.map((b) => [b.category, b]));
 
@@ -360,7 +360,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <ul className="mt-3 space-y-3">
-              {[...INSIGHTS].sort((a, b) => b.published.localeCompare(a.published)).slice(0, 3).map((i) => (
+              {latest.map((i) => (
                 <li key={i.slug}>
                   <Link
                     href={`/news/${i.slug}`}

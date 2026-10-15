@@ -9,6 +9,7 @@ import { providerClaims, rfiRequests, users } from "@fundhub/db/schema";
 import { sendEmail } from "@fundhub/email/send";
 import { audit } from "./audit";
 import { CAN, requireStaff } from "./auth";
+import { createLead, crmConfigured } from "./crm";
 import { SEGMENTS, type Segment } from "./segments";
 
 export type ActionResult = { ok?: string; error?: string };
@@ -133,4 +134,28 @@ export async function replyToRequest(input: { id: number; subject: string; body:
   await audit(staff, "reply", "rfi_requests", req.id, { subject: input.subject });
   revalidatePath("/requests");
   return { ok: `Reply sent to ${req.email}.` };
+}
+
+/** Creates the contact and an opportunity in the CRM (Twenty) for an inbox request. */
+export async function sendToCrm(id: number): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.email);
+  if (!crmConfigured()) return { error: "The CRM isn't connected yet (TWENTY_URL and TWENTY_API_KEY)." };
+  const [req] = await db.select().from(rfiRequests).where(eq(rfiRequests.id, id));
+  if (!req) return { error: "Request not found" };
+  if (req.crmRef) return { ok: "Already in the CRM." };
+  try {
+    const label = { rfi: "Quote request", advisory: "Advisory", data: "Data services", awards: "Awards", claim: "Provider" }[req.requestType];
+    const { opportunityId } = await createLead({
+      name: req.contactName,
+      email: req.email,
+      company: req.company,
+      title: `${label}: ${req.company}`,
+    });
+    await db.update(rfiRequests).set({ crmRef: opportunityId ?? "created" }).where(eq(rfiRequests.id, id));
+    await audit(staff, "crm-sync", "rfi_requests", id, { opportunityId });
+    revalidatePath("/requests");
+    return { ok: "Contact and opportunity created in the CRM." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "CRM sync failed" };
+  }
 }

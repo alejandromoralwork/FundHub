@@ -106,6 +106,9 @@ export const CAN = {
   billing: ["owner", "sales"],
   pipeline: ["owner", "operations", "analyst"],
   staff: ["owner"],
+  content: ["owner", "operations", "sales"],
+  finance: ["owner"],
+  gdpr: ["owner", "operations"],
 } as const satisfies Record<string, readonly StaffRole[]>;
 
 export function can(staff: Staff, action: keyof typeof CAN): boolean {

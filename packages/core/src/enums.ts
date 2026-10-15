@@ -41,6 +41,38 @@ export const INGEST_RECORD_STATUSES = ["pending", "accepted", "rejected", "parti
 export const EMAIL_STATUSES = ["queued", "sent", "delivered", "bounced", "complained", "failed"] as const;
 export const PRO_TIERS = ["boutique", "mid_market", "institutional"] as const;
 
+// Content & marketing
+export const POST_KINDS = ["news", "learn"] as const;
+export const POST_STATUSES = ["draft", "published", "archived"] as const;
+export const SOCIAL_NETWORKS = ["linkedin", "x", "facebook", "instagram"] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
+export const SOCIAL_POST_STATUSES = ["draft", "approved", "published"] as const;
+/** Character limits used when adapting a post to each network. */
+export const SOCIAL_LIMITS: Record<SocialNetwork, number> = { linkedin: 3000, x: 280, facebook: 2000, instagram: 2200 };
+
+// Finance (management accounting; statutory books stay with the accountant / accounting system)
+export const EXPENSE_CATEGORIES = [
+  "Software & SaaS",
+  "Hosting & infrastructure",
+  "AI & data providers",
+  "Marketing & events",
+  "Professional fees",
+  "Office & rent",
+  "Travel",
+  "Salaries & contractors",
+  "Insurance",
+  "Bank & payment fees",
+  "Taxes & duties",
+  "Other",
+] as const;
+export const EXPENSE_STATUSES = ["recorded", "paid"] as const;
+/** Luxembourg VAT rates (%). */
+export const VAT_RATES = [17, 14, 8, 3, 0] as const;
+
+// GDPR
+export const GDPR_REQUEST_TYPES = ["access", "deletion", "rectification", "objection"] as const;
+export const GDPR_REQUEST_STATUSES = ["received", "verifying", "completed", "rejected"] as const;
+
 export type ProviderType = (typeof PROVIDER_TYPES)[number];
 export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
 export type RequestType = (typeof REQUEST_TYPES)[number];

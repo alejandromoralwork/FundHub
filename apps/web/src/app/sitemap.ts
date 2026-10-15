@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-import { INSIGHTS } from "@/content/insights";
-import { listProviderOptions } from "@fundhub/db/queries";
+import { listProviderOptions, listPublishedPosts } from "@fundhub/db/queries";
 import { siteUrl } from "@/lib/site";
 import { TAXONOMY } from "@fundhub/core/taxonomy";
 
@@ -22,12 +21,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/independence",
     "/for-providers",
   ];
-  const providers = await listProviderOptions().catch(() => []);
+  const [providers, posts] = await Promise.all([listProviderOptions().catch(() => []), listPublishedPosts().catch(() => [])]);
 
   return [
     ...staticPaths.map((p) => ({ url: `${base}${p}` })),
     ...TAXONOMY.map((c) => ({ url: `${base}/services/${c.slug}` })),
-    ...INSIGHTS.map((i) => ({ url: `${base}/news/${i.slug}`, lastModified: i.published })),
+    ...posts.map((p) => ({ url: `${base}/news/${p.slug}`, lastModified: p.publishedAt ?? undefined })),
     ...providers.map((p) => ({ url: `${base}/providers/${p.slug}` })),
   ];
 }

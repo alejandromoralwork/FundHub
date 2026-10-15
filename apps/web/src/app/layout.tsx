@@ -7,6 +7,7 @@ import "@fontsource/ibm-plex-mono/600.css";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { AdvisorWidget } from "@/components/advisor-widget";
+import { CookieConsent } from "@/components/cookie-consent";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,8 +32,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en">
       <body className="font-sans">
-        <AppShell account={user && { name: user.name, accountType: user.accountType }}>{children}</AppShell>
+        <AppShell account={user && { name: user.name, accountType: user.accountType }} newsletter={!!process.env.LISTMONK_URL && !!process.env.LISTMONK_LIST_UUID}>{children}</AppShell>
         <AdvisorWidget />
+        <CookieConsent />
       </body>
     </html>
   );

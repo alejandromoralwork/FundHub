@@ -1,0 +1,23 @@
+# Automatic HTTPS (Let's Encrypt) for each tool. Domains come from .env.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DRIVE_DOMAIN} {
+	# Nextcloud needs large uploads and these well-known redirects for calendar/contacts sync.
+	request_body {
+		max_size 10GB
+	}
+	redir /.well-known/carddav /remote.php/dav/ 301
+	redir /.well-known/caldav /remote.php/dav/ 301
+	header Strict-Transport-Security "max-age=31536000;"
+	reverse_proxy nextcloud:80
+}
+
+{$CRM_DOMAIN} {
+	reverse_proxy twenty-server:3000
+}
+
+{$NEWSLETTER_DOMAIN} {
+	reverse_proxy listmonk:9000
+}

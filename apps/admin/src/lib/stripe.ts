@@ -71,6 +71,11 @@ export async function upsertInvoice(inv: Stripe.Invoice) {
     status: inv.status ?? "draft",
     amountDue: inv.amount_due,
     amountPaid: inv.amount_paid,
+    // Newer API versions report taxes as a list; older ones as a single number.
+    taxAmount:
+      (inv as unknown as { total_taxes?: { amount: number }[] }).total_taxes?.reduce((sum, t) => sum + t.amount, 0) ??
+      (inv as unknown as { tax?: number | null }).tax ??
+      0,
     currency: inv.currency,
     hostedInvoiceUrl: inv.hosted_invoice_url ?? null,
     invoicePdf: inv.invoice_pdf ?? null,

@@ -12,6 +12,7 @@ services/scraper/  Data module (TypeScript): AI web extractor + RCS register ada
 packages/db/       Postgres schema (Drizzle), migrations, client, shared queries
 packages/core/     Taxonomy, enums, filters, formatting, request options, password hashing
 packages/email/    React Email templates + Resend sender (logged in email_messages)
+infra/             Docker server for the open-source tools: Nextcloud, Twenty, Listmonk (see infra/README.md)
 ```
 
 The parts only share the Postgres database and the `packages/*` code. Each deploys and fails on its own:
@@ -28,6 +29,19 @@ The parts only share the Postgres database and the `packages/*` code. Each deplo
 | Visitor accounts (fund managers) | website `/account` | Save providers, verified reviews, newsletter |
 | Provider accounts | website `/account` | Claim a company → staff approve → edit profile, private reports |
 | Staff | `/admin` | Separate accounts, password + mandatory authenticator-app 2FA, roles owner / operations / analyst / sales |
+
+## Business tools
+
+| Area | Where | Notes |
+|---|---|---|
+| News & Learn, social media | Admin **Content studio** | Write by hand or draft with Claude (facts-only; `[CHECK: …]` notes block publishing), Markdown editor, publish to the website; versions for LinkedIn, X, Facebook, Instagram with copy/CSV export. Postiz auto-posting later. |
+| Finance | Admin **Finance** | P&L from paid Stripe invoices + expenses, Luxembourg VAT, budgets, quarterly VAT position, CSV exports for the accountant. Bigcapital later. |
+| Legal & GDPR | Website `/legal/*`, `/privacy-request`; admin **GDPR requests** | Cookie consent; data export (JSON) and erasure with one-month deadlines. **Fill in `packages/core/src/company.ts` and have the legal texts reviewed by a Luxembourg lawyer.** |
+| Drive, calendar, team tasks | **Nextcloud** (`infra/`) | Linked from the admin sidebar. |
+| CRM & pipelines | **Twenty** (`infra/`) | Inbox "Send to CRM". |
+| Newsletter | **Listmonk** (`infra/`) | Website footer form and sign-up opt-in, double opt-in. |
+
+> Data location: the Neon database was created in `us-east-1`. Before real customer data, consider moving it to an EU region (Frankfurt) to simplify GDPR transfers.
 
 ## Admin platform modules
 

@@ -1,0 +1,151 @@
+# FundHub self-hosted tools: Nextcloud (drive, calendar, tasks), Twenty (CRM), Listmonk (newsletter).
+# One shared Postgres and Redis, Caddy in front with automatic HTTPS.
+# Settings come from .env (created by setup.sh from .env.example).
+name: fundhub-tools
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      DRIVE_DOMAIN: ${DRIVE_DOMAIN}
+      CRM_DOMAIN: ${CRM_DOMAIN}
+      NEWSLETTER_DOMAIN: ${NEWSLETTER_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [nextcloud, twenty-server, listmonk]
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      # Read by postgres-init/01-databases.sh to create one database and user per app.
+      NEXTCLOUD_DB_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      TWENTY_DB_PASSWORD: ${TWENTY_DB_PASSWORD}
+      LISTMONK_DB_PASSWORD: ${LISTMONK_DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    # Twenty requires noeviction; Nextcloud only uses Redis as a cache and lock store.
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------- Nextcloud: drive, calendar, Deck
+  nextcloud:
+    image: nextcloud:${NEXTCLOUD_TAG:-34-apache}
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${DRIVE_DOMAIN}
+      REDIS_HOST: redis
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: ${DRIVE_DOMAIN}
+      OVERWRITECLIURL: https://${DRIVE_DOMAIN}
+      TRUSTED_PROXIES: 172.16.0.0/12
+    volumes:
+      - nextcloud-data:/var/www/html
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  nextcloud-cron:
+    image: nextcloud:${NEXTCLOUD_TAG:-34-apache}
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    volumes:
+      - nextcloud-data:/var/www/html
+    depends_on: [nextcloud]
+
+  # ---------------------------------------------------------------- Twenty: CRM
+  twenty-server:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    restart: unless-stopped
+    environment: &twenty-env
+      NODE_PORT: 3000
+      PG_DATABASE_URL: postgres://twenty:${TWENTY_DB_PASSWORD}@db:5432/twenty
+      SERVER_URL: https://${CRM_DOMAIN}
+      REDIS_URL: redis://redis:6379
+      STORAGE_TYPE: local
+      APP_SECRET: ${TWENTY_APP_SECRET}
+      ENCRYPTION_KEY: ${TWENTY_ENCRYPTION_KEY}
+    volumes:
+      - twenty-storage:/app/packages/twenty-server/.local-storage
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:3000/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  twenty-worker:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    restart: unless-stopped
+    command: ["yarn", "worker:prod"]
+    environment:
+      <<: *twenty-env
+      # Migrations and cron registration already run in twenty-server.
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - twenty-storage:/app/packages/twenty-server/.local-storage
+    depends_on:
+      db: { condition: service_healthy }
+      twenty-server: { condition: service_healthy }
+
+  # ---------------------------------------------------------------- Listmonk: newsletter
+  listmonk:
+    image: listmonk/listmonk:${LISTMONK_TAG:-latest}
+    restart: unless-stopped
+    command: [sh, -c, "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config '' && ./listmonk --config ''"]
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: db
+      LISTMONK_db__port: 5432
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: ${LISTMONK_DB_PASSWORD}
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_ADMIN_USER: ${LISTMONK_ADMIN_USER}
+      LISTMONK_ADMIN_PASSWORD: ${LISTMONK_ADMIN_PASSWORD}
+      TZ: Europe/Luxembourg
+    volumes:
+      - listmonk-uploads:/listmonk/uploads
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  caddy-data:
+  caddy-config:
+  db-data:
+  nextcloud-data:
+  twenty-storage:
+  listmonk-uploads:

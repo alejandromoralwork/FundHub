@@ -7,6 +7,10 @@ import {
   DashboardOutlined,
   DatabaseOutlined,
   DollarOutlined,
+  EditOutlined,
+  ExportOutlined,
+  LockOutlined,
+  WalletOutlined,
   FilePdfOutlined,
   InboxOutlined,
   LogoutOutlined,
@@ -24,6 +28,23 @@ import { dataProvider } from "@/lib/data-provider";
 import { Wordmark } from "./wordmark";
 
 export type ShellStaff = { name: string; email: string; role: string };
+/** Self-hosted open-source tools (only the configured ones are passed in). */
+export type ShellTool = { label: string; href: string };
+
+function ToolLinks({ tools, collapsed }: { tools: ShellTool[]; collapsed: boolean }) {
+  if (!tools.length) return null;
+  return (
+    <div style={{ padding: collapsed ? "8px 4px" : "8px 16px", borderTop: "1px solid #f0f0f0", marginTop: 8 }}>
+      {!collapsed && <Typography.Text type="secondary" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>Open tools</Typography.Text>}
+      {tools.map((t) => (
+        <a key={t.href} href={t.href} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 13, color: "inherit" }}>
+          <ExportOutlined />
+          {!collapsed && t.label}
+        </a>
+      ))}
+    </div>
+  );
+}
 
 /** Sidebar entries. Each maps to a page under src/app/(console). */
 const RESOURCES = [
@@ -34,11 +55,14 @@ const RESOURCES = [
   { name: "edits", list: "/edits", meta: { label: "Provider self-edits", parent: "moderation" } },
   { name: "requests", list: "/requests", meta: { label: "Inbox", icon: <InboxOutlined /> } },
   { name: "email", list: "/email", meta: { label: "Email", icon: <MailOutlined /> } },
+  { name: "content", list: "/content", meta: { label: "Content studio", icon: <EditOutlined /> } },
   { name: "billing", list: "/billing", meta: { label: "Billing & invoices", icon: <DollarOutlined /> } },
+  { name: "finance", list: "/finance", meta: { label: "Finance", icon: <WalletOutlined /> } },
   { name: "analytics", list: "/analytics", meta: { label: "Analytics", icon: <BarChartOutlined /> } },
   { name: "pipeline", list: "/pipeline", meta: { label: "Data pipeline", icon: <CloudDownloadOutlined /> } },
   { name: "reports-admin", list: "/reports", meta: { label: "Reports", icon: <FilePdfOutlined /> } },
   { name: "database", list: "/db", meta: { label: "Database", icon: <DatabaseOutlined /> } },
+  { name: "gdpr", list: "/gdpr", meta: { label: "GDPR requests", icon: <LockOutlined /> } },
   { name: "staff", list: "/staff", meta: { label: "Staff", icon: <TeamOutlined /> } },
   { name: "audit", list: "/audit", meta: { label: "Audit log", icon: <AuditOutlined /> } },
 ];
@@ -66,7 +90,7 @@ function Header({ staff }: { staff: ShellStaff }) {
   );
 }
 
-export function ConsoleShell({ staff, children }: { staff: ShellStaff; children: React.ReactNode }) {
+export function ConsoleShell({ staff, tools = [], children }: { staff: ShellStaff; tools?: ShellTool[]; children: React.ReactNode }) {
   return (
     <Refine
       routerProvider={routerProvider}
@@ -78,7 +102,7 @@ export function ConsoleShell({ staff, children }: { staff: ShellStaff; children:
       <ThemedLayout
         Title={({ collapsed }) => (collapsed ? <Wordmark suffix="" /> : <Wordmark />)}
         Header={() => <Header staff={staff} />}
-        Sider={(props) => <ThemedSider {...props} fixed render={({ items }) => <>{items}</>} />}
+        Sider={(props) => <ThemedSider {...props} fixed render={({ items, collapsed }) => <>{items}<ToolLinks tools={tools} collapsed={collapsed} /></>} />}
       >
         {children}
       </ThemedLayout>

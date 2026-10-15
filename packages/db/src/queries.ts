@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, type Column, type SQL } from "drizzle-orm";
 import { db } from "./client";
-import { providers, rfiRequests, type Provider } from "./schema";
+import { posts, providers, rfiRequests, type Provider } from "./schema";
 import { SCALE_BANDS, type ProviderFilters } from "@fundhub/core/filters";
 import { CATEGORY_SLUGS, type CategorySlug } from "@fundhub/core/taxonomy";
 
@@ -310,4 +310,39 @@ export async function getPeerScoreLeaders(): Promise<Provider[]> {
     .orderBy(desc(providers.rating), desc(providers.reviewCount));
   const seen = new Set<string>();
   return rows.filter((p) => !seen.has(p.category) && seen.add(p.category));
+}
+
+// ---------------------------------------------------------------- news & learn
+
+export async function listPublishedPosts(opts: { kind?: "news" | "learn"; category?: string; limit?: number } = {}) {
+  const q = db
+    .select({
+      slug: posts.slug,
+      kind: posts.kind,
+      title: posts.title,
+      summary: posts.summary,
+      topic: posts.topic,
+      category: posts.category,
+      readMinutes: posts.readMinutes,
+      publishedAt: posts.publishedAt,
+    })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.status, "published"),
+        opts.kind ? eq(posts.kind, opts.kind) : undefined,
+        opts.category ? eq(posts.category, opts.category) : undefined,
+      ),
+    )
+    .orderBy(desc(posts.publishedAt));
+  return opts.limit ? q.limit(opts.limit) : q;
+}
+
+export async function getPublishedPost(slug: string) {
+  const [row] = await db
+    .select()
+    .from(posts)
+    .where(and(eq(posts.slug, slug), eq(posts.status, "published")))
+    .limit(1);
+  return row;
 }

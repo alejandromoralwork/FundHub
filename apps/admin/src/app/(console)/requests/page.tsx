@@ -28,6 +28,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
       message: rfiRequests.message,
       status: rfiRequests.status,
       internalNotes: rfiRequests.internalNotes,
+      crmRef: rfiRequests.crmRef,
       assignedName: staffUsers.name,
       providerName: providers.name,
       createdAt: rfiRequests.createdAt,

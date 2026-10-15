@@ -138,7 +138,7 @@ function Sidebar({ onNavigate, account }: { onNavigate?: () => void; account: Sh
   );
 }
 
-export function AppShell({ children, account }: { children: React.ReactNode; account: ShellAccount }) {
+export function AppShell({ children, account, newsletter = false }: { children: React.ReactNode; account: ShellAccount; newsletter?: boolean }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
 
@@ -208,7 +208,7 @@ export function AppShell({ children, account }: { children: React.ReactNode; acc
           </div>
         </header>
         {children}
-        <SiteFooter />
+        <SiteFooter newsletter={newsletter} />
       </div>
     </div>
   );

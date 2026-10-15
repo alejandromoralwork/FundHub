@@ -4,8 +4,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { ButtonLink, CheckList, CtaBand, Panel } from "@/components/marketing";
 import { ProviderCard } from "@/components/provider-card";
-import { INSIGHTS } from "@/content/insights";
-import { getFeeBenchmarks, searchProviders } from "@fundhub/db/queries";
+import { getFeeBenchmarks, listPublishedPosts, searchProviders } from "@fundhub/db/queries";
 import { parseFilters } from "@fundhub/core/filters";
 import { formatEur } from "@fundhub/core/format";
 import { getCategory } from "@fundhub/core/taxonomy";
@@ -30,7 +29,7 @@ export default async function CategoryGuidePage({ params }: Props) {
     searchProviders(parseFilters({ category: c.slug, sort: "score" })),
   ]);
   const b = benchmarks.find((x) => x.category === c.slug);
-  const related = INSIGHTS.filter((i) => i.category === c.slug);
+  const related = await listPublishedPosts({ category: c.slug, limit: 4 });
   const Icon = c.icon;
 
   return (

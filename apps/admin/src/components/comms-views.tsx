@@ -5,7 +5,7 @@ import { Alert, Badge, Button, Card, Descriptions, Drawer, Form, Input, Radio, S
 import { MailOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { RFI_STATUSES } from "@fundhub/core/enums";
-import { composeEmail, countSegment, replyToRequest, updateRequest } from "@/lib/email-actions";
+import { composeEmail, countSegment, replyToRequest, sendToCrm, updateRequest } from "@/lib/email-actions";
 import { SEGMENTS, type Segment } from "@/lib/segments";
 import { useAction } from "./use-action";
 
@@ -27,6 +27,7 @@ export type RequestRow = {
   message: string;
   status: string;
   internalNotes: string;
+  crmRef: string | null;
   assignedName: string | null;
   providerName: string | null;
   createdAt: string;
@@ -95,6 +96,7 @@ export function InboxView({ rows, filters }: { rows: RequestRow[]; filters: { ty
               <Select value={open.status} style={{ width: 160 }} onChange={(status) => { run(() => updateRequest({ id: open.id, status })); setOpen({ ...open, status }); }}
                 options={RFI_STATUSES.map((s) => ({ value: s, label: s.replace("_", " ") }))} />
               <Button onClick={() => run(() => updateRequest({ id: open.id, assignToMe: true }))}>Assign to me</Button>
+              <Button disabled={!!open.crmRef} onClick={() => run(() => sendToCrm(open.id))}>{open.crmRef ? "In CRM" : "Send to CRM"}</Button>
             </Space>
             <div>
               <Typography.Text strong>Internal notes</Typography.Text>

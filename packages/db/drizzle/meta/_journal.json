@@ -8,6 +8,27 @@
       "when": 1792076294537,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792083981281,
+      "tag": "0001_content_finance_gdpr",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792084313864,
+      "tag": "0002_invoice_tax",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792084720742,
+      "tag": "0003_request_crm_ref",
+      "breakpoints": true
     }
   ]
 }

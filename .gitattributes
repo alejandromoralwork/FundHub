@@ -1,0 +1,4 @@
+# Scripts and configs that run on Linux servers must keep LF endings.
+*.sh text eol=lf
+infra/Caddyfile text eol=lf
+infra/*.yml text eol=lf

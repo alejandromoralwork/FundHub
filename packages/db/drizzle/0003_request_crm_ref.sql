@@ -1,0 +1,1 @@
+ALTER TABLE "rfi_requests" ADD COLUMN "crm_ref" text;

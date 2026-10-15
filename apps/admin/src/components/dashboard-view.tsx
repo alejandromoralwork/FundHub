@@ -43,6 +43,17 @@ export function DashboardView({ data, staffName, denied }: { data: Data; staffNa
         <Col xs={12} md={6}>
           <Tile title="Scraped records to review" value={c.pending_ingest} href="/pipeline" alert={c.pending_ingest > 0} />
         </Col>
+        <Col xs={12} md={6}>
+          <Tile
+            title={c.gdpr_next_due ? `GDPR requests (next due ${dayjs(c.gdpr_next_due).format("D MMM")})` : "GDPR requests open"}
+            value={c.gdpr_open}
+            href="/gdpr"
+            alert={c.gdpr_open > 0}
+          />
+        </Col>
+        <Col xs={12} md={6}>
+          <Tile title="Post drafts" value={c.post_drafts} href="/content" />
+        </Col>
       </Row>
 
       <Typography.Text type="secondary">Business (last 30 days)</Typography.Text>

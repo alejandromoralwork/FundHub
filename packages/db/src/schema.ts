@@ -23,6 +23,13 @@ import {
   INGEST_RUN_STATUSES,
   INGEST_SOURCES,
   PRO_TIERS,
+  EXPENSE_STATUSES,
+  GDPR_REQUEST_STATUSES,
+  GDPR_REQUEST_TYPES,
+  POST_KINDS,
+  POST_STATUSES,
+  SOCIAL_NETWORKS,
+  SOCIAL_POST_STATUSES,
   PROVIDER_STATUSES,
   PROVIDER_TYPES,
   REPORT_VISIBILITY,
@@ -116,6 +123,8 @@ export const rfiRequests = pgTable(
     /** Staff member handling the request (admin platform). */
     assignedTo: integer("assigned_to").references(() => staffUsers.id, { onDelete: "set null" }),
     internalNotes: text("internal_notes").notNull().default(""),
+    /** Opportunity id in the CRM (Twenty) once synced. */
+    crmRef: text("crm_ref"),
     ...timestamps,
   },
   (t) => [
@@ -406,6 +415,8 @@ export const invoices = pgTable(
     status: text("status").notNull(),
     amountDue: integer("amount_due").notNull().default(0),
     amountPaid: integer("amount_paid").notNull().default(0),
+    /** VAT charged on the invoice (cents), for the VAT summary. */
+    taxAmount: integer("tax_amount").notNull().default(0),
     currency: text("currency").notNull().default("eur"),
     hostedInvoiceUrl: text("hosted_invoice_url"),
     invoicePdf: text("invoice_pdf"),
@@ -468,6 +479,111 @@ export const ingestRecords = pgTable(
   (t) => [index("ingest_records_status_idx").on(t.status), index("ingest_records_provider_idx").on(t.providerId)],
 );
 
+// ============================================================ content
+
+/** News & Learn articles shown on the website. Body is Markdown. */
+export const posts = pgTable(
+  "posts",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    kind: text("kind", { enum: POST_KINDS }).notNull().default("news"),
+    title: text("title").notNull(),
+    summary: text("summary").notNull().default(""),
+    body: text("body").notNull().default(""),
+    topic: text("topic").notNull().default("FundHub"),
+    /** Taxonomy category slug, for cross-links. */
+    category: text("category"),
+    readMinutes: integer("read_minutes").notNull().default(3),
+    status: text("status", { enum: POST_STATUSES }).notNull().default("draft"),
+    publishedAt: ts("published_at"),
+    aiGenerated: boolean("ai_generated").notNull().default(false),
+    /** The brief given to the AI, kept for transparency. */
+    aiBrief: text("ai_brief"),
+    authorId: integer("author_id").references(() => staffUsers.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("posts_status_published_idx").on(t.status, t.publishedAt)],
+);
+
+/** A post adapted to one social network (copy-ready; Postiz can publish them later). */
+export const socialPosts = pgTable(
+  "social_posts",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    network: text("network", { enum: SOCIAL_NETWORKS }).notNull(),
+    text: text("text").notNull(),
+    hashtags: list("hashtags"),
+    status: text("status", { enum: SOCIAL_POST_STATUSES }).notNull().default("draft"),
+    publishedAt: ts("published_at"),
+    /** Id in the publishing tool (Postiz) once connected. */
+    externalId: text("external_id"),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("social_post_network_unique").on(t.postId, t.network)],
+);
+
+// ============================================================ finance
+
+/**
+ * Business expenses. Revenue comes from the Stripe mirror (`invoices`). Amounts in cents.
+ * `syncedRef` holds the id in the accounting system once one is connected.
+ */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: serial("id").primaryKey(),
+    date: ts("date").notNull(),
+    vendor: text("vendor").notNull(),
+    category: text("category").notNull(),
+    description: text("description").notNull().default(""),
+    amountNet: integer("amount_net").notNull(),
+    vatRate: real("vat_rate").notNull().default(17),
+    vatAmount: integer("vat_amount").notNull().default(0),
+    status: text("status", { enum: EXPENSE_STATUSES }).notNull().default("recorded"),
+    /** Monthly recurring cost (e.g. SaaS). */
+    recurring: boolean("recurring").notNull().default(false),
+    /** Link or path to the receipt in the Drive (Nextcloud). */
+    receiptUrl: text("receipt_url"),
+    syncedRef: text("synced_ref"),
+    createdBy: integer("created_by").references(() => staffUsers.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("expenses_date_idx").on(t.date)],
+);
+
+/** Monthly budget per expense category (cents), for budget vs actual. */
+export const budgets = pgTable(
+  "budgets",
+  {
+    id: serial("id").primaryKey(),
+    month: text("month").notNull(), // YYYY-MM
+    category: text("category").notNull(),
+    amount: integer("amount").notNull(),
+  },
+  (t) => [uniqueIndex("budgets_month_category_unique").on(t.month, t.category)],
+);
+
+// ============================================================ GDPR
+
+export const gdprRequests = pgTable("gdpr_requests", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  name: text("name").notNull().default(""),
+  type: text("type", { enum: GDPR_REQUEST_TYPES }).notNull(),
+  details: text("details").notNull().default(""),
+  status: text("status", { enum: GDPR_REQUEST_STATUSES }).notNull().default("received"),
+  /** Legal deadline: one month from receipt (GDPR Art. 12(3)). */
+  dueAt: ts("due_at").notNull(),
+  resolution: text("resolution").notNull().default(""),
+  handledBy: integer("handled_by").references(() => staffUsers.id, { onDelete: "set null" }),
+  completedAt: ts("completed_at"),
+  ...timestamps,
+});
+
 // ============================================================ types
 
 export type Provider = typeof providers.$inferSelect;
@@ -479,3 +595,6 @@ export type ProviderClaim = typeof providerClaims.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type StaffUser = typeof staffUsers.$inferSelect;
 export type IngestRecord = typeof ingestRecords.$inferSelect;
+export type Post = typeof posts.$inferSelect;
+export type SocialPost = typeof socialPosts.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;

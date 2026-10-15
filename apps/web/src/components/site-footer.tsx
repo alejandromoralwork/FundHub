@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { TAXONOMY } from "@fundhub/core/taxonomy";
+import { CookieSettingsLink } from "./cookie-consent";
+import { NewsletterForm } from "./newsletter-form";
 import { Wordmark } from "./wordmark";
 
 const COLUMNS = [
@@ -32,7 +34,7 @@ const COLUMNS = [
   },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({ newsletter = false }: { newsletter?: boolean }) {
   return (
     <footer className="mt-auto border-t border-slate-200 bg-white">
       <div className="grid gap-8 px-4 py-8 sm:px-6 md:grid-cols-2 xl:grid-cols-5">
@@ -56,6 +58,13 @@ export function SiteFooter() {
               </span>
             ))}
           </p>
+          {newsletter && (
+            <>
+              <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Newsletter</p>
+              <p className="mt-1 mb-2 text-xs text-ink-600">Sector news and the quarterly market snapshot. Unsubscribe anytime.</p>
+              <NewsletterForm />
+            </>
+          )}
         </div>
         {COLUMNS.map((col) => (
           <div key={col.title}>
@@ -73,6 +82,14 @@ export function SiteFooter() {
         ))}
       </div>
       <div className="border-t border-slate-100 px-4 py-4 text-[11px] leading-relaxed text-slate-400 sm:px-6">
+        <p className="mb-2 flex flex-wrap gap-x-4 gap-y-1">
+          <Link href="/legal/notice" className="text-xs text-ink-600 hover:text-ink hover:underline">Legal notice</Link>
+          <Link href="/legal/privacy" className="text-xs text-ink-600 hover:text-ink hover:underline">Privacy</Link>
+          <Link href="/legal/terms" className="text-xs text-ink-600 hover:text-ink hover:underline">Terms</Link>
+          <Link href="/legal/cookies" className="text-xs text-ink-600 hover:text-ink hover:underline">Cookies</Link>
+          <Link href="/privacy-request" className="text-xs text-ink-600 hover:text-ink hover:underline">Data request</Link>
+          <CookieSettingsLink />
+        </p>
         <p>
           © {new Date().getFullYear()} FundHub.lu. Fee ranges are indicative quarterly quotes, not offers. Content is
           general information, not legal, tax or investment advice. Public beta: provider profiles shown are

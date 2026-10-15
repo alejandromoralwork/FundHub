@@ -19,8 +19,13 @@ const ADMIN_ONLY_TABLES = [
   "billing_customers",
   "subscriptions",
   "invoices",
+  "social_posts",
+  "expenses",
+  "budgets",
   ...INGEST_TABLES,
 ];
+/** The website reads these but never writes them (content is managed in the admin). */
+const WEB_READ_ONLY_TABLES = ["posts", "reports"];
 
 function need(name: string) {
   const v = process.env[name];
@@ -55,6 +60,7 @@ async function main() {
   await q(`grant select, insert, update, delete on all tables in schema public to fundhub_web`);
   await q(`grant usage, select on all sequences in schema public to fundhub_web`);
   await q(`revoke all on ${ADMIN_ONLY_TABLES.join(", ")} from fundhub_web`);
+  await q(`revoke insert, update, delete on ${WEB_READ_ONLY_TABLES.join(", ")} from fundhub_web`);
   await q(`revoke all on __drizzle_migrations from fundhub_web`).catch(() => {});
 
   // Scraper: read providers, write only ingest tables.

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { count, eq } from "drizzle-orm";
 import { db } from "../src/client";
-import { providers, rfiRequests, type NewRfiRequest } from "../src/schema";
+import { posts, providers, rfiRequests, type NewRfiRequest } from "../src/schema";
 import { providerInputSchema, toNewProvider, upsertProviders } from "../src/provider-input";
 
 const SAMPLE_RFIS: (Omit<NewRfiRequest, "providerId"> & { providerSlug: string })[] = [
@@ -59,6 +59,16 @@ async function main() {
   } else {
     console.log(`• RFI table already has ${n} rows, skipping sample RFIs`);
   }
+
+  // News & Learn: insert missing articles only, so edits made in the admin are never overwritten.
+  type SeedPost = typeof posts.$inferInsert & { publishedAt: string };
+  const seedPosts = JSON.parse(await readFile(new URL("../data/posts.json", import.meta.url), "utf8")) as SeedPost[];
+  const inserted = await db
+    .insert(posts)
+    .values(seedPosts.map((p) => ({ ...p, status: "published" as const, publishedAt: new Date(p.publishedAt) })))
+    .onConflictDoNothing({ target: posts.slug })
+    .returning({ id: posts.id });
+  console.log(`✔ Inserted ${inserted.length} new posts (${seedPosts.length - inserted.length} already present)`);
 }
 
 main().then(

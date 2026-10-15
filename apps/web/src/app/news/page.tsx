@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, Clock } from "lucide-react";
 import { Panel, SectionTitle } from "@/components/marketing";
-import { INSIGHTS } from "@/content/insights";
+import { listPublishedPosts } from "@fundhub/db/queries";
 import { cn } from "@/lib/cn";
 
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "News & Learn",
   description: "News about the Luxembourg fund services sector and independent guides on choosing providers, fees and structuring.",
@@ -20,9 +21,7 @@ const TABS = [
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const { type } = await searchParams;
   const active = type === "news" || type === "learn" ? type : "all";
-  const items = [...INSIGHTS]
-    .filter((i) => active === "all" || i.kind === active)
-    .sort((a, b) => b.published.localeCompare(a.published));
+  const items = await listPublishedPosts({ kind: active === "all" ? undefined : active });
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 sm:p-6">
@@ -62,7 +61,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
             <h2 className="mt-1 text-base font-semibold text-ink">{i.title}</h2>
             <p className="mt-1.5 flex-1 text-sm leading-relaxed text-ink-600">{i.summary}</p>
             <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
-              {dateFmt.format(new Date(i.published))} · <Clock className="h-3 w-3" /> {i.readMinutes} min read
+              {i.publishedAt && dateFmt.format(i.publishedAt)} · <Clock className="h-3 w-3" /> {i.readMinutes} min read
             </p>
           </Link>
         ))}

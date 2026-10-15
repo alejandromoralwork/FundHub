@@ -12,6 +12,7 @@ import { rateLimit } from "@fundhub/db/rate-limit";
 import { passwordResets, sessions, users } from "@fundhub/db/schema";
 import { sendEmail } from "@fundhub/email/send";
 import { clientIp } from "../client-ip";
+import { subscribeToListmonk } from "../newsletter";
 import { siteUrl } from "../site";
 import { createSession, destroySession, requireUser } from "./session";
 
@@ -74,6 +75,7 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
       newsletterOptIn: d.newsletterOptIn === "on",
     })
     .returning({ id: users.id });
+  if (d.newsletterOptIn === "on") await subscribeToListmonk(d.email, d.name);
   await createSession(user.id);
   redirect(safeNext(formData.get("next")));
 }

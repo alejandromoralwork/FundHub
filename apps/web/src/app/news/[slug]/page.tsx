@@ -2,25 +2,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
-import { CtaBand } from "@/components/marketing";
-import { getInsight, INSIGHTS } from "@/content/insights";
+import Markdown from "react-markdown";
 import { getCategory } from "@fundhub/core/taxonomy";
+import { getPublishedPost } from "@fundhub/db/queries";
+import { CtaBand } from "@/components/marketing";
+
+export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
 
-export function generateStaticParams() {
-  return INSIGHTS.map((i) => ({ slug: i.slug }));
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const i = getInsight((await params).slug);
-  return i ? { title: i.title, description: i.summary } : { title: "Article not found" };
+  const p = await getPublishedPost((await params).slug);
+  return p ? { title: p.title, description: p.summary, openGraph: { title: p.title, description: p.summary, type: "article" } } : { title: "Article not found" };
 }
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
-export default async function InsightPage({ params }: Props) {
-  const article = getInsight((await params).slug);
+export default async function ArticlePage({ params }: Props) {
+  const article = await getPublishedPost((await params).slug);
   if (!article) notFound();
   const category = article.category ? getCategory(article.category) : undefined;
 
@@ -36,28 +35,25 @@ export default async function InsightPage({ params }: Props) {
         </p>
         <h1 className="mt-1 text-2xl font-semibold leading-snug text-ink">{article.title}</h1>
         <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-          {dateFmt.format(new Date(article.published))} · <Clock className="h-3 w-3" /> {article.readMinutes} min read
+          {article.publishedAt && dateFmt.format(article.publishedAt)} · <Clock className="h-3 w-3" /> {article.readMinutes} min read
         </p>
         <p className="mt-5 text-base leading-relaxed text-ink-600">{article.summary}</p>
 
-        <div className="mt-6 space-y-6">
-          {article.sections.map((s, idx) => (
-            <section key={idx}>
-              {s.heading && <h2 className="mb-2 text-lg font-semibold text-ink">{s.heading}</h2>}
-              {s.paragraphs?.map((p) => (
-                <p key={p.slice(0, 32)} className="mb-3 text-sm leading-relaxed text-ink-600">
-                  {p}
-                </p>
-              ))}
-              {s.bullets && (
-                <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink-600">
-                  {s.bullets.map((b) => (
-                    <li key={b}>{b}</li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ))}
+        {/* Markdown without raw HTML: safe for staff- and AI-written content. */}
+        <div className="prose-fh mt-6">
+          <Markdown
+            components={{
+              h2: (p) => <h2 className="mt-6 mb-2 text-lg font-semibold text-ink" {...p} />,
+              h3: (p) => <h3 className="mt-5 mb-2 text-base font-semibold text-ink" {...p} />,
+              p: (p) => <p className="mb-3 text-sm leading-relaxed text-ink-600" {...p} />,
+              ul: (p) => <ul className="mb-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink-600" {...p} />,
+              ol: (p) => <ol className="mb-3 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-ink-600" {...p} />,
+              a: ({ href, ...p }) => <a href={href} className="font-medium text-emerald-700 underline" rel="noopener noreferrer" {...p} />,
+              strong: (p) => <strong className="font-semibold text-ink" {...p} />,
+            }}
+          >
+            {article.body}
+          </Markdown>
         </div>
 
         {category && (
