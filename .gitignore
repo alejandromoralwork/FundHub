@@ -16,3 +16,9 @@ next-env.d.ts
 *.db-shm
 
 .DS_Store
+
+.vercel
+.env*
+
+# private documents
+business_plan.pdf
