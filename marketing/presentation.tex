@@ -2,8 +2,6 @@
 % Compile from this folder:  latexmk -pdf presentation.tex   (or upload the marketing/ folder to Overleaf)
 \documentclass[aspectratio=169,10pt]{beamer}
 \usepackage{fundhub-brand}
-\usepackage{standalone}
-\usepackage{adjustbox}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
@@ -52,11 +50,10 @@
     \vspace{6mm}
   \end{frame}}}
 
-% A diagram shrunk to fit below the frame title: \fhdiagram[height share]{diagrams/name}
-% adjustbox does the scaling (max width/height), so it works whatever the standalone version.
-\newcommand{\fhdiagram}[2][0.7]{%
+% A diagram image (built by diagrams/build.py) fitted below the frame title: \fhdiagram{diagrams/name}
+\newcommand{\fhdiagram}[2][0.74]{%
   \vspace*{-2mm}\begin{center}
-    \begin{adjustbox}{max width=\textwidth, max totalheight=#1\textheight}\input{#2}\end{adjustbox}
+    \includegraphics[width=\textwidth, height=#1\textheight, keepaspectratio]{#2.png}
   \end{center}}
 
 % Numbered callout next to a screenshot: \fhpoint{1}{Title}{Text}

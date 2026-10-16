@@ -7,7 +7,8 @@ LaTeX sources for FundHub's business presentation, brochures and diagrams. They 
 | `presentation.tex` | Business presentation (Beamer, 16:9, about 30 slides): the referral-fee problem, FundHub, the platform screen by screen, Data Intelligence and provider leads, business model, growth, daily operations, roadmap |
 | `brochure-clients.tex` | 2-page A4 brochure for fund managers and investors |
 | `flyer-providers.tex` | 1-page A4 flyer for service providers |
-| `diagrams/*.tex` | TikZ diagrams, each compilable on its own and included in the documents: `referral-problem`, `architecture`, `money-flow`, `service-flow`, `market-map`, `data-pipeline`, `lead-engine`, `ops-cycle` |
+| `diagrams/*.png` | Diagrams drawn in Python (matplotlib) and included as images: `referral-problem`, `architecture`, `money-flow`, `service-flow`, `market-map`, `data-pipeline`, `lead-engine`, `ops-cycle` |
+| `diagrams/build.py`, `diagrams/fhdraw.py` | The Python code that draws them (`fhdraw.py` holds the brand colours, boxes and arrows) |
 | `screenshots/*.jpg` | Screenshots of FundHub Web and FundHub Console, used in the presentation |
 | `fundhub-brand.sty` | Shared brand: colours, logo commands, TikZ styles, browser-frame macro for screenshots |
 
@@ -22,13 +23,19 @@ The sources were not compiled. To build the PDFs:
   latexmk -pdf presentation.tex
   latexmk -pdf brochure-clients.tex
   latexmk -pdf flyer-providers.tex
-  latexmk -pdf diagrams/money-flow.tex   # any diagram on its own
+  ```
+
+The diagram images are already in `diagrams/`. To change one, edit `diagrams/build.py` and rebuild (needs Python 3 with matplotlib):
+
+  ```bash
+  python diagrams/build.py              # all diagrams
+  python diagrams/build.py money-flow   # one diagram
   ```
 
 Always compile from this folder so `fundhub-brand.sty`, `diagrams/` and `screenshots/` are found. If the `inter` font package isn't installed, the documents fall back to Helvetica.
 
 ## Updating
 
-- **Prices** are indicative, taken from the business plan. Change them in `presentation.tex` (Revenue streams), `diagrams/money-flow.tex` and `flyer-providers.tex`.
+- **Prices** are indicative, taken from the business plan. Change them in `presentation.tex` (Revenue streams), `diagrams/build.py` (money flow, then rebuild) and `flyer-providers.tex`.
 - **Screenshots:** retake them from a production build so the dev-mode overlay doesn't appear, at 1440×900, and keep the same file names.
 - **Brand colours** live in `fundhub-brand.sty` and match `apps/web/src/app/globals.css`.

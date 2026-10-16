@@ -43,9 +43,9 @@ def referral_problem():
     heading(ax, 14.6, 12.6, "With FundHub", EMERALD_DARK, 11.5)
     m2 = box(ax, 16.9, 10.0, 4.6, 2.0, "Fund manager", "client of FundHub")
     f = box(ax, 24.0, 10.0, 5.4, 2.0, "FundHub", "comparator + set-up &\nfee negotiation advisory", "core")
-    pa = box(ax, 16.9, 5.4, 3.2, 1.4, "Provider A", kind="product", title_pt=11)
-    pb = box(ax, 20.5, 5.4, 3.2, 1.4, "Provider B", kind="product", title_pt=11)
-    pc = box(ax, 23.7, 5.4, 3.2, 1.4, "Provider C", kind="product", title_pt=11)
+    pa = box(ax, 16.9, 5.4, 3.0, 1.4, "Provider A", kind="product", title_pt=11)
+    pb = box(ax, 20.3, 5.4, 3.0, 1.4, "Provider B", kind="product", title_pt=11)
+    pc = box(ax, 23.7, 5.4, 3.0, 1.4, "Provider C", kind="product", title_pt=11)
     arrow(ax, m2.right, f.left, "money", "advisory fee\n(only income)", label_offset=(0, 1.05))
     arrow(ax, f.at("bottom", -1.6), pa.at("top", 1.0), "service")
     arrow(ax, f.at("bottom", -0.6), pb.top, "service", "compares all,\nnegotiates", label_pos=0.45, label_offset=(-0.2, 0))
@@ -207,7 +207,7 @@ def money_flow():
     awards = box(ax, 11.6, 1.25, 7.6, 1.5, "FundHub Awards", "nomination & audit fees", "product")
 
     stripe = box(ax, 19.2, 5.4, 3.4, 1.9, "Stripe", "cards, SEPA,\nLU VAT invoices", "external")
-    console = box(ax, 25.0, 5.4, 5.4, 2.2, "FundHub Console", "billing & invoices\nfinance: P&L, VAT", "core")
+    console = box(ax, 25.2, 5.4, 5.0, 2.2, "FundHub Console", "billing & invoices\nfinance: P&L, VAT", "core")
 
     arrow(ax, clients.right, adv.left, "money")
     arrow(ax, buyers.right, data.left, "money")
@@ -263,7 +263,7 @@ def service_flow():
     arrow(ax, p[6].bottom, p[4].bottom, "service", "renew", rad=-0.18, label_offset=(0, -0.6))
 
     legend(ax, [("service", "service step"), ("data", "data")], x=0.3, y=0.35)
-    note(ax, 0.3, 12.95, "Dark boxes: FundHub people at work. Quote requests reach providers only with the client's consent.")
+    note(ax, 9.0, 0.35, "Dark boxes: FundHub people at work. Quote requests reach providers only with the client's consent.")
     save(fig, OUT / "service-flow.png")
 
 
@@ -293,8 +293,8 @@ def lead_engine():
 
     leads = [("Quote request", "RFI"), ("Advisory request", "set-up & negotiation"), ("Membership", "paid reports"),
              ("Provider claim", "then subscription"), ("Newsletter", "nurture list")]
-    crm = box(ax, 26.2, 8.6, 3.4, 2.2, "CRM", "Twenty,\nvia Console", "external")
-    revenue = box(ax, 26.2, 3.6, 3.4, 2.2, "Revenue", "advisory, subs,\ndata, awards", "amber")
+    crm = box(ax, 25.9, 8.6, 3.4, 2.2, "CRM", "Twenty,\nvia Console", "external")
+    revenue = box(ax, 25.9, 3.6, 3.4, 2.2, "Revenue", "advisory, subs,\ndata, awards", "amber")
     for i, (t, s) in enumerate(leads):
         y = 11.6 - 2.3 * i
         b = box(ax, 20.9, y, 4.6, 1.55, t, s, "system", title_pt=10.8, sub_pt=9.2)
@@ -348,16 +348,16 @@ def ops_cycle():
     for i, (title, kind, colour, items) in enumerate(cols):
         x = 3.55 + 7.0 * i
         box(ax, x, 12.2, 6.4, 1.0, title, kind=kind, title_pt=11.5)
-        frame(ax, x - 3.2, 1.8, x + 3.2, 11.5, colour=colour, face="white")
+        frame(ax, x - 3.2, 2.4, x + 3.2, 11.5, colour=colour, face="white")
         y = 11.0
         for item in items:
-            lines = textwrap.wrap(item, 33)
+            lines = textwrap.wrap(item, 30)
             ax.text(x - 2.95, y, "•", ha="left", va="top", fontsize=9.6, color=colour, fontweight="bold")
             ax.text(x - 2.6, y, "\n".join(lines), ha="left", va="top", fontsize=9.3, color=INK, linespacing=1.25)
             y -= 0.47 * len(lines) + 0.42
         if i < 3:
             arrow(ax, (x + 3.2, 6.6), (x + 3.8, 6.6), "service")
-    arrow(ax, (24.55, 1.8), (3.55, 1.8), "service", "lessons feed the next cycle", rad=0.12, label_offset=(0, -0.65))
+    arrow(ax, (24.55, 2.4), (3.55, 2.4), "service", "lessons feed the next cycle", rad=-0.1, label_offset=(0, -1.05))
     save(fig, OUT / "ops-cycle.png")
 
 

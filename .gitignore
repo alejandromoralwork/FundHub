@@ -27,3 +27,6 @@ business_plan.pdf
 .pg-data/
 .turbo/
 !.env.example
+
+# Python bytecode (marketing diagram scripts)
+__pycache__/

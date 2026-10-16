@@ -5,8 +5,6 @@
 \usepackage[most]{tcolorbox}
 \usepackage{multicol}
 \usepackage{enumitem}
-\usepackage{standalone}
-\usepackage{adjustbox}
 \setlist{nosep, leftmargin=1.2em, label=\textcolor{fhEmerald}{\rule{0.45em}{0.45em}}}
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
@@ -54,7 +52,7 @@
 
 \vspace{4pt}
 \begin{center}
-  \begin{adjustbox}{max width=\textwidth, max totalheight=0.32\textheight}\input{diagrams/service-flow}\end{adjustbox}
+  \includegraphics[width=\textwidth, height=0.32\textheight, keepaspectratio]{diagrams/service-flow.png}
 \end{center}
 
 \newpage
