@@ -14,8 +14,8 @@
 \setbeamercolor{structure}{fg=fhEmeraldDark}
 \setbeamercolor{alerted text}{fg=fhEmeraldDark}
 \setbeamercolor{background canvas}{bg=white}
-\setbeamerfont{frametitle}{size=\LARGE,series=\bfseries}
-\setbeamerfont{framesubtitle}{size=\scriptsize,series=\bfseries}
+\setbeamerfont{frametitle}{size=\large,series=\bfseries}
+\setbeamerfont{framesubtitle}{size=\tiny,series=\bfseries}
 \setbeamertemplate{itemize item}{\textcolor{fhEmerald}{\scriptsize$\blacksquare$}}
 \setbeamertemplate{itemize subitem}{\textcolor{fhSlate}{\tiny$\blacktriangleright$}}
 \setbeamertemplate{enumerate item}{\textcolor{white}{\colorbox{fhEmerald}{\scriptsize\bfseries\insertenumlabel}}}
@@ -23,18 +23,19 @@
 % Title: emerald kicker (frame subtitle) above a bold title, thin emerald rule below.
 \makeatletter
 \setbeamertemplate{frametitle}{%
-  \vspace{5mm}%
-  \ifx\insertframesubtitle\@empty\else{\usebeamerfont{framesubtitle}\color{fhEmerald}\MakeUppercase{\insertframesubtitle}\par\vspace{1mm}}\fi
+  \vspace{2.5mm}%
+  \ifx\insertframesubtitle\@empty\else{\usebeamerfont{framesubtitle}\color{fhEmerald}\MakeUppercase{\insertframesubtitle}\par\vspace{0.5mm}}\fi
   {\usebeamerfont{frametitle}\color{fhInk}\insertframetitle\par}%
-  \vspace{1.5mm}{\color{fhEmerald}\rule{12mm}{1.6pt}}\par}
+  \vspace{0.8mm}{\color{fhEmerald}\rule{10mm}{1.4pt}}\par\vspace{-1mm}}
 \makeatother
 
-% Footer: wordmark left, page number right.
+% Footer: page number only, so content gets the space (the logo is on the title and section slides).
 \setbeamercolor{footline}{fg=fhSlate}
 \setbeamertemplate{footline}{%
-  \begin{beamercolorbox}[wd=\paperwidth,ht=3ex,dp=2.5ex,leftskip=9mm,rightskip=9mm]{footline}%
-    {\footnotesize\fundhub}\hspace{2mm}{\tiny fundhub.lu}\hfill{\tiny\insertframenumber}
+  \begin{beamercolorbox}[wd=\paperwidth,ht=2ex,dp=1.5ex,leftskip=9mm,rightskip=9mm]{footline}%
+    \hfill{\tiny\insertframenumber}
   \end{beamercolorbox}}
+\newcommand{\fhcompactfooter}{}
 
 % ================================================================== building blocks
 % Section divider: \fhsection{01}{Title}{One-line promise}
@@ -51,7 +52,7 @@
   \end{frame}}}
 
 % A diagram image (built by diagrams/build.py) fitted below the frame title: \fhdiagram{diagrams/name}
-\newcommand{\fhdiagram}[2][0.74]{%
+\newcommand{\fhdiagram}[2][0.66]{%
   \vspace*{-2mm}\begin{center}
     \includegraphics[width=\textwidth, height=#1\textheight, keepaspectratio]{#2.png}
   \end{center}}
@@ -69,11 +70,20 @@
 \setbeamercolor{fhcarddark}{bg=fhInkDeep,fg=white}
 \newcommand{\fhcard}[2]{%
   \begin{beamercolorbox}[wd=\linewidth,sep=7pt,rounded=true]{fhcard}
-    {\bfseries\color{fhEmeraldDark}#1}\par\vspace{2pt}\small #2
+    {\small\bfseries\color{fhEmeraldDark}#1}\par\vspace{2pt}\footnotesize #2
   \end{beamercolorbox}}
 \newcommand{\fhcarddark}[2]{%
   \begin{beamercolorbox}[wd=\linewidth,sep=7pt,rounded=true]{fhcarddark}
-    {\bfseries\color{fhEmerald}#1}\par\vspace{2pt}\small #2
+    {\small\bfseries\color{fhEmerald}#1}\par\vspace{2pt}\footnotesize #2
+  \end{beamercolorbox}}
+
+% Price card: \fhprice{Plan}{Price}{Who}{What}
+\newcommand{\fhprice}[4]{%
+  \begin{beamercolorbox}[wd=\linewidth,sep=7pt,rounded=true]{fhcard}
+    {\small\bfseries\color{fhEmeraldDark}#1}\par\vspace{2pt}
+    {\Large\bfseries\color{fhInk}#2}\par\vspace{3pt}
+    {\scriptsize\color{fhInkSoft}#3}\par\vspace{3pt}
+    \scriptsize #4
   \end{beamercolorbox}}
 
 % Big number: \fhstat{8}{service categories}
@@ -122,9 +132,9 @@
 % ================================================================== 01 problem
 \fhsection{01}{The problem}{In Luxembourg, the advice on which provider to pick is often paid for by the provider.}
 
-\begin{frame}{Fee-paid referrals: the hidden cost in fund services}
+\begin{frame}{Fee-paid referrals}
   \framesubtitle{The problem}
-  \fhdiagram{diagrams/referral-problem}
+  \fhdiagram[0.6]{diagrams/referral-problem}
 \end{frame}
 
 \begin{frame}{Why it hurts everyone except the middleman}
@@ -140,7 +150,7 @@
       \fhcard{Good providers are locked out}{Specialised, cost-effective firms can't win mandates on merit if introductions depend on who pays the introducer.}
     \end{column}
   \end{columns}
-  \vspace{6mm}
+  \vspace{3mm}
   \begin{center}
     \fhcarddark{Our answer}{An independent comparator anyone can use, and advisors who sit at the table on the client's side, paid only by the client.}
   \end{center}
@@ -249,26 +259,29 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{Verified reviews: the comments system on providers}
+\begin{frame}{Verified reviews: how a review gets published}
+  \framesubtitle{Trust}
+  \begin{enumerate}\small
+    \item A client writes a review on the provider's page: overall rating plus service quality, responsiveness, pricing transparency and technology.
+    \item The reviewer gives a work email, company, role, relationship and client-since date; FundHub verifies the email.
+    \item Automatic checks flag risks: free email domains, the provider's own staff, duplicates.
+    \item Staff verify the client relationship in the Console, then publish or reject.
+    \item The review is published without the reviewer's identity and feeds the Peer Opinion Score and the FundHub Score.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Verified reviews: rules and value}
   \framesubtitle{Trust}
   \begin{columns}[T]
-    \begin{column}{0.55\textwidth}
-      \begin{enumerate}\small
-        \item A client writes a review on the provider's page: overall rating plus service quality, responsiveness, pricing transparency and technology.
-        \item The reviewer gives a work email, company, role, relationship and client-since date; FundHub verifies the email.
-        \item Automatic checks flag risks (free email domains, provider's own staff, duplicates).
-        \item Staff verify the client relationship in the Console, then publish or reject.
-        \item The review is published without the reviewer's identity and feeds the Peer Opinion Score and the FundHub Score.
-      \end{enumerate}
-    \end{column}
-    \begin{column}{0.41\textwidth}
-      \fhcard{Rules providers can't buy their way around}{\begin{itemize}\small
+    \begin{column}{0.48\textwidth}
+      \fhcard{Rules providers can't buy their way around}{\begin{itemize}
         \item Reviews can't be removed or edited on request
         \item Provider staff can't review themselves
         \item Subscriptions have no effect on reviews
       \end{itemize}}
-      \vspace{3mm}
-      \fhcard{Why it matters}{Reviews are the quality half of the score, and the aggregate feeds Data Intelligence: service levels by category and provider.}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \fhcard{Why it matters}{Reviews are the quality half of the FundHub Score, and the aggregate feeds Data Intelligence: service levels by category and by provider.}
     \end{column}
   \end{columns}
 \end{frame}
@@ -338,7 +351,8 @@
 
 \begin{frame}{Turning the data into leads for service providers}
   \framesubtitle{Data Intelligence}
-  \small
+  \footnotesize
+  \renewcommand{\arraystretch}{1.2}
   \begin{tabularx}{\textwidth}{@{}>{\bfseries}l X X@{}}
     \toprule
     Signal & What the provider sees & Built from \\
@@ -351,8 +365,21 @@
     Market share & Their share of funds and mandates per category, and its trend & Market map \\
     \bottomrule
   \end{tabularx}
-  \vspace{3mm}
-  \fhcarddark{Guardrails that keep FundHub independent}{Leads come from public company data and aggregates. We never sell a client's request or a reviewer's identity; a quote request reaches a provider only with the client's consent. Lead signals never change scores or rankings.}
+\end{frame}
+
+\begin{frame}{Lead signals: guardrails that keep FundHub independent}
+  \framesubtitle{Data Intelligence}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \fhcard{Public and aggregated}{Leads come from public company data about legal entities and from aggregates. No personal data is sold.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Clients stay in control}{We never sell a client's request or a reviewer's identity. A quote request reaches a provider only with the client's consent.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcarddark{Rankings untouched}{Buying lead signals never changes a FundHub Score, a ranking or a review.}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ================================================================== 05 money
@@ -363,24 +390,47 @@
   \fhdiagram{diagrams/money-flow}
 \end{frame}
 
-\begin{frame}{Revenue streams}
+\begin{frame}{Revenue from clients}
   \framesubtitle{Business model $\cdot$ indicative pricing}
-  \small
-  \begin{tabularx}{\textwidth}{@{}>{\bfseries}l l X@{}}
-    \toprule
-    Stream & Who pays & Price model \\
-    \midrule
-    Set-up \& fee negotiation advisory & Fund managers, investors & Flat retainer per phase, or success fee = \% of first-year savings \\
-    Provider subscription: Boutique & Small law, tax, HR, IT firms & $\sim$\euro{}500 per quarter, annual contract \\
-    Provider subscription: Mid-Market & Fund administrators, third-party AIFMs & $\sim$\euro{}1,500 per quarter, annual contract \\
-    Provider subscription: Institutional & Custodians, depositary banks, Big 4, large law & Custom enterprise rate \\
-    Lead signals & Providers & Included in higher tiers, or an add-on \\
-    Data Intelligence membership & Managers, investors, consultants & Recurring membership; bespoke studies per project \\
-    FundHub Awards & Providers & Nomination and audit fees; sponsorship \\
-    \bottomrule
-  \end{tabularx}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \fhprice{Set-up \& fee negotiation advisory}{Retainer}{Fund managers and investors}{Flat fee per phase, or a success fee: a share of first-year savings.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhprice{Data Intelligence membership}{Recurring}{Managers, investors, consultants}{Private reports, bought online with Stripe.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhprice{Bespoke data studies}{Per project}{Managers, investors, providers}{Custom fee benchmarks and market studies.}
+    \end{column}
+  \end{columns}
+  \vspace{4mm}
+  {\scriptsize\color{fhSlate}Paid only by the client. FundHub accepts no referral fees from providers.}
+\end{frame}
+
+\begin{frame}{Revenue from service providers}
+  \framesubtitle{Business model $\cdot$ indicative pricing}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \fhprice{Boutique}{$\sim$\euro{}500\,/\,qtr}{Small law, tax, HR and IT firms}{Verification audit, profile control, Data Intelligence reports.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhprice{Mid-Market}{$\sim$\euro{}1,500\,/\,qtr}{Fund administrators, third-party AIFMs}{Everything in Boutique, plus lead signals and deeper reports.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhprice{Institutional}{Custom}{Custodians, depositary banks, Big 4, large law}{Multi-entity profiles, full lead signals, data contact.}
+    \end{column}
+  \end{columns}
+  \vspace{3mm}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \fhcard{Lead signals add-on}{For lower tiers: new fund launches, coverage gaps, switching events.}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \fhcard{FundHub Awards}{Nomination and audit fees; sponsorship. Paying buys an entry, never the result.}
+    \end{column}
+  \end{columns}
   \vspace{2mm}
-  {\scriptsize\color{fhSlate}Subscriptions include the verification audit and Data Intelligence reports. Billed quarterly through Stripe and booked in the Console.}
+  {\scriptsize\color{fhSlate}Annual contracts billed quarterly through Stripe and booked in the Console.}
 \end{frame}
 
 \begin{frame}{Independence: what money can and can't buy}
@@ -511,7 +561,47 @@
 
 \begin{frame}{Operating rhythm}
   \framesubtitle{Operations}
-  \fhdiagram{diagrams/ops-cycle}
+  \begin{columns}[T]
+    \begin{column}{0.24\textwidth}
+      \fhcarddark{Daily}{\begin{itemize}\scriptsize
+        \item Inbox replies in 1 day
+        \item Moderation
+        \item Ingest queue
+        \item Client meetings
+        \item Social post
+        \item CRM follow-ups
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.24\textwidth}
+      \fhcard{Weekly}{\begin{itemize}\scriptsize
+        \item 1--2 articles
+        \item Social versions
+        \item Data module run
+        \item Deals review
+        \item SEO check
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.24\textwidth}
+      \fhcard{Monthly}{\begin{itemize}\scriptsize
+        \item Finance \& budgets
+        \item Newsletter
+        \item Channel analytics
+        \item Renewals
+        \item Score review
+        \item Access \& backups
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.24\textwidth}
+      \fhcard{Quarterly \& yearly}{\begin{itemize}\scriptsize
+        \item Reports
+        \item VAT return
+        \item Churn \& upsell
+        \item Re-verification
+        \item Awards
+        \item Strategy
+      \end{itemize}}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ================================================================== 08 roadmap
