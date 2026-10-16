@@ -52,7 +52,7 @@
   \end{frame}}}
 
 % A diagram image (built by diagrams/build.py) fitted below the frame title: \fhdiagram{diagrams/name}
-\newcommand{\fhdiagram}[2][0.66]{%
+\newcommand{\fhdiagram}[2][0.58]{%
   \vspace*{-2mm}\begin{center}
     \includegraphics[width=\textwidth, height=#1\textheight, keepaspectratio]{#2.png}
   \end{center}}
@@ -241,33 +241,51 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{The FundHub Score}
+\begin{frame}{The FundHub Score: how it is calculated}
   \framesubtitle{Provider Comparator}
   \begin{columns}[T]
-    \begin{column}{0.5\textwidth}
-      \fhcarddark{FundHub Score, 0--100, A+ to D}{60\% Quality + 40\% Price. Formula published at fundhub.lu/fundhub-score.}
-      \vspace{3mm}
-      \fhcard{Quality}{75\% verified client reviews, smoothed so one review can't decide a rank; 25\% data credibility: licences, certifications, data freshness.}
-      \vspace{3mm}
-      \fhcard{Price}{Share of providers in the same category with a higher typical fee. Cheapest of its peers = 100.}
+    \begin{column}{0.32\textwidth}
+      \fhcarddark{FundHub Score}{0--100, graded A+ to D.\\ 60\% Quality + 40\% Price.\\ Formula published at fundhub.lu/fundhub-score.}
     \end{column}
-    \begin{column}{0.46\textwidth}
-      \fhscreen{screenshots/web-rankings.jpg}{fundhub.lu/benchmarks}
-      \vspace{2mm}
-      {\scriptsize\color{fhInkSoft}Rankings per category with a ``best value'' pick. The score ignores the paid Verified badge, so no payment can change it.}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Quality}{75\% verified client reviews, smoothed so one review can't decide a rank; 25\% data credibility: licences, certifications, freshness.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Price}{Share of providers in the same category with a higher typical fee. The cheapest of its peers scores 100.}
+    \end{column}
+  \end{columns}
+  \vspace{4mm}
+  {\footnotesize\color{fhInkSoft}The score ignores the paid Verified badge, so no payment can change it.}
+\end{frame}
+
+\begin{frame}{The FundHub Score: rankings per category}
+  \framesubtitle{Provider Comparator}
+  \begin{columns}[T]
+    \begin{column}{0.6\textwidth}\fhscreen{screenshots/web-rankings.jpg}{fundhub.lu/benchmarks}\end{column}
+    \begin{column}{0.37\textwidth}
+      \fhpoint{1}{Top 5 per category}{Ranked by FundHub Score, with Quality and Price shown.}
+      \fhpoint{2}{Best value pick}{Highest Price Score among providers with Quality of 60 or more.}
+      \fhpoint{3}{One click to compare}{Each ranking opens the comparator for that category.}
     \end{column}
   \end{columns}
 \end{frame}
 
 \begin{frame}{Verified reviews: how a review gets published}
   \framesubtitle{Trust}
-  \begin{enumerate}\small
-    \item A client writes a review on the provider's page: overall rating plus service quality, responsiveness, pricing transparency and technology.
-    \item The reviewer gives a work email, company, role, relationship and client-since date; FundHub verifies the email.
-    \item Automatic checks flag risks: free email domains, the provider's own staff, duplicates.
-    \item Staff verify the client relationship in the Console, then publish or reject.
-    \item The review is published without the reviewer's identity and feeds the Peer Opinion Score and the FundHub Score.
-  \end{enumerate}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \fhcard{1. Client writes}{Overall rating plus service quality, responsiveness, pricing transparency and technology.}
+      \vspace{2mm}
+      \fhcard{2. Identity checked}{Work email, company, role and client-since date; FundHub verifies the email.}
+      \vspace{2mm}
+      \fhcard{3. Automatic flags}{Free email domains, the provider's own staff, duplicates.}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \fhcard{4. Staff verify}{The client relationship is checked in the Console, then the review is published or rejected.}
+      \vspace{2mm}
+      \fhcarddark{5. Published}{Without the reviewer's identity. It feeds the Peer Opinion Score and the FundHub Score.}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \begin{frame}{Verified reviews: rules and value}
@@ -335,16 +353,29 @@
   \fhdiagram{diagrams/data-pipeline}
 \end{frame}
 
+\begin{frame}{Data Intelligence on fundhub.lu}
+  \framesubtitle{Data Intelligence}
+  \begin{columns}[T]
+    \begin{column}{0.6\textwidth}\fhscreen{screenshots/web-data.jpg}{fundhub.lu/data-intelligence}\end{column}
+    \begin{column}{0.37\textwidth}
+      \fhpoint{1}{Live statistics}{Fees, technology and licence coverage, computed from the index.}
+      \fhpoint{2}{PDF reports}{Public reports free; private reports for members.}
+      \fhpoint{3}{Bespoke studies}{Custom benchmarks and market studies on request.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 \begin{frame}{Free to attract, paid to go deeper}
   \framesubtitle{Data Intelligence}
   \begin{columns}[T]
-    \begin{column}{0.5\textwidth}\fhscreen{screenshots/web-data.jpg}{fundhub.lu/data-intelligence}\end{column}
-    \begin{column}{0.47\textwidth}
+    \begin{column}{0.32\textwidth}
       \fhcard{Free, for everyone}{Live market statistics, fee benchmarks by category, the public quarterly report. Builds traffic, links and authority.}
-      \vspace{2mm}
+    \end{column}
+    \begin{column}{0.32\textwidth}
       \fhcard{Paid membership}{Private reports: provider market shares, fee distributions, services in demand, competitor technology. Bought online with Stripe.}
-      \vspace{2mm}
-      \fhcard{Included \& bespoke}{Reports included in every provider subscription; custom studies quoted per project.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcarddark{Included \& bespoke}{Reports included in every provider subscription; custom studies quoted per project.}
     \end{column}
   \end{columns}
 \end{frame}
