@@ -1,0 +1,637 @@
+% FundHub business presentation (Beamer, 16:9).
+% Compile from this folder:  latexmk -pdf presentation.tex   (or upload the marketing/ folder to Overleaf)
+\documentclass[aspectratio=169,10pt]{beamer}
+\usepackage{fundhub-brand}
+\usepackage{standalone}
+\usepackage{adjustbox}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+
+% ================================================================== FundHub theme
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamersize{text margin left=9mm, text margin right=9mm}
+\setbeamercolor{normal text}{fg=fhInk}
+\setbeamercolor{structure}{fg=fhEmeraldDark}
+\setbeamercolor{alerted text}{fg=fhEmeraldDark}
+\setbeamercolor{background canvas}{bg=white}
+\setbeamerfont{frametitle}{size=\LARGE,series=\bfseries}
+\setbeamerfont{framesubtitle}{size=\scriptsize,series=\bfseries}
+\setbeamertemplate{itemize item}{\textcolor{fhEmerald}{\scriptsize$\blacksquare$}}
+\setbeamertemplate{itemize subitem}{\textcolor{fhSlate}{\tiny$\blacktriangleright$}}
+\setbeamertemplate{enumerate item}{\textcolor{white}{\colorbox{fhEmerald}{\scriptsize\bfseries\insertenumlabel}}}
+
+% Title: emerald kicker (frame subtitle) above a bold title, thin emerald rule below.
+\makeatletter
+\setbeamertemplate{frametitle}{%
+  \vspace{5mm}%
+  \ifx\insertframesubtitle\@empty\else{\usebeamerfont{framesubtitle}\color{fhEmerald}\MakeUppercase{\insertframesubtitle}\par\vspace{1mm}}\fi
+  {\usebeamerfont{frametitle}\color{fhInk}\insertframetitle\par}%
+  \vspace{1.5mm}{\color{fhEmerald}\rule{12mm}{1.6pt}}\par}
+\makeatother
+
+% Footer: wordmark left, page number right.
+\setbeamercolor{footline}{fg=fhSlate}
+\setbeamertemplate{footline}{%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=3ex,dp=2.5ex,leftskip=9mm,rightskip=9mm]{footline}%
+    {\footnotesize\fundhub}\hspace{2mm}{\tiny fundhub.lu}\hfill{\tiny\insertframenumber}
+  \end{beamercolorbox}}
+
+% ================================================================== building blocks
+% Section divider: \fhsection{01}{Title}{One-line promise}
+\newcommand{\fhsection}[3]{%
+  {\setbeamercolor{background canvas}{bg=fhInkDeep}\setbeamertemplate{footline}{}
+  \begin{frame}[plain]
+    \vfill
+    {\fontsize{54}{54}\selectfont\bfseries\textcolor{fhEmerald}{#1}}\par\vspace{4mm}
+    {\fontsize{30}{34}\selectfont\bfseries\textcolor{white}{#2}}\par\vspace{3mm}
+    {\large\textcolor{fhLine}{#3}}\par
+    \vfill
+    {\small\fundhublight}
+    \vspace{6mm}
+  \end{frame}}}
+
+% A diagram scaled to the frame: \fhdiagram[height share]{diagrams/name}
+\newcommand{\fhdiagram}[2][0.78]{\begin{center}\includestandalone[max width=\textwidth, max height=#1\textheight]{#2}\end{center}}
+
+% Numbered callout next to a screenshot: \fhpoint{1}{Title}{Text}
+\newcommand{\fhpoint}[3]{%
+  \begin{minipage}[t]{\linewidth}
+    \tikz[baseline=-0.7ex]\node[circle, fill=fhEmerald, text=white, font=\scriptsize\bfseries, inner sep=1.4pt, minimum size=4.2mm]{#1};
+    \hspace{1mm}{\small\bfseries #2}\par\vspace{0.5mm}
+    {\scriptsize\color{fhInkSoft}#3}
+  \end{minipage}\par\vspace{2.6mm}}
+
+% Card: \fhcard{Title}{Body}
+\setbeamercolor{fhcard}{bg=fhEmeraldLight,fg=fhInk}
+\setbeamercolor{fhcarddark}{bg=fhInkDeep,fg=white}
+\newcommand{\fhcard}[2]{%
+  \begin{beamercolorbox}[wd=\linewidth,sep=7pt,rounded=true]{fhcard}
+    {\bfseries\color{fhEmeraldDark}#1}\par\vspace{2pt}\small #2
+  \end{beamercolorbox}}
+\newcommand{\fhcarddark}[2]{%
+  \begin{beamercolorbox}[wd=\linewidth,sep=7pt,rounded=true]{fhcarddark}
+    {\bfseries\color{fhEmerald}#1}\par\vspace{2pt}\small #2
+  \end{beamercolorbox}}
+
+% Big number: \fhstat{8}{service categories}
+\newcommand{\fhstat}[2]{{\fontsize{26}{28}\selectfont\bfseries\color{fhEmerald}#1}\par{\scriptsize\color{fhInkSoft}#2}}
+
+% Colour swatch: \fhswatch{fhEmerald}{Emerald}{\#0F9D78}{accent, actions}
+\newcommand{\fhswatch}[4]{%
+  \begin{minipage}[t]{0.18\textwidth}\centering
+    \tikz\fill[#1, rounded corners=3pt, draw=fhLine] (0,0) rectangle (2.2,1.3);\par\vspace{1mm}
+    {\scriptsize\bfseries #2}\par{\tiny\color{fhSlate}#3\\#4}
+  \end{minipage}}
+
+\begin{document}
+
+% ================================================================== title
+{\setbeamercolor{background canvas}{bg=fhInkDeep}
+\begin{frame}[plain]
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[fhEmerald] (current page.north west) rectangle ++(4mm,-\paperheight);
+    \foreach \x in {0,...,15} \draw[fhInkLine, line width=0.3pt] ($(current page.south east)+(-0.6*\x-0.4,0)$) -- ++(0,\paperheight);
+  \end{tikzpicture}
+  \vfill
+  {\fontsize{60}{60}\selectfont\fundhublight}\par\vspace{6mm}
+  {\Large\bfseries\textcolor{white}{The independent fund service provider comparator}}\par\vspace{1mm}
+  {\Large\textcolor{white}{and set-up \& fee negotiation advisory for Luxembourg}}\par\vspace{6mm}
+  {\normalsize\textcolor{fhEmerald}{No referral fees. No commissions. Rankings that can't be bought.}}\par
+  \vfill
+  {\scriptsize\textcolor{fhLine}{Business overview $\cdot$ fundhub.lu $\cdot$ 2026}}
+\end{frame}}
+
+% ================================================================== agenda
+\begin{frame}{What's inside}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{enumerate}
+        \item The problem: fee-paid referrals
+        \item FundHub: comparator + advisory
+        \item The platform, screen by screen
+        \item Data Intelligence and provider leads
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{enumerate}\setcounter{enumi}{4}
+        \item How FundHub makes money
+        \item How we attract traffic and leads
+        \item Daily operations
+        \item Roadmap
+      \end{enumerate}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ================================================================== 01 problem
+\fhsection{01}{The problem}{In Luxembourg, the advice on which provider to pick is often paid for by the provider.}
+
+\begin{frame}{Fee-paid referrals: the hidden cost in fund services}
+  \framesubtitle{The problem}
+  \fhdiagram[0.8]{diagrams/referral-problem}
+\end{frame}
+
+\begin{frame}{Why it hurts everyone except the middleman}
+  \framesubtitle{The problem}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \fhcard{Fund managers overpay}{Proposals are bespoke, with hidden line items and out-of-pocket charges. Without a benchmark, nobody notices that the fee includes someone else's commission.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Advice isn't neutral}{The adviser recommending an administrator, depositary or ManCo may be paid by it, through referral fees, retrocessions or ``you send me, I send you'' arrangements.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Good providers are locked out}{Specialised, cost-effective firms can't win mandates on merit if introductions depend on who pays the introducer.}
+    \end{column}
+  \end{columns}
+  \vspace{6mm}
+  \begin{center}
+    \fhcarddark{Our answer}{An independent comparator anyone can use, and advisors who sit at the table on the client's side, paid only by the client.}
+  \end{center}
+\end{frame}
+
+% ================================================================== 02 FundHub
+\fhsection{02}{FundHub}{A provider comparator, and a consulting company on the client's side of the table.}
+
+\begin{frame}{Two businesses, one independent brand}
+  \framesubtitle{What FundHub is}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \fhcard{1. Provider comparator, fundhub.lu}{Every Luxembourg fund service provider in 8 categories, compared on fees, technology, scale, licences and verified client reviews, and graded by the independent \textbf{FundHub Score}. Free for everyone.}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \fhcard{2. Fund Set-up \& Provider Fee Negotiation Advisory}{Our consultants sit at the table with the client: set up the fund or activity in Luxembourg, select the right providers and negotiate their fees. Paid by the client only.}
+    \end{column}
+  \end{columns}
+  \vspace{5mm}
+  \begin{columns}[T]
+    \begin{column}{0.24\textwidth}\centering\fhstat{8}{service categories}\end{column}
+    \begin{column}{0.24\textwidth}\centering\fhstat{0\,\euro}{referral fees accepted}\end{column}
+    \begin{column}{0.24\textwidth}\centering\fhstat{2}{customer profiles}\end{column}
+    \begin{column}{0.24\textwidth}\centering\fhstat{3}{platform parts: Web, Console, Data}\end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Brand: the name is the logo}
+  \framesubtitle{Identity}
+  \begin{columns}[c]
+    \begin{column}{0.46\textwidth}
+      \begin{beamercolorbox}[wd=\linewidth,sep=10pt,rounded=true]{fhcard}
+        \centering{\fontsize{40}{40}\selectfont\fundhub}\par\vspace{2mm}{\scriptsize on light backgrounds}
+      \end{beamercolorbox}
+      \vspace{3mm}
+      \begin{beamercolorbox}[wd=\linewidth,sep=10pt,rounded=true]{fhcarddark}
+        \centering{\fontsize{40}{40}\selectfont\fundhublight}\par\vspace{2mm}{\scriptsize on dark backgrounds}
+      \end{beamercolorbox}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{itemize}\small
+        \item No symbol: \textbf{``Fund''} in ink or white, \textbf{``Hub''} in emerald. Easy to remember, impossible to misread.
+        \item Name: \textbf{FundHub} or \textbf{FundHub.lu}. Never ``FundHub Lux''.
+        \item Typeface: \textbf{Inter} for everything; IBM Plex Mono for figures in tables.
+        \item Voice: precise, neutral, factual. No hype.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{4mm}
+  \fhswatch{fhEmerald}{Emerald}{\#0F9D78}{actions, accent}\hfill
+  \fhswatch{fhEmeraldDark}{Emerald dark}{\#0C8265}{links, hover}\hfill
+  \fhswatch{fhInk}{Ink}{\#1E2632}{text}\hfill
+  \fhswatch{fhInkDeep}{Ink deep}{\#1A212B}{dark panels}\hfill
+  \fhswatch{fhCanvas}{Canvas}{\#F7F8FA}{page background}
+\end{frame}
+
+\begin{frame}{Two customer profiles}
+  \framesubtitle{Who we serve}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \fhcard{Fund managers \& investors (clients)}{%
+        \begin{itemize}\small
+          \item Use the comparator, scores and free data at no cost
+          \item \textbf{Buy} set-up \& fee negotiation advisory
+          \item \textbf{Buy} Data Intelligence membership and studies
+          \item Leave verified reviews after onboarding
+        \end{itemize}}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \fhcard{Service providers}{%
+        \begin{itemize}\small
+          \item Listed for free, from RCS and website data
+          \item \textbf{Buy} a subscription: verification audit, profile control, Data Intelligence, lead signals
+          \item \textbf{Buy} FundHub Awards entries
+          \item Receive quote requests only with the client's consent
+        \end{itemize}}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ================================================================== 03 platform
+\fhsection{03}{The platform}{FundHub Web for the market, FundHub Console for the team, a data module feeding both.}
+
+\begin{frame}{FundHub Web: the front door}
+  \framesubtitle{fundhub.lu}
+  \begin{columns}[T]
+    \begin{column}{0.64\textwidth}\fhscreen{screenshots/web-home.jpg}{fundhub.lu}\end{column}
+    \begin{column}{0.33\textwidth}
+      \fhpoint{1}{Independence first}{A permanent banner and hero state it: no referral fees, no commissions.}
+      \fhpoint{2}{Navigation by business line}{Provider Comparator, Advisory, Data Intelligence, News \& Learn, Awards.}
+      \fhpoint{3}{Two calls to action}{Compare providers yourself, or talk to an independent advisor.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Comparator engine}
+  \framesubtitle{Provider Comparator}
+  \begin{columns}[T]
+    \begin{column}{0.64\textwidth}\fhscreen{screenshots/web-compare.jpg}{fundhub.lu/compare}\end{column}
+    \begin{column}{0.33\textwidth}
+      \fhpoint{1}{Filter like a buyer}{Category, sub-service, asset class, licence, technology, size and fee range.}
+      \fhpoint{2}{Sorted by FundHub Score}{Or by quality, price, lowest fee or headcount.}
+      \fhpoint{3}{One click to act}{Request a quote, or ask for an independent fee audit.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Provider profile with its FundHub Score}
+  \framesubtitle{Provider Comparator}
+  \begin{columns}[T]
+    \begin{column}{0.64\textwidth}\fhscreen{screenshots/web-provider.jpg}{fundhub.lu/providers/\ldots}\end{column}
+    \begin{column}{0.33\textwidth}
+      \fhpoint{1}{Real fee range}{Quarterly range, set-up fee and position versus the market.}
+      \fhpoint{2}{Score breakdown}{Quality and Price sub-scores, explained in plain words.}
+      \fhpoint{3}{Key facts from registers}{RCS number, headcount, mandates, licences, data sources.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{The FundHub Score}
+  \framesubtitle{Provider Comparator}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \fhcarddark{FundHub Score, 0--100, A+ to D}{60\% Quality + 40\% Price. Formula published at fundhub.lu/fundhub-score.}
+      \vspace{3mm}
+      \fhcard{Quality}{75\% verified client reviews, smoothed so one review can't decide a rank; 25\% data credibility: licences, certifications, data freshness.}
+      \vspace{3mm}
+      \fhcard{Price}{Share of providers in the same category with a higher typical fee. Cheapest of its peers = 100.}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \fhscreen{screenshots/web-rankings.jpg}{fundhub.lu/benchmarks}
+      \vspace{2mm}
+      {\scriptsize\color{fhInkSoft}Rankings per category with a ``best value'' pick. The score ignores the paid Verified badge, so no payment can change it.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Verified reviews: the comments system on providers}
+  \framesubtitle{Trust}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \begin{enumerate}\small
+        \item A client writes a review on the provider's page: overall rating plus service quality, responsiveness, pricing transparency and technology.
+        \item The reviewer gives a work email, company, role, relationship and client-since date; FundHub verifies the email.
+        \item Automatic checks flag risks (free email domains, provider's own staff, duplicates).
+        \item Staff verify the client relationship in the Console, then publish or reject.
+        \item The review is published without the reviewer's identity and feeds the Peer Opinion Score and the FundHub Score.
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.41\textwidth}
+      \fhcard{Rules providers can't buy their way around}{\begin{itemize}\small
+        \item Reviews can't be removed or edited on request
+        \item Provider staff can't review themselves
+        \item Subscriptions have no effect on reviews
+      \end{itemize}}
+      \vspace{3mm}
+      \fhcard{Why it matters}{Reviews are the quality half of the score, and the aggregate feeds Data Intelligence: service levels by category and provider.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Fund Set-up \& Provider Fee Negotiation Advisory}
+  \framesubtitle{Advisory}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}\fhscreen{screenshots/web-advisory.jpg}{fundhub.lu/advisory}\end{column}
+    \begin{column}{0.45\textwidth}
+      \begin{enumerate}\scriptsize
+        \item \textbf{Scoping call}, free, 30 minutes
+        \item \textbf{Set-up plan}: structure options with the client's lawyers, required providers, budget, substance, timeline
+        \item \textbf{Shortlist} from the full index, ranked with the FundHub Score
+        \item \textbf{Standardised RFP}: answers normalised like for like
+        \item \textbf{At the table}: we prepare and attend the pricing meetings with the client
+        \item \textbf{Onboarding}: contracts, KYC, kick-off
+        \item \textbf{Follow-up}: verified review; anonymised fees enrich the benchmarks
+      \end{enumerate}
+      {\scriptsize\color{fhInkSoft}Fee: flat per phase, or a share of first-year savings. No referral fees, confirmed in every engagement letter.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{FundHub Console: the internal platform}
+  \framesubtitle{fundhub.lu/admin}
+  \begin{columns}[T]
+    \begin{column}{0.64\textwidth}\fhscreen{screenshots/console-dashboard.jpg}{fundhub.lu/admin}\end{column}
+    \begin{column}{0.33\textwidth}
+      \fhpoint{1}{What needs attention}{Claims, reviews, open requests, scraped records, GDPR deadlines.}
+      \fhpoint{2}{The business at a glance}{Subscription revenue, unpaid invoices, requests, new accounts.}
+      \fhpoint{3}{Secure by design}{Staff roles, two-factor login, every action in the audit log.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Console: content studio and finance}
+  \framesubtitle{fundhub.lu/admin}
+  \begin{columns}[T]
+    \begin{column}{0.49\textwidth}
+      \fhscreen{screenshots/console-editor.jpg}{fundhub.lu/admin/content}
+      \vspace{2mm}
+      {\scriptsize\textbf{Content studio.} Write or draft with AI, preview, publish to News or Learn, then generate LinkedIn, X, Facebook and Instagram versions.}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \fhscreen{screenshots/console-finance.jpg}{fundhub.lu/admin/finance}
+      \vspace{2mm}
+      {\scriptsize\textbf{Finance.} Stripe revenue net of VAT, expenses at Luxembourg VAT rates, budgets, quarterly VAT position, CSV exports for the accountant.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Console: requests, billing and data}
+  \framesubtitle{fundhub.lu/admin}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \fhscreen{screenshots/console-requests.jpg}{/admin/requests}\par\vspace{2mm}
+      {\scriptsize\textbf{Inbox.} Every quote and advisory request, assigned, answered and sent to the CRM.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhscreen{screenshots/console-billing.jpg}{/admin/billing}\par\vspace{2mm}
+      {\scriptsize\textbf{Billing.} Subscriptions and invoices mirrored from Stripe.}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhscreen{screenshots/console-pipeline.jpg}{/admin/pipeline}\par\vspace{2mm}
+      {\scriptsize\textbf{Data pipeline.} Scraper runs and the review queue of changed records.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Architecture: three independent parts, one database}
+  \framesubtitle{Technology}
+  \fhdiagram[0.8]{diagrams/architecture}
+\end{frame}
+
+% ================================================================== 04 data
+\fhsection{04}{Data Intelligence}{Every Luxembourg fund, mapped to its service providers.}
+
+\begin{frame}{The market map: every fund and its providers}
+  \framesubtitle{Data Intelligence}
+  \fhdiagram[0.8]{diagrams/market-map}
+\end{frame}
+
+\begin{frame}{How the data is collected}
+  \framesubtitle{Data Intelligence}
+  \fhdiagram[0.8]{diagrams/data-pipeline}
+\end{frame}
+
+\begin{frame}{Free to attract, paid to go deeper}
+  \framesubtitle{Data Intelligence}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}\fhscreen{screenshots/web-data.jpg}{fundhub.lu/data-intelligence}\end{column}
+    \begin{column}{0.47\textwidth}
+      \fhcard{Free, for everyone}{Live market statistics, fee benchmarks by category, the public quarterly report. Builds traffic, links and authority.}
+      \vspace{2mm}
+      \fhcard{Paid membership}{Private reports: provider market shares, fee distributions, services in demand, competitor technology. Bought online with Stripe.}
+      \vspace{2mm}
+      \fhcard{Included \& bespoke}{Reports included in every provider subscription; custom studies quoted per project.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Turning the data into leads for service providers}
+  \framesubtitle{Data Intelligence}
+  \small
+  \begin{tabularx}{\textwidth}{@{}>{\bfseries}l X X@{}}
+    \toprule
+    Signal & What the provider sees & Built from \\
+    \midrule
+    New fund launches & Newly registered funds and the provider roles they still need & RCS / LBR, CSSF registers \\
+    Coverage gaps & Funds of a type the provider serves, using a competitor today & Fund documents, market map \\
+    Switching events & Funds that changed administrator, depositary or ManCo; provider mergers & Register and document changes over time \\
+    Demand trends & Most-requested services by category and fund type & Anonymised RFIs on FundHub \\
+    Reputation benchmark & Their review scores against the category average & Verified reviews (aggregated) \\
+    Market share & Their share of funds and mandates per category, and its trend & Market map \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{3mm}
+  \fhcarddark{Guardrails that keep FundHub independent}{Leads come from public company data and aggregates. We never sell a client's request or a reviewer's identity; a quote request reaches a provider only with the client's consent. Lead signals never change scores or rankings.}
+\end{frame}
+
+% ================================================================== 05 money
+\fhsection{05}{The business model}{Paid by the people we serve. Never by referral fees.}
+
+\begin{frame}{How the money flows}
+  \framesubtitle{Business model}
+  \fhdiagram[0.8]{diagrams/money-flow}
+\end{frame}
+
+\begin{frame}{Revenue streams}
+  \framesubtitle{Business model $\cdot$ indicative pricing}
+  \small
+  \begin{tabularx}{\textwidth}{@{}>{\bfseries}l l X@{}}
+    \toprule
+    Stream & Who pays & Price model \\
+    \midrule
+    Set-up \& fee negotiation advisory & Fund managers, investors & Flat retainer per phase, or success fee = \% of first-year savings \\
+    Provider subscription: Boutique & Small law, tax, HR, IT firms & $\sim$\euro{}500 per quarter, annual contract \\
+    Provider subscription: Mid-Market & Fund administrators, third-party AIFMs & $\sim$\euro{}1,500 per quarter, annual contract \\
+    Provider subscription: Institutional & Custodians, depositary banks, Big 4, large law & Custom enterprise rate \\
+    Lead signals & Providers & Included in higher tiers, or an add-on \\
+    Data Intelligence membership & Managers, investors, consultants & Recurring membership; bespoke studies per project \\
+    FundHub Awards & Providers & Nomination and audit fees; sponsorship \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{2mm}
+  {\scriptsize\color{fhSlate}Subscriptions include the verification audit and Data Intelligence reports. Billed quarterly through Stripe and booked in the Console.}
+\end{frame}
+
+\begin{frame}{Independence: what money can and can't buy}
+  \framesubtitle{Business model}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \fhcard{Money can buy}{\begin{itemize}\small
+        \item Our advisory time, paid by the client
+        \item A verification audit; the badge is granted \textbf{only on a pass} and re-checked twice a year
+        \item Profile control, data reports and lead signals
+        \item An award \emph{entry}, never the result
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{beamercolorbox}[wd=\linewidth,sep=7pt,rounded=true]{fhcarddark}
+        {\bfseries\color{fhEmerald}Money can never buy}\par\vspace{2pt}
+        \begin{itemize}\small
+          \item Referral fees, commissions, retrocessions
+          \item A higher FundHub Score or ranking
+          \item Sponsored or ``featured'' positions
+          \item Removing or editing reviews
+          \item A client's identity or request
+        \end{itemize}
+      \end{beamercolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{How we serve clients and providers}
+  \framesubtitle{Service flow}
+  \fhdiagram[0.8]{diagrams/service-flow}
+\end{frame}
+
+\begin{frame}{For providers: listed free, verified and informed when they subscribe}
+  \framesubtitle{Provider offer}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}\fhscreen{screenshots/web-providers.jpg}{fundhub.lu/for-providers}\end{column}
+    \begin{column}{0.41\textwidth}
+      \fhpoint{1}{Free listing}{Built from RCS and website data; claim it to keep it accurate.}
+      \fhpoint{2}{Subscription}{Verification audit, profile control, Data Intelligence and lead signals.}
+      \fhpoint{3}{Fair for all}{Paying never changes a score, a ranking or a review.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ================================================================== 06 growth
+\fhsection{06}{Growth}{Organic content and data first, paid and outbound to accelerate.}
+
+\begin{frame}{Traffic and lead engine}
+  \framesubtitle{Growth}
+  \fhdiagram[0.8]{diagrams/lead-engine}
+\end{frame}
+
+\begin{frame}{Content and social: one article, five channels}
+  \framesubtitle{Growth}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}\fhscreen{screenshots/web-learn.jpg}{fundhub.lu/learn}\end{column}
+    \begin{column}{0.47\textwidth}
+      \begin{enumerate}\scriptsize
+        \item Pick a topic: market news, a fee insight from the data, or a buyer question from the inbox.
+        \item Write or draft with AI in the content studio; anything to verify is marked \texttt{[CHECK]} and blocks publishing.
+        \item Publish to \textbf{News} or \textbf{Learn}: a search-optimised page on fundhub.lu.
+        \item Generate versions for \textbf{LinkedIn, X, Facebook, Instagram}, each within the network's limits.
+        \item Approve and post (next: scheduled with Postiz).
+        \item The best articles go into the monthly \textbf{newsletter}.
+      \end{enumerate}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{SEO: be the first answer for Luxembourg fund services}
+  \framesubtitle{Growth}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \fhcard{Pages that rank}{\begin{itemize}\small
+        \item 8 category buyer's guides
+        \item One page per provider (long-tail searches)
+        \item Fees \& rankings, FundHub Score
+        \item Learn guides: ``how to choose a depositary'', ``RAIF set-up costs''\ldots
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \fhcard{How we win}{\begin{itemize}\small
+        \item Original data nobody else publishes
+        \item Fresh content every week, linked to the comparator
+        \item Backlinks from awards, reports and press
+        \item Clean technical SEO: sitemap, fast pages, metadata
+      \end{itemize}}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{What we measure}
+  \framesubtitle{KPIs}
+  \small
+  \begin{tabularx}{\textwidth}{@{}>{\bfseries}l X@{}}
+    \toprule
+    Area & KPIs \\
+    \midrule
+    Traffic & Organic visits, ranking keywords, social followers, newsletter subscribers \\
+    Leads & Quote requests, advisory requests, provider claims, membership checkouts; conversion by channel \\
+    Revenue & Advisory fees, subscription MRR, data revenue, awards; churn and renewals \\
+    Data & Funds and providers mapped, \% verified, data freshness, reviews collected \\
+    Service & First reply within 1 business day, client savings captured, review scores \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+% ================================================================== 07 operations
+\fhsection{07}{Operations}{A simple daily routine, run from the Console.}
+
+\begin{frame}{Daily tasks by role}
+  \framesubtitle{Operations}
+  \small
+  \begin{tabularx}{\textwidth}{@{}>{\bfseries}l X@{}}
+    \toprule
+    Role & Every day \\
+    \midrule
+    Operations & Console inbox (reply within 1 business day); moderate claims, edits and reviews; GDPR deadlines \\
+    Data & Clear the ingest queue from the data module; fix flagged anomalies; check new fund registrations \\
+    Advisory & Client calls, set-up plans, RFP follow-up, negotiation meetings at the table \\
+    Sales & CRM follow-ups with managers and providers; proposals and renewals \\
+    Marketing & Publish the day's social post, answer comments, prepare the next article \\
+    Owner & Dashboard check: leads, payments, failed invoices, open GDPR requests \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+\begin{frame}{Operating rhythm}
+  \framesubtitle{Operations}
+  \fhdiagram[0.8]{diagrams/ops-cycle}
+\end{frame}
+
+% ================================================================== 08 roadmap
+\fhsection{08}{Roadmap}{What the platform does next.}
+
+\begin{frame}{Future platform improvements}
+  \framesubtitle{Roadmap}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \fhcard{Next}{\begin{itemize}\scriptsize
+        \item Fund-to-provider market map at scale
+        \item Lead signals dashboard for providers
+        \item Verification audit workflow in the Console
+        \item Roles \& permissions editor; website user management
+        \item Database moved to an EU region
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Soon}{\begin{itemize}\scriptsize
+        \item Postiz: scheduled social posting
+        \item Live RCS / LBR data adapter
+        \item Stripe customer portal for members
+        \item Awards submission and jury flow
+        \item Privacy-friendly web analytics
+      \end{itemize}}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \fhcard{Later}{\begin{itemize}\scriptsize
+        \item Own accounting (Bigcapital)
+        \item French and German versions
+        \item Data API for subscribers
+        \item FundHub Score v2 with SLA data
+        \item RFP workspace for clients
+      \end{itemize}}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ================================================================== close
+{\setbeamercolor{background canvas}{bg=fhInkDeep}
+\begin{frame}[plain]
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[fhEmerald] (current page.north west) rectangle ++(4mm,-\paperheight);
+  \end{tikzpicture}
+  \vfill
+  \begin{center}
+    {\fontsize{54}{54}\selectfont\fundhublight}\par\vspace{6mm}
+    {\Large\bfseries\textcolor{white}{Compare independently. Set up right. Pay the right fee.}}\par\vspace{6mm}
+    {\large\textcolor{fhEmerald}{fundhub.lu}}\par
+  \end{center}
+  \vfill
+\end{frame}}
+
+\end{document}

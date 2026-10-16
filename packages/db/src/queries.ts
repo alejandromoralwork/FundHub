@@ -83,7 +83,6 @@ export async function getScores(): Promise<Map<number, ProviderScore>> {
       priceMax: providers.priceMax,
       rating: providers.rating,
       reviewCount: providers.reviewCount,
-      verified: providers.verified,
       licences: providers.licences,
       certifications: providers.certifications,
       lastVerifiedAt: providers.lastVerifiedAt,
@@ -176,9 +175,9 @@ export async function getSimilarProviders(p: Provider, limit = 3): Promise<Score
     .then(withScores);
 }
 
-/** Highest FundHub Scores among verified providers (home page). */
+/** Highest FundHub Scores (home page). Not limited to Verified providers, since verification is paid. */
 export async function getTopRatedProviders(limit = 4): Promise<ScoredProvider[]> {
-  const rows = await withScores(await db.select().from(providers).where(and(published, eq(providers.verified, true))));
+  const rows = await withScores(await db.select().from(providers).where(published));
   return rows.sort(byScore("fundhub")).slice(0, limit);
 }
 

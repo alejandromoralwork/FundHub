@@ -5,7 +5,7 @@ import { ButtonLink, Panel, SectionTitle } from "@/components/marketing";
 export const metadata: Metadata = {
   title: "For service providers",
   description:
-    "Every Luxembourg fund service provider is listed on FundHub for free. Claim your profile, get verified at no cost, and compete on merit.",
+    "Every Luxembourg fund service provider is listed on FundHub for free. Claim your profile, subscribe to get the FundHub Verified audit and market data, and compete on merit.",
 };
 
 const TIERS = [
@@ -14,7 +14,7 @@ const TIERS = [
     who: "Every active provider",
     features: [
       "Profile in the comparator and category guides",
-      "Eligible for free FundHub Verified status",
+      "Free public market statistics",
       "Receive RFIs from asset managers",
       "Correct factual errors on request",
     ],
@@ -23,6 +23,7 @@ const TIERS = [
     name: "Pro · Boutique",
     who: "Small law firms, niche tax advisers, HR and IT consultants",
     features: [
+      "FundHub Verified audit (badge granted on a pass)",
       "Direct control of services, headcount, stack and client milestones",
       "Quarterly 'Local Fee Distribution' report",
       "RFI analytics for your categories",
@@ -62,10 +63,10 @@ export default function ForProvidersPage() {
       <section className="grid gap-4 md:grid-cols-3">
         <Panel>
           <BadgeCheck className="h-5 w-5 text-emerald" />
-          <h2 className="mt-3 text-sm font-semibold text-ink">FundHub Verified, free</h2>
+          <h2 className="mt-3 text-sm font-semibold text-ink">FundHub Verified</h2>
           <p className="mt-1.5 text-sm leading-relaxed text-ink-600">
             We check your RCS and RESA filings, CSSF authorisations and a short management DDQ (tech stack, headcount,
-            certifications). Verification is free and open to every provider. It can&apos;t be bought.
+            certifications). The audit is included in every subscription, but the badge is granted only if you pass, and re-checked twice a year. It never changes your score or ranking.
           </p>
         </Panel>
         <Panel>
@@ -89,8 +90,8 @@ export default function ForProvidersPage() {
       <section>
         <SectionTitle
           eyebrow="Plans"
-          title="Listing is free. Pro is about data control, never visibility."
-          lead="Pro subscriptions are annual contracts billed quarterly and priced by provider size. They never affect ranking, scores, reviews or the Verified badge."
+          title="Listing is free. Subscriptions pay for verification and data, never visibility."
+          lead="Subscriptions are annual contracts billed quarterly and priced by provider size. They include the verification audit and Data Intelligence, and never affect rankings, scores or reviews."
         />
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {TIERS.map((t, i) => (

@@ -1,6 +1,6 @@
 # FundHub
 
-Independent comparator and buy-side advisor for Luxembourg fund services (fundhub.lu).
+Independent fund service provider comparator and set-up & fee negotiation advisory for Luxembourg (fundhub.lu).
 FundHub is paid by fund managers, never by referral fees or commissions from the providers it compares.
 
 ## Architecture: three independent parts, one database

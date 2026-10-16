@@ -1,0 +1,88 @@
+% FundHub brand: colours, fonts, logo and TikZ styles shared by the deck, the brochures and the diagrams.
+% Colours are the website's design tokens (apps/web/src/app/globals.css).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{fundhub-brand}[2026/10/16 FundHub brand]
+
+\RequirePackage[T1]{fontenc}
+\RequirePackage[utf8]{inputenc}
+% Inter is the website font; Helvetica is the fallback on older TeX installations.
+\IfFileExists{inter.sty}{\RequirePackage[sfdefault]{inter}}{\RequirePackage[scaled=0.95]{helvet}}
+\renewcommand{\familydefault}{\sfdefault}
+\RequirePackage{xcolor}
+\RequirePackage{eurosym}
+\RequirePackage{amssymb}
+\RequirePackage{graphicx}
+\RequirePackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,shapes.misc,fit,calc,backgrounds,shadows.blur}
+
+% ------------------------------------------------------------------ colours (website tokens)
+\definecolor{fhEmerald}{HTML}{0F9D78}      % --color-emerald: the single action accent
+\definecolor{fhEmeraldDark}{HTML}{0C8265}  % --color-emerald-700
+\definecolor{fhEmeraldLight}{HTML}{E7F6F1} % --color-emerald-50
+\definecolor{fhInk}{HTML}{1E2632}          % --color-ink: text
+\definecolor{fhInkDeep}{HTML}{1A212B}      % --color-ink-900: sidebar, dark panels
+\definecolor{fhInkSoft}{HTML}{3B4658}      % --color-ink-600
+\definecolor{fhInkLine}{HTML}{2B3442}      % --color-ink-700
+\definecolor{fhSlate}{HTML}{64748B}
+\definecolor{fhLine}{HTML}{CBD5E1}
+\definecolor{fhCanvas}{HTML}{F7F8FA}       % --color-canvas: page background
+\definecolor{fhAmber}{HTML}{D97706}
+\definecolor{fhAmberLight}{HTML}{FEF3C7}
+\definecolor{fhSky}{HTML}{0284C7}
+\definecolor{fhSkyLight}{HTML}{E0F2FE}
+\definecolor{fhRed}{HTML}{B91C1C}
+\definecolor{fhRedLight}{HTML}{FEE2E2}
+
+% ------------------------------------------------------------------ logo
+% The FundHub logo is the name itself, no symbol: "Fund" in ink (or white), "Hub" in emerald.
+\newcommand{\fundhub}{{\bfseries Fund\textcolor{fhEmerald}{Hub}}}
+\newcommand{\fundhublight}{{\bfseries\textcolor{white}{Fund}\textcolor{fhEmerald}{Hub}}}
+
+% ------------------------------------------------------------------ TikZ styles
+% Boxes: who (people), product (FundHub modules), core (FundHub people at work), system (data), external
+\tikzset{
+  fh/base/.style={rounded corners=3pt, align=center, font=\sffamily\small, inner sep=5pt, minimum height=9mm, text width=#1},
+  fh/base/.default=30mm,
+  fh/who/.style={fh/base=#1, draw=fhInk, fill=white, line width=0.8pt},
+  fh/who/.default=30mm,
+  fh/product/.style={fh/base=#1, draw=fhEmeraldDark, fill=fhEmeraldLight, line width=0.8pt},
+  fh/product/.default=30mm,
+  fh/core/.style={fh/base=#1, draw=fhInkDeep, fill=fhInkDeep, text=white, line width=0.8pt},
+  fh/core/.default=30mm,
+  fh/system/.style={fh/base=#1, draw=fhSky, fill=fhSkyLight, line width=0.8pt},
+  fh/system/.default=30mm,
+  fh/external/.style={fh/base=#1, draw=fhSlate, fill=fhCanvas, dashed, line width=0.6pt},
+  fh/external/.default=30mm,
+  fh/warn/.style={fh/base=#1, draw=fhRed, fill=fhRedLight, line width=0.8pt},
+  fh/warn/.default=30mm,
+  fh/note/.style={font=\sffamily\scriptsize, text=fhSlate, align=center},
+  fh/label/.style={font=\sffamily\scriptsize, text=fhInkSoft, fill=white, inner sep=1.5pt, align=center},
+  fh/group/.style={draw=fhLine, rounded corners=6pt, inner sep=7pt, fill=fhCanvas},
+  fh/grouptitle/.style={font=\sffamily\footnotesize\bfseries, text=fhSlate, anchor=south west},
+  % Arrows: money (amber, thick), service (emerald), data (sky), leads/traffic (ink)
+  fh/money/.style={-{Stealth[length=2.6mm]}, line width=1.3pt, draw=fhAmber},
+  fh/service/.style={-{Stealth[length=2.4mm]}, line width=1pt, draw=fhEmeraldDark},
+  fh/data/.style={-{Stealth[length=2.2mm]}, line width=0.9pt, draw=fhSky},
+  fh/lead/.style={-{Stealth[length=2.2mm]}, line width=0.9pt, draw=fhInkSoft},
+  fh/blocked/.style={-{Stealth[length=2.2mm]}, line width=1pt, draw=fhRed, dashed},
+}
+
+% Small legend entry: \fhlegend{style}{text}
+\newcommand{\fhlegend}[2]{\tikz[baseline=-0.6ex]\draw[#1] (0,0) -- (6mm,0);~{\scriptsize #2}}
+
+% ------------------------------------------------------------------ screenshots in a browser frame
+% \fhscreen[width]{screenshots/web-home.jpg}{fundhub.lu}
+\newcommand{\fhscreen}[3][\linewidth]{%
+  \begin{tikzpicture}
+    \node[inner sep=0pt, anchor=north west] (img) at (0,0) {\includegraphics[width=#1]{#2}};
+    \path (img.north west) ++(0,0.42) coordinate (tl);
+    \begin{scope}[on background layer]
+      \fill[white, rounded corners=4pt, blur shadow={shadow blur steps=6, shadow xshift=0pt, shadow yshift=-1.5pt, shadow opacity=25}]
+        ($(tl)+(-0.06,0)$) rectangle ($(img.south east)+(0.06,-0.06)$);
+    \end{scope}
+    \fill[fhCanvas, rounded corners=4pt] ($(tl)+(-0.06,0)$) rectangle ($(img.north east)+(0.06,0)$);
+    \foreach \c [count=\i] in {fhRed,fhAmber,fhEmerald} \fill[\c] ($(tl)+(0.12+0.16*\i,-0.21)$) circle (0.045);
+    \node[fill=white, rounded corners=2pt, inner sep=1.5pt, font=\sffamily\tiny, text=fhSlate, anchor=west, minimum width=0.4*#1]
+      at ($(tl)+(0.85,-0.21)$) {#3};
+    \draw[fhLine, rounded corners=4pt] ($(tl)+(-0.06,0)$) rectangle ($(img.south east)+(0.06,-0.06)$);
+  \end{tikzpicture}}

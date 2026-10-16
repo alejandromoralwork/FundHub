@@ -12,21 +12,22 @@ const NEVER = [
   "Accept referral fees, finder's fees, commissions or retrocessions from service providers",
   "Enter reciprocal 'you send me, I send you' arrangements with law firms, administrators or consultants",
   "Sell ranking positions, sponsored placements or 'featured' slots in the comparator",
-  "Let a subscription influence a Peer Opinion Score, a fee benchmark or the Verified badge",
+  "Let a subscription influence a FundHub Score, a Peer Opinion Score, a ranking or a fee benchmark",
+  "Grant the Verified badge without a passed verification audit, or keep it after a provider fails a re-check",
   "Share a buyer's identity or request with providers without the buyer's consent",
   "Publish reviews from unauthenticated reviewers or delete negative reviews on request",
 ];
 
 const REVENUE = [
   {
-    who: "Asset managers (buy-side)",
-    what: "Independent advisory: fee audits, vendor selection and negotiation representation.",
+    who: "Fund managers & investors (clients)",
+    what: "Fund Set-up & Provider Fee Negotiation Advisory: set-up in Luxembourg, provider selection, fee audits and negotiation at the table with the client.",
     how: "Flat advisory fee or a percentage of the savings we capture. This is our only income linked to a provider decision, and it's paid by the buyer.",
   },
   {
     who: "Service providers",
-    what: "Optional Pro accounts: control over profile data (services, headcount, tech stack, client milestones) and anonymized quarterly market-intelligence reports.",
-    how: "Annual subscription billed quarterly. It buys no visibility, ranking, score or badge, and listing is always free.",
+    what: "Subscriptions that include the FundHub Verified audit, control over profile data (services, headcount, tech stack, client milestones) and Data Intelligence reports.",
+    how: "Annual subscription billed quarterly. It pays for the verification audit, but the badge is granted only if the provider passes, and can be lost. It buys no visibility, ranking or score, and listing stays free.",
   },
   {
     who: "Industry",
@@ -39,7 +40,7 @@ const RANKING = [
   ["Default order", "Peer Opinion Score, then number of verified reviews"],
   ["Peer Opinion Score", "Average rating from authenticated asset managers in a closed, double-blind review loop"],
   ["Fee ranges", "Empirical quarterly fees from RFI responses, fee audits and provider disclosures, cross-checked"],
-  ["FundHub Verified", "Free data check against RCS, RESA, CSSF registers and a management DDQ; open to every provider"],
+  ["FundHub Verified", "Audit against RCS, RESA, CSSF registers and a management DDQ, included in provider subscriptions; granted only on a pass, re-checked twice a year"],
 ];
 
 export default function IndependencePage() {

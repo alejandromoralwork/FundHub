@@ -1,0 +1,76 @@
+% One-page flyer for service providers. Compile from this folder: latexmk -pdf flyer-providers.tex
+\documentclass[10pt,a4paper]{article}
+\usepackage{fundhub-brand}
+\usepackage[margin=16mm]{geometry}
+\usepackage[most]{tcolorbox}
+\usepackage{multicol}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\setlist{nosep, leftmargin=1.2em, label=\textcolor{fhEmerald}{\rule{0.45em}{0.45em}}}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\newtcolorbox{fhpanel}[1]{colback=fhEmeraldLight, colframe=fhEmeraldDark, boxrule=0.6pt, arc=3pt,
+  fonttitle=\bfseries\small, coltitle=fhInk, colbacktitle=fhEmeraldLight, title=#1, left=6pt, right=6pt, top=4pt, bottom=4pt}
+\newtcolorbox{fhdark}{colback=fhInk, colframe=fhInk, coltext=white, arc=3pt, left=10pt, right=10pt, top=8pt, bottom=8pt}
+
+\begin{document}
+
+\begin{fhdark}
+  {\fontsize{28}{32}\selectfont\fundhublight}\hfill{\small\textcolor{fhEmerald}{fundhub.lu/for-providers}}\par\vspace{4pt}
+  {\Large Win mandates on merit, not on referrals.}\par\vspace{4pt}
+  {\small\textcolor{fhLine}{FundHub puts every Luxembourg fund service provider in front of asset managers on objective data: services, technology, scale, reviews and price.}}
+\end{fhdark}
+
+\begin{multicols}{3}
+\begin{fhpanel}{Listed for free}
+  Your profile is already built from the RCS register and your website. Claim it to keep it accurate.
+\end{fhpanel}
+\begin{fhpanel}{Get verified}
+  Our audit checks your RCS and RESA filings, CSSF authorisations and a short management questionnaire. The badge is granted only if you pass, and re-checked twice a year.
+\end{fhpanel}
+\begin{fhpanel}{Know your market}
+  Data Intelligence reports: fee distributions, services in demand, competitor technology, included in every plan.
+\end{fhpanel}
+\end{multicols}
+
+{\large\bfseries Subscription plans}\hfill{\scriptsize\textcolor{fhSlate}{indicative prices, annual contract billed quarterly}}
+
+\small
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+  \toprule
+  \textbf{Plan} & \textbf{For} & \textbf{Price} \\
+  \midrule
+  Free listing & Every active provider: profile, quote requests, public statistics & free \\
+  Boutique & Small law firms, niche tax advisers, HR and IT consultants & $\sim$\euro{}500 / quarter \\
+  Mid-Market & Specialised fund administrators, third-party AIFMs & $\sim$\euro{}1,500 / quarter \\
+  Institutional & Global custodians, depositary banks, large law and audit firms & custom \\
+  \bottomrule
+\end{tabularx}
+\normalsize
+
+\vspace{4pt}
+\textbf{Every paid plan includes:}
+\begin{multicols}{2}
+\begin{itemize}
+  \item The FundHub Verified audit (badge on a pass)
+  \item Direct control of services, team, tech stack and client milestones
+  \item Quarterly Data Intelligence reports for your categories
+  \item Lead signals: new fund launches, coverage gaps, switching events
+  \item Eligibility for the FundHub Awards
+  \item Multi-entity profiles (Institutional)
+\end{itemize}
+\end{multicols}
+
+\begin{tcolorbox}[colback=fhAmberLight, colframe=fhAmber, boxrule=0.6pt, arc=3pt]
+  \textbf{Fair for everyone.} Subscriptions never buy a ranking, a higher FundHub Score or a review. The FundHub Score ignores the Verified badge, so the comparison stays the same for paying and non-paying providers. FundHub takes no referral fees or commissions from anyone.
+\end{tcolorbox}
+
+\vfill
+\begin{fhdark}
+  \textbf{Claim your profile in 5 minutes.}\hfill fundhub.lu/for-providers
+\end{fhdark}
+
+\end{document}

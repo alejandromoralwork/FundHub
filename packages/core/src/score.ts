@@ -15,7 +15,8 @@ export const PRIOR_WEIGHT = 5;
 export const MIN_REVIEWS = 3;
 /** A category needs at least this many providers to compare price. */
 export const MIN_PRICE_PEERS = 3;
-export const CREDIBILITY_POINTS = { verified: 40, licensed: 20, certified: 20, fresh: 20 } as const;
+/** Facts on record only. The Verified badge is excluded because verification is part of a paid subscription. */
+export const CREDIBILITY_POINTS = { licensed: 35, certified: 35, fresh: 30 } as const;
 
 export const GRADES = [
   { grade: "A+", min: 85 },
@@ -34,7 +35,6 @@ export type ScoreInput = {
   priceMax: number;
   rating: number;
   reviewCount: number;
-  verified: boolean;
   licences: string[];
   certifications: string[];
   lastVerifiedAt: Date | string | null;
@@ -69,7 +69,6 @@ function peerScore(p: ScoreInput): number {
 function credibilityScore(p: ScoreInput, now: number): number {
   const last = Math.max(p.lastVerifiedAt ? new Date(p.lastVerifiedAt).getTime() : 0, p.providerUpdatedAt ? new Date(p.providerUpdatedAt).getTime() : 0);
   return (
-    (p.verified ? CREDIBILITY_POINTS.verified : 0) +
     (p.licences.length ? CREDIBILITY_POINTS.licensed : 0) +
     (p.certifications.length ? CREDIBILITY_POINTS.certified : 0) +
     (last && now - last < YEAR_MS ? CREDIBILITY_POINTS.fresh : 0)

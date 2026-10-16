@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     template: "%s · FundHub",
   },
   description:
-    "Independent comparator and buy-side advisor for Luxembourg fund services. Compare administrators, depositaries, ManCos, tax and legal providers on real fees, tech and peer reviews. No referral fees, no commissions.",
+    "Independent fund service provider comparator and set-up & fee negotiation advisory for Luxembourg. Compare administrators, depositaries, ManCos, tax and legal providers on real fees, tech and peer reviews. No referral fees, no commissions.",
   openGraph: { type: "website", siteName: "FundHub", locale: "en_GB" },
   metadataBase: process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? new URL(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`)

@@ -1,0 +1,46 @@
+% FundHub data pipeline: sources -> data module -> staff review -> published index -> products.
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{fundhub-brand}
+\begin{document}
+\begin{tikzpicture}[node distance=4mm]
+
+  % sources
+  \node[fh/grouptitle] at (-1.9,7.2) {SOURCES};
+  \node[fh/external=36mm] (rcs) at (0,6.4) {\textbf{RCS / LBR register}\\\scriptsize legal data, filings, headcount};
+  \node[fh/external=36mm, below=of rcs] (web) {\textbf{Provider websites}\\\scriptsize services, licences, stack};
+  \node[fh/external=36mm, below=of web] (self) {\textbf{Provider self-edits}\\\scriptsize subscribers' profile updates};
+  \node[fh/external=36mm, below=of self] (rfi) {\textbf{Advisory \& RFI data}\\\scriptsize anonymised fees};
+  \node[fh/external=36mm, below=of rfi] (rev) {\textbf{Verified reviews}\\\scriptsize client ratings};
+
+  % processing
+  \node[fh/system=40mm] (module) at (5.6,5.6) {\textbf{Data module}\\\scriptsize GitHub Actions, weekly\\\scriptsize RCS adapter + AI web extractor (Claude)};
+  \node[fh/system=40mm, below=8mm of module] (queue) {\textbf{Ingest queue}\\\scriptsize only changed fields, with source \& confidence};
+  \node[fh/core=40mm, below=8mm of queue] (review) {\textbf{Staff review in the Console}\\\scriptsize approve, edit or reject};
+
+  % storage
+  \node[fh/system=36mm, minimum height=22mm] (index) at (11,3.2) {\textbf{Published index}\\\scriptsize Postgres (Neon)\\\scriptsize providers, fees, reviews};
+
+  % products
+  \node[fh/grouptitle] at (14.3,7.2) {WHAT IT POWERS};
+  \node[fh/product=40mm] (o1) at (16.4,6.4) {Comparator \& provider profiles};
+  \node[fh/product=40mm, below=of o1] (o2) {FundHub Score (quality + price)};
+  \node[fh/product=40mm, below=of o2] (o3) {Fee benchmarks \& rankings};
+  \node[fh/product=40mm, below=of o3] (o4) {Data Intelligence stats \& reports};
+  \node[fh/product=40mm, below=of o4] (o5) {Advisory benchmarks \& public API};
+
+  \draw[fh/data] (rcs.east) -- (module.west);
+  \draw[fh/data] (web.east) -- (module.west);
+  \draw[fh/data] (module) -- (queue);
+  \draw[fh/data] (queue) -- (review);
+  \draw[fh/data] (self.east) -- node[fh/label] {live, logged} (review.west);
+  \draw[fh/data] (review.east) -- (index.west);
+  % routed under the review box
+  \draw[fh/data] (rfi.east) -- ++(0.4,0) |- ($(index.south)+(-0.6,-1.0)$) -- ($(index.south)+(-0.6,0)$);
+  \draw[fh/data] (rev.east) -| ($(index.south)+(0.6,0)$);
+  \foreach \n in {o1,o2,o3,o4,o5} \draw[fh/data] (index.east) -- (\n.west);
+
+  \node[fh/note, anchor=north west, align=left] at (-1.9,-1.6) {%
+    Nothing scraped is published automatically: every scraped change passes a person in the Console.\\
+    Subscribers' own edits go live immediately and are logged for staff review; verified providers are re-checked twice a year.};
+\end{tikzpicture}
+\end{document}

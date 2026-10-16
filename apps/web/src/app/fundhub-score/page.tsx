@@ -65,9 +65,11 @@ export default function FundHubScorePage() {
         </div>
         <div>
           <h2 className="text-base font-semibold text-ink">Data credibility (inside Quality)</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-600">
+            Facts on record only. The FundHub Verified badge doesn&apos;t count, because verification is part of a paid subscription.
+          </p>
           <CheckList
             items={[
-              `${CREDIBILITY_POINTS.verified} points: FundHub Verified (RCS, CSSF and DDQ checks)`,
               `${CREDIBILITY_POINTS.licensed} points: at least one CSSF / professional licence on record`,
               `${CREDIBILITY_POINTS.certified} points: at least one certification (e.g. ISAE 3402, ISO 27001)`,
               `${CREDIBILITY_POINTS.fresh} points: profile verified or updated in the last 12 months`,
@@ -81,7 +83,7 @@ export default function FundHubScorePage() {
         <CheckList
           tone="negative"
           items={[
-            "Not paid for: subscriptions, advertising and Pro plans have no effect on any score.",
+            "Not paid for: subscriptions, verification and advertising have no effect on any score.",
             "Not a recommendation for your specific fund: use it to shortlist, then compare proposals like for like.",
             "Not a fee quote: Price Score uses indicative ranges, and your mandate may price differently.",
           ]}

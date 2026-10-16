@@ -27,17 +27,17 @@ export const AUM_BAND_LABELS = {
 export type AumBand = keyof typeof AUM_BAND_LABELS;
 export const AUM_BANDS = Object.keys(AUM_BAND_LABELS) as [AumBand, ...AumBand[]];
 
-/** FundHub's buy-side advisory services. */
+/** Fund Set-up & Provider Fee Negotiation Advisory: the services FundHub sells to clients. */
 export const ADVISORY_SERVICES = [
   {
     id: "negotiation",
-    label: "Fee Negotiation & Meeting Accompaniment",
+    label: "Provider Fee Negotiation (at the table with you)",
     description:
       "A senior FundHub expert comes with you, in person or virtually, to pricing meetings with service providers and negotiates on your side of the table using our market data.",
   },
   {
     id: "fund-setup",
-    label: "Fund & Activity Set-up Support",
+    label: "Fund & Activity Set-up in Luxembourg",
     description:
       "Setting up in Luxembourg: choosing the structure and the providers it legally requires, realistic budgets, substance (office, directors, staff), timeline, and onboarding.",
   },

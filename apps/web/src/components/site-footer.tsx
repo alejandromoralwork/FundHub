@@ -47,7 +47,7 @@ export function SiteFooter({ newsletter = false }: { newsletter?: boolean }) {
             <span className="ml-1 text-xs text-slate-400">FundHub.lu</span>
           </p>
           <p className="mt-2 max-w-sm text-xs leading-relaxed text-ink-600">
-            The independent comparator and buy-side advisor for Luxembourg fund services. We are paid by fund
+            The independent fund service provider comparator and set-up & fee negotiation advisory for Luxembourg. We are paid by fund
             managers, never by referral fees or commissions from the providers we compare.
           </p>
           <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Categories</p>

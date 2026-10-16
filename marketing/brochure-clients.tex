@@ -1,0 +1,105 @@
+% Two-page brochure for fund managers and investors. Compile from this folder: latexmk -pdf brochure-clients.tex
+\documentclass[10pt,a4paper]{article}
+\usepackage{fundhub-brand}
+\usepackage[margin=16mm]{geometry}
+\usepackage[most]{tcolorbox}
+\usepackage{multicol}
+\usepackage{enumitem}
+\usepackage{standalone}
+\usepackage{adjustbox}
+\setlist{nosep, leftmargin=1.2em, label=\textcolor{fhEmerald}{\rule{0.45em}{0.45em}}}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\newtcolorbox{fhpanel}[1]{colback=fhEmeraldLight, colframe=fhEmeraldDark, boxrule=0.6pt, arc=3pt,
+  fonttitle=\bfseries\small, coltitle=fhInk, colbacktitle=fhEmeraldLight, title=#1, left=6pt, right=6pt, top=4pt, bottom=4pt}
+\newtcolorbox{fhdark}{colback=fhInk, colframe=fhInk, coltext=white, arc=3pt, left=10pt, right=10pt, top=8pt, bottom=8pt}
+
+\begin{document}
+
+% ------------------------------------------------------------------ page 1
+\begin{fhdark}
+  {\fontsize{28}{32}\selectfont\fundhublight}\hfill{\small\textcolor{fhEmerald}{fundhub.lu}}\par\vspace{4pt}
+  {\Large Set up in Luxembourg with the right providers, at the right fee.}\par\vspace{4pt}
+  {\small\textcolor{fhLine}{The independent fund service provider comparator, and the advisors who sit at the table with you.}}
+\end{fhdark}
+
+\vspace{6pt}
+{\large\bfseries Why managers come to FundHub}
+
+\begin{multicols}{2}
+\begin{itemize}
+  \item \textbf{Fees are hard to compare.} Proposals are bespoke, with hidden line items and out-of-pocket charges.
+  \item \textbf{Recommendations aren't always neutral.} Providers are often introduced under referral fees.
+  \item \textbf{Setting up means many decisions at once:} structure, AIFM or ManCo, depositary, administrator, auditor, domiciliation.
+  \item \textbf{FundHub is independent.} We take no referral fees, commissions or retrocessions from any provider. We work only for you.
+\end{itemize}
+\end{multicols}
+
+\begin{fhpanel}{Fund Set-up \& Provider Fee Negotiation Advisory}
+  We sit at the table with you, from the first idea to the signed contracts.
+  \begin{multicols}{2}
+  \begin{enumerate}[label=\textcolor{fhEmeraldDark}{\bfseries\arabic*.}, leftmargin=1.4em]
+    \item \textbf{Scoping call}, free, 30 minutes
+    \item \textbf{Set-up plan}: structure options with your lawyers, required providers, budget, substance, timeline
+    \item \textbf{Shortlist} from the full FundHub index, ranked with the FundHub Score
+    \item \textbf{Standardised RFP}: answers normalised like for like
+    \item \textbf{Negotiation at the table}: we prepare and attend the pricing meetings with you
+    \item \textbf{Onboarding}: contracts, KYC and kick-off coordinated across providers
+  \end{enumerate}
+  \end{multicols}
+  \textbf{Fees:} a flat fee per phase agreed up front, or a share of the first-year savings we capture. Paid only by you.
+\end{fhpanel}
+
+\vspace{4pt}
+\begin{center}
+  \includestandalone[width=0.98\textwidth]{diagrams/service-flow}
+\end{center}
+
+\newpage
+% ------------------------------------------------------------------ page 2
+{\large\bfseries Free tools on fundhub.lu}
+
+\begin{multicols}{2}
+\begin{fhpanel}{Provider Comparator}
+  Every Luxembourg fund service provider across 8 categories: fund administration, depositary \& banking, AIFM \& ManCo, governance \& domiciliation, regulatory \& compliance, corporate accounting, tax, professional support. Filter by service, asset class, licence, technology, size and fees.
+\end{fhpanel}
+\begin{fhpanel}{FundHub Score}
+  An independent 0--100 grade: 60\% quality (verified client reviews and data credibility) and 40\% price against category peers. Published formula. Providers cannot pay to change it.
+\end{fhpanel}
+\begin{fhpanel}{Fees \& rankings}
+  Typical quarterly fees per category and the top providers by FundHub Score, with a ``best value'' pick in each category.
+\end{fhpanel}
+\begin{fhpanel}{News \& Learn}
+  Sector news and practical guides: choosing providers, reading fee proposals, structuring your service chain.
+\end{fhpanel}
+\end{multicols}
+
+{\large\bfseries Data Intelligence}
+
+\begin{multicols}{3}
+\textbf{Free}\par
+Live market statistics and the public quarterly report.
+\columnbreak
+
+\textbf{Membership}\par
+Private reports on providers, fees and market shares, bought online in minutes.
+\columnbreak
+
+\textbf{Bespoke studies}\par
+Custom fee benchmarks and market studies for your project.
+\end{multicols}
+
+\vspace{6pt}
+\begin{tcolorbox}[colback=fhAmberLight, colframe=fhAmber, boxrule=0.6pt, arc=3pt]
+  \textbf{Our independence commitments.} No referral fees, commissions or reciprocal deals with providers. No paid rankings or sponsored positions. Reviews come only from verified clients and are never removed on request. Your request is shared with a provider only with your consent.
+\end{tcolorbox}
+
+\vfill
+\begin{fhdark}
+  \textbf{Start with a free 30-minute scoping call.}\hfill fundhub.lu/advisory\par
+  {\small\textcolor{fhLine}{Or compare providers yourself at fundhub.lu/compare.}}
+\end{fhdark}
+
+\end{document}

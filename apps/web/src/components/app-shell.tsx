@@ -56,7 +56,7 @@ const NAV: NavBlock[] = [
   {
     section: "Advisory",
     items: [
-      { href: "/advisory", label: "Selection & Negotiation", icon: Handshake },
+      { href: "/advisory", label: "Fee Negotiation", icon: Handshake },
       { href: "/advisory/fund-setup", label: "Fund Set-up", icon: Building2 },
       { href: "/rfi", label: "Request Quotes", icon: FileText },
     ],

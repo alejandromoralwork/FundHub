@@ -35,7 +35,7 @@ async function generateJson<T>(system: string, user: string, schema: Record<stri
   return JSON.parse(text.text) as T;
 }
 
-const VOICE = `You write for FundHub (fundhub.lu), the independent comparator and buy-side advisor for Luxembourg fund services. FundHub accepts no referral fees or commissions from service providers; it is paid by fund managers.
+const VOICE = `You write for FundHub (fundhub.lu), the independent fund service provider comparator and set-up & fee negotiation advisory for Luxembourg. FundHub accepts no referral fees or commissions from service providers; it is paid by fund managers.
 Voice: precise, neutral, useful to asset managers and fund operations professionals. British English. No hype, no superlatives, no emojis in articles.
 Accuracy rules:
 - Use only facts given in the brief and the context. Never invent figures, quotes, names, dates or regulatory details. If a point needs a fact you were not given, write around it or mark it as [CHECK: …] for the editor.

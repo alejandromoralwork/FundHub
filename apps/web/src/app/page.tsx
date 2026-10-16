@@ -111,7 +111,7 @@ export default async function HomePage() {
         <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
           <IndependentBadge className="bg-emerald/15 text-emerald ring-emerald/40" />
           <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
-            Luxembourg&apos;s independent fund services comparator and buy-side advisor.
+            Luxembourg&apos;s independent fund services comparator, and your advisor at the negotiating table.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-300">
             Compare fund administrators, depositaries, ManCos, tax, legal and corporate-services providers on real fees,

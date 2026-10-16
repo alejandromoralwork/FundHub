@@ -1,0 +1,51 @@
+% FundHub operating rhythm: what the team does daily, weekly, monthly and quarterly, and in which tool.
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{fundhub-brand}
+\begin{document}
+\begin{tikzpicture}
+
+  \tikzset{fh/col/.style={fh/base=46mm, align=left, anchor=north, minimum height=72mm, text depth=0pt}}
+
+  \node[fh/core=46mm, anchor=south] (dh) at (0,7.6) {\textbf{DAILY}};
+  \node[fh/col, draw=fhInk, fill=white] (d) at (0,7.5) {%
+    \scriptsize\textbf{Inbox} (Console): answer every RFI and advisory request within 1 business day; send qualified ones to the CRM\\[3pt]
+    \scriptsize\textbf{Moderation}: approve provider claims, review edits and new reviews\\[3pt]
+    \scriptsize\textbf{Data}: clear the scraper ingest queue (approve / reject changes)\\[3pt]
+    \scriptsize\textbf{Advisory delivery}: client calls, negotiation prep, meetings at the table\\[3pt]
+    \scriptsize\textbf{Social}: publish the day's post (LinkedIn first) and reply to comments\\[3pt]
+    \scriptsize\textbf{Sales}: CRM follow-ups with managers and providers\\[3pt]
+    \scriptsize\textbf{Checks}: dashboard tiles, failed payments, GDPR deadlines};
+
+  \node[fh/product=46mm, anchor=south] (wh) at (5.4,7.6) {\textbf{WEEKLY}};
+  \node[fh/col, draw=fhEmeraldDark, fill=white] (w) at (5.4,7.5) {%
+    \scriptsize\textbf{Content}: 1--2 News or Learn articles in the content studio, AI-drafted, fact-checked, published\\[3pt]
+    \scriptsize\textbf{Social plan}: approve the 4 network versions per article for the week\\[3pt]
+    \scriptsize\textbf{Data run}: data module crawls RCS and provider websites (GitHub Actions)\\[3pt]
+    \scriptsize\textbf{Pipeline review}: CRM deals by stage; advisory proposals sent\\[3pt]
+    \scriptsize\textbf{SEO}: check rankings for target searches, refresh one category guide\\[3pt]
+    \scriptsize\textbf{Team}: tasks board and calendar in Nextcloud};
+
+  \node[fh/system=46mm, anchor=south] (mh) at (10.8,7.6) {\textbf{MONTHLY}};
+  \node[fh/col, draw=fhSky, fill=white] (m) at (10.8,7.5) {%
+    \scriptsize\textbf{Finance} (Console): Stripe revenue vs expenses, budgets, copy recurring costs\\[3pt]
+    \scriptsize\textbf{Newsletter} (Listmonk): best articles + one data insight\\[3pt]
+    \scriptsize\textbf{Analytics}: traffic, leads, conversion by channel; adjust ads\\[3pt]
+    \scriptsize\textbf{Providers}: onboarding calls with new subscribers; renewals due\\[3pt]
+    \scriptsize\textbf{Quality}: review FundHub Score movers and data anomalies\\[3pt]
+    \scriptsize\textbf{Security}: staff access review, backups restored once};
+
+  \node[fh/warn=46mm, anchor=south, draw=fhAmber, fill=fhAmberLight] (qh) at (16.2,7.6) {\textbf{QUARTERLY \& YEARLY}};
+  \node[fh/col, draw=fhAmber, fill=white] (q) at (16.2,7.5) {%
+    \scriptsize\textbf{Reports}: publish the quarterly public report and the private member reports\\[3pt]
+    \scriptsize\textbf{VAT}: quarterly VAT position from the Finance module\\[3pt]
+    \scriptsize\textbf{Subscriptions}: quarterly invoices; churn and upsell review\\[3pt]
+    \scriptsize\textbf{Verification}: re-check verified providers (twice a year)\\[3pt]
+    \scriptsize\textbf{Awards}: nominations, audit and jury, then the yearly ceremony\\[3pt]
+    \scriptsize\textbf{Strategy}: pricing, roadmap and KPI targets};
+
+  \draw[fh/service] (d.east) -- (w.west);
+  \draw[fh/service] (w.east) -- (m.west);
+  \draw[fh/service] (m.east) -- (q.west);
+  \draw[fh/service] (q.south) -- ++(0,-0.5) -| node[fh/label, pos=0.25] {lessons feed the next cycle} (d.south);
+\end{tikzpicture}
+\end{document}

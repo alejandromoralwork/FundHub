@@ -24,7 +24,7 @@ const DEFINITIONS = [
   ],
   [
     "FundHub Verified",
-    "The provider's RCS registration, CSSF authorisations, headcount and stated tech stack have been checked against public registers and a management DDQ. Verification is free and independent of any subscription.",
+    "The provider's RCS registration, CSSF authorisations, headcount and stated tech stack have been checked against public registers and a management DDQ. The verification audit is part of the provider subscription, but the badge is granted only when the checks pass, is re-checked twice a year and can be withdrawn. It has no effect on the FundHub Score, rankings or reviews.",
   ],
   [
     "Peer Opinion Score",

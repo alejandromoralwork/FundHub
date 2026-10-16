@@ -1,0 +1,46 @@
+% The problem FundHub solves: fee-paid referrals, compared with the FundHub model.
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{fundhub-brand}
+\begin{document}
+\begin{tikzpicture}
+
+  % ================================================================ left: today
+  \node[font=\sffamily\bfseries, text=fhRed, anchor=west] at (-1.8,6.4) {TODAY: THE REFERRAL LOOP};
+  \node[fh/who=34mm] (m1) at (0,4.6) {\textbf{Fund manager}\\\scriptsize needs an administrator, a depositary, a ManCo\ldots};
+  \node[fh/who=36mm] (a1) at (6,4.6) {\textbf{``Trusted adviser''}\\\scriptsize law firm, administrator or consultant};
+  \node[fh/who=34mm] (p1) at (3,0.6) {\textbf{Recommended provider}\\\scriptsize one name, rarely the best fit};
+
+  \draw[fh/lead] (m1) -- node[fh/label, above] {``who should we use?''} (a1);
+  \draw[fh/lead] (a1) -- node[fh/label, right] {recommends} (p1);
+  \draw[fh/money, draw=fhRed] (p1.east) to[out=0,in=-90] node[fh/label, right, pos=0.4] {\textcolor{fhRed}{referral fee,}\\\textcolor{fhRed}{retrocession,}\\\textcolor{fhRed}{reciprocal work}} (a1.south);
+  \draw[fh/money] (m1.south) to[out=-90,in=180] node[fh/label, left, pos=0.55] {pays fees that\\include the\\referral cost} (p1.west);
+
+  \node[fh/warn=70mm, align=left] at (3,-1.6) {%
+    \scriptsize $\times$ The manager doesn't see the incentive\\
+    \scriptsize $\times$ Few providers are considered; specialists are locked out\\
+    \scriptsize $\times$ No fee benchmark, so overpayment goes unnoticed};
+
+  % ================================================================ divider
+  \draw[fhLine, line width=1pt] (9.3,6.6) -- (9.3,-2.6);
+
+  % ================================================================ right: FundHub
+  \node[font=\sffamily\bfseries, text=fhEmeraldDark, anchor=west] at (10,6.4) {WITH FUNDHUB};
+  \node[fh/who=34mm] (m2) at (11.8,4.6) {\textbf{Fund manager}\\\scriptsize client of FundHub};
+  \node[fh/core=36mm] (f2) at (17.6,4.6) {\fundhublight\\\scriptsize comparator + set-up \& fee negotiation advisory};
+  \node[fh/product=22mm] (pa) at (13.4,0.6) {\textbf{Provider A}};
+  \node[fh/product=22mm] (pb) at (16.1,0.6) {\textbf{Provider B}};
+  \node[fh/product=22mm] (pc) at (18.8,0.6) {\textbf{Provider C}};
+
+  \draw[fh/money] (m2) -- node[fh/label, above] {advisory fee (only income)} (f2);
+  \draw[fh/service] (f2.south) -- node[fh/label, pos=0.45] {compares all,\\negotiates} (pb.north);
+  \draw[fh/service] (f2.south) -- (pa.north east);
+  \draw[fh/service] (f2.south) -- (pc.north);
+  \draw[fh/money] (m2.south) to[out=-90,in=180] node[fh/label, left, pos=0.55] {pays the chosen\\provider a\\negotiated fee} (pa.west);
+  \draw[fh/blocked] (pc.east) to[out=0,in=-60] node[fh/label, right, pos=0.45] {\textcolor{fhRed}{no referral}\\\textcolor{fhRed}{fees, ever}} (f2.south east);
+
+  \node[fh/product=70mm, align=left] at (15.4,-1.6) {%
+    \scriptsize \checkmark\ Paid only by the client, confirmed in writing\\
+    \scriptsize \checkmark\ Every provider compared on fees, quality and the FundHub Score\\
+    \scriptsize \checkmark\ Market fee benchmarks make overpayment visible};
+\end{tikzpicture}
+\end{document}

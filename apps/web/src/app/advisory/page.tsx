@@ -7,7 +7,7 @@ import { ADVISORY_SERVICES } from "@fundhub/core/request-options";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Independent advisory",
+  title: "Fund Set-up & Provider Fee Negotiation Advisory",
   description:
     "We accompany asset managers to negotiate fees with Luxembourg fund service providers and help them set up their activities. Paid only by you, never by providers.",
 };
@@ -65,8 +65,8 @@ export default async function AdvisoryPage({
         <div className="lg:col-span-3">
           <SectionTitle
             as="h1"
-            eyebrow="Advisory"
-            title="We go with you to the negotiating table, and help you set up in Luxembourg"
+            eyebrow="Fund Set-up & Provider Fee Negotiation Advisory"
+            title="We sit at the table with you: set up in Luxembourg, pick the right providers, negotiate their fees"
             lead="Two things managers ask us for most: someone experienced on their side when negotiating fees with service providers, and a guide through setting up their fund and activities in Luxembourg. Law firms and administrators often recommend providers under referral fees; we don't. Our senior experts work only for you, backed by FundHub's market data."
           />
         </div>

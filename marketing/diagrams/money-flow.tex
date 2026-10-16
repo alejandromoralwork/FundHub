@@ -1,0 +1,56 @@
+% How FundHub makes money: who pays, for which product, and where it is booked. Prices are indicative.
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{fundhub-brand}
+\begin{document}
+\begin{tikzpicture}
+
+  % ---------------------------------------------------------------- free layer (traffic, trust)
+  \node[fh/external=150mm] (free) at (7.4,12) {\textbf{Free for everyone (builds traffic and trust):} provider listing $\cdot$ comparator \& FundHub Score $\cdot$ fees \& rankings $\cdot$ public stats \& reports $\cdot$ News \& Learn};
+
+  % ---------------------------------------------------------------- payers
+  \node[fh/who=38mm] (clients) at (0,9) {\textbf{Fund managers \& investors}\\\scriptsize launching or re-tendering};
+  \node[fh/who=38mm] (members) at (0,6) {\textbf{Data buyers}\\\scriptsize managers, investors, consultants, providers};
+  \node[fh/who=38mm] (providers) at (0,1.5) {\textbf{Service providers}\\\scriptsize administrators, depositaries, AIFMs, law, tax\ldots};
+
+  % ---------------------------------------------------------------- products
+  \node[fh/product=50mm] (advisory) at (7,9) {\textbf{Fund Set-up \& Provider Fee Negotiation Advisory}\\\scriptsize flat retainer, or success fee\\\scriptsize = \% of first-year savings};
+  \node[fh/product=50mm] (data) at (7,6) {\textbf{Data Intelligence}\\\scriptsize paid reports membership\\\scriptsize + bespoke data studies};
+  \node[fh/product=50mm] (subs) at (7,3) {\textbf{Provider subscription}\\\scriptsize verification audit $\cdot$ profile control\\\scriptsize data reports $\cdot$ lead signals\\\scriptsize Boutique $\sim$\euro{}500 / Mid-Market $\sim$\euro{}1,500 per quarter\\\scriptsize Institutional: custom};
+  \node[fh/product=50mm] (awards) at (7,0) {\textbf{FundHub Awards}\\\scriptsize nomination \& audit fees\\\scriptsize sponsorship};
+
+  % ---------------------------------------------------------------- collection and booking
+  \node[fh/external=30mm] (stripe) at (13,4.5) {\textbf{Stripe}\\\scriptsize cards, SEPA, invoices with LU VAT};
+  \node[fh/core=36mm] (console) at (17.4,4.5) {\textbf{FundHub Console}\\\scriptsize Billing \& invoices\\\scriptsize Finance: P\&L, VAT, budgets};
+
+  % ---------------------------------------------------------------- money arrows
+  \draw[fh/money] (clients) -- (advisory);
+  \draw[fh/money] (members) -- (data);
+  \draw[fh/money] (providers.east) -- (subs.west);
+  \draw[fh/money] (providers.east) -- (awards.west);
+  \draw[fh/money] (advisory.east) -- (stripe);
+  \draw[fh/money] (data.east) -- (stripe);
+  \draw[fh/money] (subs.east) -- (stripe);
+  \draw[fh/money] (awards.east) -- (stripe);
+  \draw[fh/money] (stripe) -- node[fh/label, above] {revenue} (console);
+
+  % data is bundled into the subscription
+  \draw[fh/service, dashed] (data.south) -- node[fh/label, right] {included} (subs.north);
+
+  % ---------------------------------------------------------------- what never happens
+  \node[fh/warn=46mm] (noref) at (13,9) {\textbf{No referral fees or commissions}\\\scriptsize providers never pay FundHub for being recommended};
+  \draw[fh/blocked] (providers.north) to[out=70,in=200] node[fh/label, pos=0.55] {\textcolor{fhRed}{blocked}} (noref.west);
+
+  % client pays its providers directly, at the negotiated price
+  \draw[fh/lead, dashed] (clients.south) to[out=-110,in=110] node[fh/label, pos=0.5] {client pays its providers\\directly, at negotiated fees} (providers.north west);
+
+  % ---------------------------------------------------------------- free layer feeds paid products
+  \draw[fh/lead] (free.south -| advisory.north) ++(-1.6,0) -- node[fh/label] {leads} ($(advisory.north)+(-1.6,0)$);
+
+  % ---------------------------------------------------------------- legend
+  \node[fh/note, anchor=north west, align=left] at (-1.9,-1.4) {%
+    \fhlegend{fh/money}{payment to FundHub}\quad
+    \fhlegend{fh/blocked}{never accepted}\quad
+    \fhlegend{fh/lead, dashed}{outside FundHub}\quad
+    Prices are indicative (business plan) and billed quarterly on annual contracts.};
+\end{tikzpicture}
+\end{document}
