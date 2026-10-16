@@ -4,7 +4,7 @@ LaTeX sources for FundHub's business presentation, brochures and diagrams. They 
 
 | File | What it is |
 |---|---|
-| `presentation.tex` | Business presentation (Beamer, 16:9, about 40 slides): the referral-fee problem, FundHub, the platform screen by screen, Data Intelligence and provider leads, business model, growth, daily operations, roadmap |
+| `presentation.tex` | Business presentation (Beamer, 16:9, about 30 slides): the referral-fee problem, FundHub, the platform screen by screen, Data Intelligence and provider leads, business model, growth, daily operations, roadmap |
 | `brochure-clients.tex` | 2-page A4 brochure for fund managers and investors |
 | `flyer-providers.tex` | 1-page A4 flyer for service providers |
 | `diagrams/*.tex` | TikZ diagrams, each compilable on its own and included in the documents: `referral-problem`, `architecture`, `money-flow`, `service-flow`, `market-map`, `data-pipeline`, `lead-engine`, `ops-cycle` |
