@@ -12,9 +12,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto w-full max-w-md flex-1 p-4 sm:p-6">
       <h1 className="text-xl font-semibold text-ink">Log in to FundHub</h1>
-      <p className="mt-1 mb-5 text-sm text-ink-600">
-        One login for fund managers and service providers. Browsing and comparing providers never requires an account.
-      </p>
+      {/* <p className="mt-1 mb-5 text-sm text-ink-600">
+        One login for fund managers and service providers..
+      </p> */}
       <AuthForm mode="login" next={next} />
     </main>
   );

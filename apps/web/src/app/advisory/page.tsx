@@ -162,7 +162,7 @@ export default async function AdvisoryPage({
         <SectionTitle
           eyebrow="Get started"
           title="Request a free scoping call"
-          lead="Tell us about your fund and what you need. Requests are confidential and never shared with service providers."
+          lead="Tell us about your fund and what you need. Requests are confidential."
         />
         <div className="mt-5 max-w-3xl">
           <RequestForm
