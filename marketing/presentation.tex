@@ -52,8 +52,12 @@
     \vspace{6mm}
   \end{frame}}}
 
-% A diagram scaled to the frame: \fhdiagram[height share]{diagrams/name}
-\newcommand{\fhdiagram}[2][0.78]{\begin{center}\includestandalone[max width=\textwidth, max height=#1\textheight]{#2}\end{center}}
+% A diagram shrunk to fit below the frame title: \fhdiagram[height share]{diagrams/name}
+% adjustbox does the scaling (max width/height), so it works whatever the standalone version.
+\newcommand{\fhdiagram}[2][0.7]{%
+  \vspace*{-2mm}\begin{center}
+    \begin{adjustbox}{max width=\textwidth, max totalheight=#1\textheight}\input{#2}\end{adjustbox}
+  \end{center}}
 
 % Numbered callout next to a screenshot: \fhpoint{1}{Title}{Text}
 \newcommand{\fhpoint}[3]{%
@@ -130,7 +134,7 @@
 
 \begin{frame}{Fee-paid referrals: the hidden cost in fund services}
   \framesubtitle{The problem}
-  \fhdiagram[0.8]{diagrams/referral-problem}
+  \fhdiagram{diagrams/referral-problem}
 \end{frame}
 
 \begin{frame}{Why it hurts everyone except the middleman}
@@ -375,7 +379,7 @@
 
 \begin{frame}{Architecture: three independent parts, one database}
   \framesubtitle{Technology}
-  \fhdiagram[0.8]{diagrams/architecture}
+  \fhdiagram{diagrams/architecture}
 \end{frame}
 
 % ================================================================== 04 data
@@ -383,12 +387,12 @@
 
 \begin{frame}{The market map: every fund and its providers}
   \framesubtitle{Data Intelligence}
-  \fhdiagram[0.8]{diagrams/market-map}
+  \fhdiagram{diagrams/market-map}
 \end{frame}
 
 \begin{frame}{How the data is collected}
   \framesubtitle{Data Intelligence}
-  \fhdiagram[0.8]{diagrams/data-pipeline}
+  \fhdiagram{diagrams/data-pipeline}
 \end{frame}
 
 \begin{frame}{Free to attract, paid to go deeper}
@@ -429,7 +433,7 @@
 
 \begin{frame}{How the money flows}
   \framesubtitle{Business model}
-  \fhdiagram[0.8]{diagrams/money-flow}
+  \fhdiagram{diagrams/money-flow}
 \end{frame}
 
 \begin{frame}{Revenue streams}
@@ -480,7 +484,7 @@
 
 \begin{frame}{How we serve clients and providers}
   \framesubtitle{Service flow}
-  \fhdiagram[0.8]{diagrams/service-flow}
+  \fhdiagram{diagrams/service-flow}
 \end{frame}
 
 \begin{frame}{For providers: listed free, verified and informed when they subscribe}
@@ -500,7 +504,7 @@
 
 \begin{frame}{Traffic and lead engine}
   \framesubtitle{Growth}
-  \fhdiagram[0.8]{diagrams/lead-engine}
+  \fhdiagram{diagrams/lead-engine}
 \end{frame}
 
 \begin{frame}{Content and social: one article, five channels}
@@ -580,7 +584,7 @@
 
 \begin{frame}{Operating rhythm}
   \framesubtitle{Operations}
-  \fhdiagram[0.8]{diagrams/ops-cycle}
+  \fhdiagram{diagrams/ops-cycle}
 \end{frame}
 
 % ================================================================== 08 roadmap
