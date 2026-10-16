@@ -17,6 +17,8 @@ export type SendOptions<T extends TemplateName> = {
   related?: { entity: string; id: string | number };
   /** Staff user who sent it from the admin platform. */
   sentBy?: number;
+  /** Contains a secret (e.g. a reset link): the email log keeps the subject but not the content. */
+  sensitive?: boolean;
 };
 
 export type SendResult = { ok: true; id: number } | { ok: false; id: number; error: string };
@@ -41,7 +43,7 @@ export async function sendEmail<T extends TemplateName>(opts: SendOptions<T>): P
       toName: opts.toName,
       subject,
       template: opts.template,
-      payload: opts.props as Record<string, unknown>,
+      payload: opts.sensitive ? { redacted: true } : (opts.props as Record<string, unknown>),
       relatedEntity: opts.related?.entity,
       relatedId: opts.related ? String(opts.related.id) : null,
       sentBy: opts.sentBy,

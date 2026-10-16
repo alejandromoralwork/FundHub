@@ -19,6 +19,7 @@ import {
   StarOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
+import Link from "next/link";
 import { Refine } from "@refinedev/core";
 import { ThemedLayout, ThemedSider, useNotificationProvider } from "@refinedev/antd";
 import routerProvider from "@refinedev/nextjs-router/app";
@@ -74,12 +75,14 @@ function Header({ staff }: { staff: ShellStaff }) {
     >
       <Space size="middle">
         <Tag color="green">{staff.role}</Tag>
-        <Space size={8}>
-          <Avatar size="small" style={{ background: "#1a212b" }}>
-            {staff.name.slice(0, 1).toUpperCase()}
-          </Avatar>
-          <Typography.Text>{staff.name}</Typography.Text>
-        </Space>
+        <Link href="/account" title="Account security: password and two-factor">
+          <Space size={8}>
+            <Avatar size="small" style={{ background: "#1a212b" }}>
+              {staff.name.slice(0, 1).toUpperCase()}
+            </Avatar>
+            <Typography.Text>{staff.name}</Typography.Text>
+          </Space>
+        </Link>
         <form action={staffLogout}>
           <Button htmlType="submit" size="small" icon={<LogoutOutlined />}>
             Log out

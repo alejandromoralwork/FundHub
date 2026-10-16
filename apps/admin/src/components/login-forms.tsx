@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { staffLogin, staffMfa, type LoginState } from "@/lib/auth-actions";
 import { Wordmark } from "./wordmark";
 
-function Frame({ title, children }: { title: string; children: React.ReactNode }) {
+export function Frame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16 }}>
       <Card style={{ width: "100%", maxWidth: 400 }}>
@@ -20,10 +21,13 @@ function Frame({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /** Plain <form> + server action (works without JS); antd only styles the inputs. */
-export function LoginForm() {
+export function LoginForm({ resetDone = false }: { resetDone?: boolean }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(staffLogin, {});
   return (
     <Frame title="Staff login">
+      {resetDone && !state.error && (
+        <Alert type="success" message="Password changed. Log in with your new password." showIcon style={{ marginBottom: 16 }} />
+      )}
       {state.error && <Alert type="error" message={state.error} showIcon style={{ marginBottom: 16 }} />}
       <form action={action}>
         <Form layout="vertical" component="div">
@@ -38,6 +42,11 @@ export function LoginForm() {
           </Button>
         </Form>
       </form>
+      <div style={{ marginTop: 12, textAlign: "center" }}>
+        <Link href="/login/forgot" style={{ fontSize: 13 }}>
+          Forgot your password or lost your 2FA?
+        </Link>
+      </div>
       <Typography.Paragraph type="secondary" style={{ marginTop: 16, fontSize: 12 }}>
         Internal platform for FundHub staff. Website accounts can&apos;t log in here.
       </Typography.Paragraph>
@@ -74,6 +83,13 @@ export function MfaForm({ enrol }: { enrol?: { secret: string; qrDataUrl: string
           </Button>
         </Form>
       </form>
+      {!enrol && (
+        <div style={{ marginTop: 12, textAlign: "center" }}>
+          <Link href="/login/forgot#2fa" style={{ fontSize: 13 }}>
+            Lost access to your authenticator app?
+          </Link>
+        </div>
+      )}
     </Frame>
   );
 }

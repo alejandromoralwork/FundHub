@@ -338,6 +338,17 @@ export const staffSessions = pgTable(
   (t) => [index("staff_sessions_user_idx").on(t.staffUserId)],
 );
 
+/** Single-use password reset tokens for staff (hashed). Two-factor is still required after a reset. */
+export const staffPasswordResets = pgTable("staff_password_resets", {
+  id: text("id").primaryKey(),
+  staffUserId: integer("staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id, { onDelete: "cascade" }),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+  createdAt: timestamps.createdAt,
+});
+
 /** Every write made from the admin platform. */
 export const auditLog = pgTable(
   "audit_log",

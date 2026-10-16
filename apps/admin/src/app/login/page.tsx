@@ -6,8 +6,8 @@ import { getSession } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Login" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const s = await getSession();
   if (s?.mfaPassed) redirect("/");
-  return <LoginForm />;
+  return <LoginForm resetDone={(await searchParams).reset === "1"} />;
 }

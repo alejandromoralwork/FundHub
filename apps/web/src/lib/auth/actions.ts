@@ -139,6 +139,7 @@ export async function requestPasswordReset(_prev: AuthFormState, formData: FormD
     template: "password-reset",
     props: { name: user.name, resetUrl: `${siteUrl()}/account/reset?token=${token}` },
     related: { entity: "users", id: user.id },
+    sensitive: true,
   });
   return generic;
 }

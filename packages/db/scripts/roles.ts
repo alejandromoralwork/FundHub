@@ -14,6 +14,7 @@ const INGEST_TABLES = ["ingest_runs", "ingest_jobs", "ingest_records"];
 const ADMIN_ONLY_TABLES = [
   "staff_users",
   "staff_sessions",
+  "staff_password_resets",
   "audit_log",
   "email_messages",
   "billing_customers",
