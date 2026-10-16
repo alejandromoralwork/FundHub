@@ -10,7 +10,7 @@ import { useAction } from "./use-action";
 
 const eur = (cents: number) => `€${(cents / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmt = (d: string | null) => (d ? dayjs(d).format("D MMM YYYY") : "—");
-const TIER_LABEL: Record<string, string> = { boutique: "Pro · Boutique", mid_market: "Pro · Mid-Market", institutional: "Pro · Institutional" };
+const TIER_LABEL: Record<string, string> = { boutique: "Pro · Boutique", mid_market: "Pro · Mid-Market", institutional: "Pro · Institutional", data_member: "Data Intelligence member" };
 const SUB_COLOR: Record<string, string> = { active: "green", trialing: "blue", past_due: "orange", unpaid: "red", canceled: "default", incomplete: "orange" };
 const INV_COLOR: Record<string, string> = { paid: "green", open: "orange", draft: "default", void: "default", uncollectible: "red" };
 

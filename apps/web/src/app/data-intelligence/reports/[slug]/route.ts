@@ -29,8 +29,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const isPrivate = (builtIn ?? uploaded)!.visibility === "private";
   const user = await getCurrentUser();
   if (isPrivate && !(await canAccessPrivateReports(user))) {
-    // Signed in but not yet approved: the account page shows the claim status.
-    const target = user ? "/account" : `/account/login?next=${encodeURIComponent("/data-intelligence#reports")}`;
+    // Not a member yet: the membership page explains how to join.
+    const target = "/data-intelligence/membership";
     return NextResponse.redirect(new URL(target, req.url));
   }
 

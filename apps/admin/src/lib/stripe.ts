@@ -1,7 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
-import { PRO_TIERS, type ProTier } from "@fundhub/core/enums";
+import { PRO_TIERS, type ProTier, type SubscriptionPlan } from "@fundhub/core/enums";
 import { db } from "@fundhub/db/client";
 import { billingCustomers, invoices, subscriptions } from "@fundhub/db/schema";
 
@@ -24,7 +24,9 @@ export function tierPrice(tier: ProTier): string | undefined {
   }[tier];
 }
 
-function tierOfPrice(priceId: string | undefined): ProTier | null {
+/** Pro tier from the price, or a Data Intelligence membership (price or checkout metadata from the website). */
+function planOf(sub: Stripe.Subscription, priceId: string | undefined): SubscriptionPlan | null {
+  if (sub.metadata?.plan === "data_member" || (priceId && priceId === process.env.STRIPE_PRICE_DATA_MEMBERSHIP)) return "data_member";
   return PRO_TIERS.find((t) => tierPrice(t) === priceId) ?? null;
 }
 
@@ -37,8 +39,24 @@ async function localCustomerId(stripeCustomerId: string): Promise<number | null>
 
 const customerIdOf = (c: string | Stripe.Customer | Stripe.DeletedCustomer | null) => (typeof c === "string" ? c : c?.id ?? null);
 
+/** Website memberships start in Stripe Checkout: create the local customer, linked to the website account. */
+async function customerFromMembership(sub: Stripe.Subscription, stripeCustomerId: string): Promise<number | null> {
+  const userId = Number(sub.metadata?.fundhub_user_id);
+  const stripe = getStripe();
+  if (!userId || !stripe) return null;
+  const c = await stripe.customers.retrieve(stripeCustomerId);
+  if (c.deleted) return null;
+  const [row] = await db
+    .insert(billingCustomers)
+    .values({ stripeCustomerId, userId, name: c.name || c.email || `Member ${userId}`, email: c.email ?? "" })
+    .onConflictDoUpdate({ target: billingCustomers.stripeCustomerId, set: { userId } })
+    .returning({ id: billingCustomers.id });
+  return row.id;
+}
+
 export async function upsertSubscription(sub: Stripe.Subscription) {
-  const customerId = await localCustomerId(customerIdOf(sub.customer)!);
+  const stripeCustomerId = customerIdOf(sub.customer)!;
+  const customerId = (await localCustomerId(stripeCustomerId)) ?? (await customerFromMembership(sub, stripeCustomerId));
   if (!customerId) return; // not one of ours
   const item = sub.items.data[0];
   const interval = item?.price.recurring?.interval === "month" && item.price.recurring.interval_count === 3 ? "quarter" : item?.price.recurring?.interval ?? "quarter";
@@ -46,7 +64,7 @@ export async function upsertSubscription(sub: Stripe.Subscription) {
   const periodEnd = (item as unknown as { current_period_end?: number })?.current_period_end ?? (sub as unknown as { current_period_end?: number }).current_period_end;
   const values = {
     customerId,
-    tier: tierOfPrice(item?.price.id),
+    tier: planOf(sub, item?.price.id),
     status: sub.status,
     amount: (item?.price.unit_amount ?? 0) * (item?.quantity ?? 1),
     currency: item?.price.currency ?? "eur",

@@ -141,13 +141,13 @@ export default async function DataIntelligencePage() {
         <SectionTitle
           eyebrow="Quarterly reports"
           title="Reports (PDF)"
-          lead="Public reports are free for everyone. Private reports are for approved service-provider accounts."
+          lead="Public reports are free for everyone. Private reports are for members, and included for approved service-provider accounts."
         />
-        {user && !hasPrivateAccess && (
+        {!hasPrivateAccess && (
           <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Private reports unlock once FundHub approves your company claim.{" "}
-            <Link href="/account" className="font-semibold underline">
-              Check your account
+            Private reports are for FundHub members.{" "}
+            <Link href="/data-intelligence/membership" className="font-semibold underline">
+              Become a member
             </Link>
           </p>
         )}
@@ -185,10 +185,10 @@ export default async function DataIntelligencePage() {
                 <div className="mt-4">
                   {locked ? (
                     <Link
-                      href={user ? "/account" : `/account/login?next=${encodeURIComponent("/data-intelligence#reports")}`}
+                      href="/data-intelligence/membership"
                       className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-ink hover:bg-slate-50"
                     >
-                      <Lock className="h-3.5 w-3.5" /> {user ? "Awaiting claim approval" : "Log in with a provider account"}
+                      <Lock className="h-3.5 w-3.5" /> Members only: unlock
                     </Link>
                   ) : (
                     <a

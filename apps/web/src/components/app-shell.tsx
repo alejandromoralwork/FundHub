@@ -49,7 +49,7 @@ const NAV: NavBlock[] = [
         icon: LayoutGrid,
         children: TAXONOMY.map((c) => ({ href: `/services/${c.slug}`, label: c.label })),
       },
-      { href: "/benchmarks", label: "Fee Benchmarks & Rankings", icon: TrendingUp },
+      { href: "/benchmarks", label: "Fees & Rankings", icon: TrendingUp },
       { href: "/fundhub-score", label: "FundHub Score", icon: Gauge },
     ],
   },
@@ -118,8 +118,8 @@ function Sidebar({ onNavigate, account }: { onNavigate?: () => void; account: Sh
   const active = activeHref(usePathname());
   return (
     <div className="flex h-full flex-col bg-ink-900 text-slate-200">
-      <Link href="/" onClick={onNavigate} aria-label="FundHub home" className="flex h-16 flex-col justify-center border-b border-ink-700 px-5">
-        <Wordmark tone="light" className="text-xl leading-none" />
+      <Link href="/" onClick={onNavigate} aria-label="FundHub home" className="flex h-20 flex-col justify-center border-b border-ink-700 px-5">
+        <Wordmark tone="light" className="text-3xl leading-none" />
         <span className="mt-1 block text-[10px] uppercase tracking-widest text-slate-400">Independent fund services comparator</span>
       </Link>
 
@@ -195,8 +195,8 @@ function Sidebar({ onNavigate, account }: { onNavigate?: () => void; account: Sh
         </Link>
       </div>
 
-      <p className="flex items-center gap-1.5 border-t border-ink-700 px-5 py-3 text-[11px] font-semibold text-emerald">
-        <Award className="h-3.5 w-3.5" /> Independent · No referral fees
+      <p className="flex items-center gap-1 border-t border-ink-700 px-5 py-2 text-[10px] font-medium text-emerald/80">
+        <Award className="h-3 w-3" /> Independent · No referral fees
       </p>
     </div>
   );

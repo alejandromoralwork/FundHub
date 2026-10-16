@@ -62,6 +62,8 @@ async function main() {
   await q(`revoke all on ${ADMIN_ONLY_TABLES.join(", ")} from fundhub_web`);
   await q(`revoke insert, update, delete on ${WEB_READ_ONLY_TABLES.join(", ")} from fundhub_web`);
   await q(`revoke all on __drizzle_migrations from fundhub_web`).catch(() => {});
+  // Membership check without read access to billing (see migration 0004).
+  await q(`grant execute on function has_data_membership(integer) to fundhub_web, fundhub_admin`).catch(() => {});
 
   // Scraper: read providers, write only ingest tables.
   await q(`grant select on providers to fundhub_scraper`);

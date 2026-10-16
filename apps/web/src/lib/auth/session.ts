@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -68,7 +68,16 @@ export async function canManageProvider(user: SessionUser, providerId: number): 
 }
 
 /** Private reports are for provider accounts with at least one approved company. */
+/** Active Data Intelligence membership (paid via Stripe; checked by a database function, see migration 0004). */
+export const hasDataMembership = cache(async (user: SessionUser | null): Promise<boolean> => {
+  if (!user) return false;
+  const { rows } = await db.execute<{ ok: boolean }>(sql`select has_data_membership(${user.id}) as ok`);
+  return rows[0]?.ok === true;
+});
+
+/** Private reports: Data Intelligence members, and providers whose company claim was approved. */
 export async function canAccessPrivateReports(user: SessionUser | null): Promise<boolean> {
   if (!user) return false;
+  if (await hasDataMembership(user)) return true;
   return (await getManagedProviderIds(user)).length > 0;
 }
