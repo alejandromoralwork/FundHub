@@ -23,6 +23,7 @@
 import { Pool, type QueryConfig } from "pg";
 // Our normal database connection pool, renamed here to `mainPool` with `as`.
 import { pool as mainPool } from "@fundhub/db/client";
+import { pool as enginePool } from "@fundhub/engine-db/client";
 // Audit log writer, permission check and role table.
 import { audit } from "./audit";
 import { CAN, requireStaff } from "./auth";
@@ -35,7 +36,7 @@ const MAX_ROWS = 500;
  * Next.js reloads this file during development, we reuse the existing pool instead of opening new connections
  * each time. `as unknown as { analystPool?: Pool }` tells TypeScript the global object may hold such a property.
  */
-const globalForSql = globalThis as unknown as { analystPool?: Pool };
+const globalForSql = globalThis as unknown as { analystPool?: Pool; engineAnalystPool?: Pool };
 
 /**
  * Kind: function (private).
@@ -61,6 +62,30 @@ function sqlPool(): Pool {
  *               rows were cut off.
  */
 export async function runReadOnlySql(query: string) {
+  return runSql("main", query);
+}
+
+/**
+ * Kind: async server action (exported). Same as runReadOnlySql, on the Scraping Engine database
+ * (ENGINE_ANALYST_DATABASE_URL = a read-only role if set; otherwise the engine pool, still in a read-only transaction).
+ * @param query  `string` — one SQL statement.
+ */
+export async function runReadOnlyEngineSql(query: string) {
+  return runSql("engine", query);
+}
+
+/**
+ * Kind: function (private). The read-only pool of the engine database.
+ */
+function engineSqlPool(): Pool {
+  const url = process.env.ENGINE_ANALYST_DATABASE_URL;
+  if (!url) return enginePool;
+  globalForSql.engineAnalystPool ??= new Pool({ connectionString: url, max: 2 });
+  return globalForSql.engineAnalystPool;
+}
+
+/** Kind: async function (private). Runs one read-only statement on the chosen database. */
+async function runSql(database: "main" | "engine", query: string) {
   // Only roles in `CAN.sql` (owner, analyst) may run SQL.
   const staff = await requireStaff(CAN.sql);
   // Remove surrounding spaces and one trailing semicolon (`/;\s*$/` = ";" plus optional spaces at the end).
@@ -68,10 +93,10 @@ export async function runReadOnlySql(query: string) {
   if (!text) return { error: "Enter a query." };
   // Audit BEFORE running, so even a query that fails or times out is recorded. Only the first 2000 characters
   // are stored (`.slice(0, 2000)`) to keep the log small.
-  await audit(staff, "sql", "database", null, { query: text.slice(0, 2000) });
+  await audit(staff, "sql", database === "engine" ? "engine-database" : "database", null, { query: text.slice(0, 2000) });
 
   // Borrow one connection from the pool for the whole transaction (all the steps below must use the same one).
-  const client = await sqlPool().connect();
+  const client = await (database === "engine" ? engineSqlPool() : sqlPool()).connect();
   // Start time, to report how long the query took.
   const started = Date.now();
   // `try { … } catch (err) { … } finally { … }`: run the steps; if anything throws, jump to `catch`;

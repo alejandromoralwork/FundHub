@@ -26,6 +26,9 @@ const pg = new EmbeddedPostgres({
   password: "postgres",
   port,
   persistent: true,
+  // UTF-8 explicitly: on Windows initdb would otherwise pick the system code page (WIN1252), which cannot
+  // store Greek, Cyrillic… company names found in GLEIF.
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
   onLog: () => {},
 });
 

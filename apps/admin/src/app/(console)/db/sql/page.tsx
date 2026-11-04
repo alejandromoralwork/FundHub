@@ -22,7 +22,8 @@ import { SqlConsole } from "@/components/db-views";
 // Role table and login/role check.
 import { CAN, requireStaff } from "@/lib/auth";
 // The server action that runs a query in a read-only database transaction.
-import { runReadOnlySql } from "@/lib/sql-actions";
+import { runReadOnlyEngineSql, runReadOnlySql } from "@/lib/sql-actions";
+import Link from "next/link";
 // The browsable tables and a helper to get each one's SQL name.
 import { RESOURCES, tableName } from "@/lib/resources";
 
@@ -34,10 +35,21 @@ export const metadata: Metadata = { title: "SQL console" };
  * Parameters: none.
  * @returns `Promise<JSX>`: the SQL console markup.
  */
-export default async function SqlPage() {
+export default async function SqlPage({ searchParams }: { searchParams: Promise<{ db?: string }> }) {
   // Only roles in CAN.sql (owner, analyst) may run SQL.
   await requireStaff(CAN.sql);
-  // `Object.values(RESOURCES)` = the list of resource settings; `.map(tableName)` turns each into its table
-  // name (passing the function itself, which `.map` calls once per item).
-  return <SqlConsole run={runReadOnlySql} tables={Object.values(RESOURCES).map(tableName)} />;
+  // `?db=engine` switches to the Scraping Engine database (its own Postgres); the website database is the default.
+  const engine = (await searchParams).db === "engine";
+  // The tables of the chosen database; `.map(tableName)` turns each setting into its table name.
+  const defs = Object.values(RESOURCES).filter((d) => (d.database === "engine") === engine);
+  return (
+    <>
+      <p style={{ marginBottom: 8 }}>
+        Database: {engine ? <Link href="/db/sql">Website</Link> : <strong>Website</strong>} ·{" "}
+        {engine ? <strong>Scraping engine</strong> : <Link href="/db/sql?db=engine">Scraping engine</Link>}
+      </p>
+      {/* `key` makes React start a fresh console (empty result) when switching database. */}
+      <SqlConsole key={engine ? "engine" : "main"} run={engine ? runReadOnlyEngineSql : runReadOnlySql} tables={defs.map(tableName)} />
+    </>
+  );
 }

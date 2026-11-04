@@ -25,6 +25,17 @@ An independent service that builds **one registry of every Luxembourg entity**: 
 ```
 
 * **Tables:** listed in [packages/engine-db/src/schema.ts](../../packages/engine-db/src/schema.ts). The main table is `entities`, with `is_service_provider`, `entity_kind`, `activity_category_id`, `activity_subcategory_id` and `tier`.
+* **Provider profile fields:** these are filled by the web agent and by future sources.
+
+  | Engine field | What it holds | Website field (when promoted) |
+  |---|---|---|
+  | `entities.website` | The website, ranked web > GLEIF > CSSF | `website` |
+  | `entities.website_verified_at` | When the site's legal notice was confirmed to show the entity's RCS number | — |
+  | `entities.operating_countries` | ISO codes (`LU`, `IE`…); `normalizeCountries()` accepts names in English or French | `footprint`, as country names via `countryName()` |
+  | `entities.logo` | `{ blobKey, sourceUrl, mime, sha256, bytes }`, stored by `storeLogo()` in [core/media.ts](src/core/media.ts) | needs a new column |
+  | `entity_relations` | Who works for whom: provider → client, with the role (`client`, `administrator`, `depositary`, `auditor`…) and the evidence URL. Clients are matched to their own entity when the name is unique; the weekly `reclassify` job retries the matching. | `topClients` |
+
+  A client that disappears from the source is ended (`valid_to`) and produces a `relation_ended` event; it is never deleted.
 * **Classification:** comes from `classification_rules`, seeded in [seed-data.ts](../../packages/engine-db/src/seed-data.ts) to map CSSF types and activity codes to categories. Rules never override a `manual` classification.
 * **Tiers:**
 

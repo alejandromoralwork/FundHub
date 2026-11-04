@@ -45,6 +45,7 @@ import {
   ID_SCHEMES,
   MATCH_DECISIONS,
   MATCH_METHODS,
+  RELATION_KINDS,
   RULE_KINDS,
   RUN_STATUSES,
   SESSION_STATES,
@@ -106,6 +107,12 @@ export const entities = pgTable(
     registeredAddress: jsonb("registered_address").$type<Address>(),
     registrationDate: day("registration_date"),
     website: text("website"),
+    /** Set when the website was confirmed to belong to this entity (e.g. its legal notice shows our RCS number). */
+    websiteVerifiedAt: ts("website_verified_at"),
+    /** Countries where the entity operates (offices / service delivery), ISO 3166-1 alpha-2, e.g. ["LU","IE"]. */
+    operatingCountries: jsonb("operating_countries").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    /** The logo, stored in object storage (see services/engine/src/core/media.ts). */
+    logo: jsonb("logo").$type<Logo>(),
     isServiceProvider: boolean("is_service_provider").notNull().default(false),
     entityKind: text("entity_kind", { enum: ENTITY_KINDS }).notNull().default("other"),
     activityCategoryId: integer("activity_category_id").references(() => activityCategories.id, { onDelete: "set null" }),
@@ -129,6 +136,9 @@ export const entities = pgTable(
 
 /** Kind: type alias. A postal address as stored in jsonb. */
 export type Address = { street?: string | null; postcode?: string | null; city?: string | null; country?: string | null; raw: string };
+
+/** Kind: type alias. A stored logo: where the bytes are, where they came from, and their type. */
+export type Logo = { blobKey: string; sourceUrl: string; mime: string; sha256: string; bytes: number };
 
 /**
  * Kind: table "entity_identifiers". Every id an entity is known by (RCS B145917, LEI, CSSF P00000348…).
@@ -160,6 +170,40 @@ export const entityNames = pgTable(
     validTo: day("valid_to"),
   },
   (t) => [uniqueIndex("entity_names_uq").on(t.entityId, t.source, t.name), index("entity_names_entity_idx").on(t.entityId)],
+);
+
+/**
+ * Kind: table "entity_relations". Who works for whom: subject (usually a service provider) → object (its
+ * client), with the role. Example: Arendt — administrator → "Silverline SICAV". `object_name` is the name as
+ * the source wrote it; `object_entity_id` links the client's own golden record once it can be matched.
+ * History is kept: a relation that disappears from its source gets `valid_to`, it is never deleted.
+ * The clients of a provider = rows where subject_entity_id = provider and valid_to is null.
+ */
+export const entityRelations = pgTable(
+  "entity_relations",
+  {
+    id: bigId(),
+    subjectEntityId: uuid("subject_entity_id").notNull().references(() => entities.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: RELATION_KINDS }).notNull(),
+    objectName: text("object_name").notNull(),
+    objectNormalizedName: text("object_normalized_name").notNull(),
+    objectEntityId: uuid("object_entity_id").references(() => entities.id, { onDelete: "set null" }),
+    /** Optional: the service concerned (a level-2 activity category). */
+    subcategoryId: integer("subcategory_id").references(() => activityCategories.id, { onDelete: "set null" }),
+    source: text("source", { enum: ENGINE_SOURCES }).notNull(),
+    sourceRecordId: bigRef("source_record_id").references(() => sourceRecords.id, { onDelete: "set null" }),
+    /** The page or document that states the relation. */
+    evidenceUrl: text("evidence_url"),
+    confidence: real("confidence").notNull().default(1),
+    validFrom: ts("valid_from").notNull().defaultNow(),
+    validTo: ts("valid_to"),
+    lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("entity_relations_uq").on(t.subjectEntityId, t.kind, t.objectNormalizedName, t.source),
+    index("entity_relations_object_idx").on(t.objectEntityId),
+    index("entity_relations_object_name_idx").on(t.objectNormalizedName),
+  ],
 );
 
 // ============================================================ raw / provenance
@@ -380,6 +424,8 @@ export const changeEvents = pgTable(
     attribute: text("attribute"),
     oldValue: jsonb("old_value").$type<unknown>(),
     newValue: jsonb("new_value").$type<unknown>(),
+    /** Who caused it: "staff:<email>" for console edits, "engine:<job>" (or null) for the scrapers. */
+    actor: text("actor"),
     detectedAt: ts("detected_at").notNull().defaultNow(),
   },
   (t) => [
@@ -387,6 +433,27 @@ export const changeEvents = pgTable(
     index("change_events_kind_idx").on(t.kind, t.detectedAt),
     index("change_events_detected_idx").on(t.detectedAt),
   ],
+);
+
+/**
+ * Kind: table "row_history". A database-level safety net: Postgres triggers (migration 0002) copy the old and
+ * new version of every changed row of entities, entity_relations, classification_rules, activity_categories
+ * and rcs_number_space here — whoever made the change, including plain SQL. `actor` comes from
+ * `set_config('app.actor', …)` (see core/entity.ts withActor()); empty means "not tagged".
+ */
+export const rowHistory = pgTable(
+  "row_history",
+  {
+    id: bigId(),
+    tableName: text("table_name").notNull(),
+    rowId: text("row_id").notNull(),
+    op: text("op", { enum: ["INSERT", "UPDATE", "DELETE"] }).notNull(),
+    oldRow: jsonb("old_row").$type<Record<string, unknown>>(),
+    newRow: jsonb("new_row").$type<Record<string, unknown>>(),
+    actor: text("actor"),
+    changedAt: ts("changed_at").notNull().defaultNow(),
+  },
+  (t) => [index("row_history_row_idx").on(t.tableName, t.rowId, t.changedAt), index("row_history_changed_idx").on(t.changedAt)],
 );
 
 // ============================================================ ops
@@ -456,6 +523,17 @@ export const rcsNumberSpace = pgTable("rcs_number_space", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
+/**
+ * Kind: table "engine_settings". Small key/value settings changed from the admin console, e.g.
+ * "disabled_schedules" = ["rcs_sweep"]. The scheduler reads them at start (and the console applies them live).
+ */
+export const engineSettings = pgTable("engine_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>(),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
 /** Kind: table "session_health". State of logged-in sessions (RCS / LuxTrust). Workers pause when not "ok". */
 export const sessionHealth = pgTable("session_health", {
   source: text("source", { enum: ENGINE_SOURCES }).primaryKey(),
@@ -474,3 +552,5 @@ export type ChangeEvent = typeof changeEvents.$inferSelect;
 export type ClassificationRule = typeof classificationRules.$inferSelect;
 export type ActivityCategory = typeof activityCategories.$inferSelect;
 export type RcsFiling = typeof rcsFilings.$inferSelect;
+export type EntityRelation = typeof entityRelations.$inferSelect;
+export type RowHistory = typeof rowHistory.$inferSelect;

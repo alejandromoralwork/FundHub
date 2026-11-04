@@ -17,28 +17,25 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, type EngineTx } from "@fundhub/engine-db/client";
 import {
-  activityCategories,
   captures,
   changeEvents,
-  classificationRules,
   cssfDetails,
   entities,
   entityIdentifiers,
   entityNames,
+  entityRelations,
   matchCandidates,
   observations,
   rcsFilings,
   sourceRecords,
-  type ClassificationRule,
   type EngineSource,
   type IdScheme,
   type MatchMethod,
 } from "@fundhub/engine-db/schema";
 import { blobKey, sha256, type BlobStore } from "../storage";
-import { classify } from "./classify";
 import { diffRecords, type Change } from "./diff";
-import { buildGolden } from "./golden";
 import { contentHash, normalizeName, sameValue } from "./normalize";
+import { mergeEntities, recomputeEntity, withActor } from "@fundhub/engine-db/core/entity";
 import { resolveRecord, STRONG_SCHEMES, type ResolverStore } from "./resolve";
 import type { ParsedRecord, RawCapture, SourceAdapter } from "./types";
 
@@ -62,6 +59,10 @@ export function refreshDays(source: EngineSource, tier: number): number | null {
   return null;
 }
 const daysFromNow = (d: number | null) => (d === null ? null : new Date(Date.now() + d * 86_400_000));
+
+// Entity-level operations (merge, golden recompute, rules, relation linking) live in
+// packages/engine-db/src/core/entity.ts, shared with the admin console.
+export { clearRulesCache, linkRelations, recomputeEntity } from "@fundhub/engine-db/core/entity";
 
 // ------------------------------------------------------------------ resolver store (database side)
 
@@ -107,123 +108,6 @@ export class DbResolverStore implements ResolverStore {
   async addCandidate(entityId: string, method: MatchMethod, score: number, decision: "auto" | "pending") {
     await this.tx.insert(matchCandidates).values({ sourceRecordId: this.sourceRecordId, entityId, method, score, decision }).onConflictDoNothing();
   }
-}
-
-/**
- * Kind: async function. Merges entity `drop` into `keep`: moves identifiers, names, source records,
- * observations, events and candidates, keeps a manual classification, then deletes `drop`.
- */
-export async function mergeEntities(tx: EngineTx, keep: string, drop: string, source: EngineSource) {
-  if (keep === drop) return;
-  await tx.execute(sql`update entity_identifiers set entity_id = ${keep} where entity_id = ${drop}`);
-  await tx.execute(sql`
-    update entity_names n set entity_id = ${keep} where entity_id = ${drop}
-      and not exists (select 1 from entity_names k where k.entity_id = ${keep} and k.source = n.source and k.name = n.name)`);
-  await tx.execute(sql`delete from entity_names where entity_id = ${drop}`);
-  await tx.execute(sql`update source_records set entity_id = ${keep} where entity_id = ${drop}`);
-  await tx.execute(sql`update observations set entity_id = ${keep} where entity_id = ${drop}`);
-  await tx.execute(sql`update change_events set entity_id = ${keep} where entity_id = ${drop}`);
-  await tx.execute(sql`
-    update match_candidates m set entity_id = ${keep} where entity_id = ${drop}
-      and not exists (select 1 from match_candidates k where k.entity_id = ${keep} and k.source_record_id = m.source_record_id)`);
-  // A person's classification or website link on the dropped entity must survive the merge.
-  await tx.execute(sql`
-    update entities k set
-      first_seen_at = least(k.first_seen_at, d.first_seen_at),
-      website_provider_id = coalesce(k.website_provider_id, d.website_provider_id),
-      is_service_provider = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.is_service_provider else k.is_service_provider end,
-      entity_kind = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.entity_kind else k.entity_kind end,
-      activity_category_id = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.activity_category_id else k.activity_category_id end,
-      activity_subcategory_id = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.activity_subcategory_id else k.activity_subcategory_id end,
-      classification_source = case when d.classification_source = 'manual' then 'manual' else k.classification_source end
-    from entities d where k.id = ${keep} and d.id = ${drop}`);
-  await tx.delete(entities).where(eq(entities.id, drop));
-  await tx.insert(changeEvents).values({ entityId: keep, source, kind: "entities_merged", oldValue: { merged: drop } });
-}
-
-// ------------------------------------------------------------------ rules cache
-
-let rulesCache: { at: number; rules: ClassificationRule[]; corporateId: number | null } | null = null;
-
-/** Kind: async function. Classification rules + the "corporate" category id, cached for 5 minutes. */
-async function loadRules(tx: EngineTx) {
-  if (rulesCache && Date.now() - rulesCache.at < 300_000) return rulesCache;
-  const rules = await tx.select().from(classificationRules);
-  const [corp] = await tx.select({ id: activityCategories.id }).from(activityCategories).where(eq(activityCategories.slug, "corporate--other"));
-  rulesCache = { at: Date.now(), rules, corporateId: corp?.id ?? null };
-  return rulesCache;
-}
-/** Kind: function. Forget cached rules (after editing them). */
-export const clearRulesCache = () => (rulesCache = null);
-
-// ------------------------------------------------------------------ golden record
-
-/**
- * Kind: async function. Rebuilds an entity's golden fields from the open observations of all its source
- * records, and its classification from the rules (unless a person classified it: "manual").
- * @returns `Promise<boolean>` — true when any golden field changed.
- */
-export async function recomputeEntity(tx: EngineTx, entityId: string): Promise<boolean> {
-  const [entity] = await tx.select().from(entities).where(eq(entities.id, entityId));
-  if (!entity) return false;
-  const claims = await tx
-    .select({ source: observations.source, attribute: observations.attribute, value: observations.value })
-    .from(observations)
-    .where(and(eq(observations.entityId, entityId), isNull(observations.validTo)));
-  const g = buildGolden(claims);
-
-  // Only claim an RCS number / LEI on the golden record if the identifier really belongs to this entity.
-  const ids = await tx.select().from(entityIdentifiers).where(eq(entityIdentifiers.entityId, entityId));
-  const owns = (scheme: IdScheme, v: string | null | undefined) => !!v && ids.some((i) => i.scheme === scheme && i.value === v);
-  const rcsNumber = owns("rcs", g.rcsNumber) ? g.rcsNumber! : (ids.find((i) => i.scheme === "rcs")?.value ?? null);
-  const lei = owns("lei", g.lei) ? g.lei! : (ids.find((i) => i.scheme === "lei")?.value ?? null);
-
-  const next = {
-    canonicalName: g.canonicalName ?? entity.canonicalName,
-    normalizedName: normalizeName(g.canonicalName ?? entity.canonicalName),
-    legalForm: g.legalForm ?? entity.legalForm,
-    status: g.status ?? entity.status,
-    rcsNumber,
-    lei,
-    registeredAddress: g.registeredAddress ?? entity.registeredAddress,
-    registrationDate: g.registrationDate ?? entity.registrationDate,
-    website: g.website ?? entity.website,
-  };
-
-  let classification = {};
-  if (entity.classificationSource !== "manual") {
-    const types = await tx
-      .selectDistinct({ scope: sourceRecords.scope })
-      .from(sourceRecords)
-      .where(and(eq(sourceRecords.entityId, entityId), eq(sourceRecords.source, "cssf"), eq(sourceRecords.state, "found")));
-    const codes = await tx
-      .selectDistinct({ code: cssfDetails.code })
-      .from(cssfDetails)
-      .innerJoin(sourceRecords, eq(sourceRecords.id, cssfDetails.sourceRecordId))
-      .where(and(eq(sourceRecords.entityId, entityId), eq(cssfDetails.detailType, "ACTIVITY_CODE"), isNull(cssfDetails.endDate)));
-    const { rules, corporateId } = await loadRules(tx);
-    const c = classify(
-      { cssfTypes: types.map((t) => t.scope!).filter(Boolean), cssfCodes: codes.map((c) => c.code), legalForm: next.legalForm, hasRcs: !!rcsNumber },
-      rules,
-      { corporateCategoryId: corporateId },
-    );
-    classification = {
-      isServiceProvider: c.isServiceProvider,
-      entityKind: c.entityKind,
-      activityCategoryId: c.activityCategoryId,
-      activitySubcategoryId: c.activitySubcategoryId,
-      tier: Math.max(c.tier, entity.classificationSource === "ai" ? entity.tier : 0),
-      classificationSource: "rule" as const,
-      classifiedAt: new Date(),
-    };
-  }
-
-  const changed = (Object.keys(next) as (keyof typeof next)[]).some((k) => !sameValue(next[k], entity[k]));
-  await tx
-    .update(entities)
-    .set({ ...next, ...classification, lastSeenAt: new Date(), ...(changed ? { lastChangedAt: new Date() } : {}) })
-    .where(eq(entities.id, entityId));
-  return changed;
 }
 
 // ------------------------------------------------------------------ observations & details
@@ -280,6 +164,35 @@ async function writeDetails(tx: EngineTx, rec: ParsedRecord, sourceRecordId: num
       .values({ sourceRecordId, ...f })
       .onConflictDoUpdate({ target: rcsFilings.filingNumber, set: { correctedBy: f.correctedBy, corrects: f.corrects, details: f.details, hasDocuments: f.hasDocuments } });
   }
+  if (rec.relations) await writeRelations(tx, rec, sourceRecordId, entityId);
+}
+
+/**
+ * Kind: async function. Upserts the relations (clients…) a record states, linking each client to its
+ * golden entity when exactly one entity has that normalized name, and ends (valid_to = now) the relations
+ * this source stated before but no longer does. A relation that comes back is reopened.
+ */
+async function writeRelations(tx: EngineTx, rec: ParsedRecord, sourceRecordId: number, entityId: string) {
+  const now = new Date();
+  const keys: string[] = [];
+  for (const r of rec.relations ?? []) {
+    const objectNormalizedName = normalizeName(r.objectName);
+    if (!objectNormalizedName) continue;
+    keys.push(`${r.kind}:${objectNormalizedName}`);
+    const matches = await tx.select({ id: entities.id }).from(entities).where(eq(entities.normalizedName, objectNormalizedName)).limit(2);
+    const objectEntityId = matches.length === 1 && matches[0].id !== entityId ? matches[0].id : null;
+    await tx
+      .insert(entityRelations)
+      .values({ subjectEntityId: entityId, kind: r.kind, objectName: r.objectName, objectNormalizedName, objectEntityId, source: rec.source, sourceRecordId, evidenceUrl: r.evidenceUrl, confidence: r.confidence, validFrom: now, lastSeenAt: now })
+      .onConflictDoUpdate({
+        target: [entityRelations.subjectEntityId, entityRelations.kind, entityRelations.objectNormalizedName, entityRelations.source],
+        set: { objectName: r.objectName, evidenceUrl: r.evidenceUrl, confidence: r.confidence, lastSeenAt: now, validTo: null, objectEntityId: sql`coalesce(${entityRelations.objectEntityId}, ${objectEntityId})` },
+      });
+  }
+  await tx.execute(sql`
+    update entity_relations set valid_to = ${now}
+    where subject_entity_id = ${entityId} and source = ${rec.source} and valid_to is null
+      and (kind || ':' || object_normalized_name) not in (select jsonb_array_elements_text(${JSON.stringify(keys)}::jsonb))`);
 }
 
 // ------------------------------------------------------------------ the pipeline
@@ -297,6 +210,7 @@ export async function ingest(adapter: SourceAdapter, raw: RawCapture, ctx: Inges
 
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`rec:${rec.source}:${raw.externalId}`}))`);
+    await withActor(tx, `engine:${rec.source}`);
     const [existing] = await tx.select().from(sourceRecords).where(and(eq(sourceRecords.source, rec.source), eq(sourceRecords.externalId, rec.externalId)));
     const now = new Date();
 

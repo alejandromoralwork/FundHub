@@ -16,7 +16,7 @@ import type { IdScheme, MatchMethod } from "@fundhub/engine-db/schema";
 import { classify } from "../src/core/classify";
 import { diffRecords } from "../src/core/diff";
 import { buildGolden } from "../src/core/golden";
-import { contentHash, normalizeName, normalizeRcs } from "../src/core/normalize";
+import { contentHash, countryName, normalizeCountries, normalizeCountry, normalizeName, normalizeRcs } from "../src/core/normalize";
 import { resolveRecord, type ResolverStore } from "../src/core/resolve";
 import type { ParsedRecord } from "../src/core/types";
 import { parseCssf } from "../src/sources/cssf/parse";
@@ -149,6 +149,60 @@ test("classify: Arendt (SPP with admin-agent status) → service provider in Fun
 
   const manco = classify({ cssfTypes: ["C15"], cssfCodes: [], hasRcs: true }, rules);
   assert.deepEqual([manco.isServiceProvider, manco.entityKind, manco.activityCategoryId], [false, "asset_manager", slugIds.get("aifm-manco")]);
+});
+
+test("countries: names, codes and French spellings become ISO codes", () => {
+  assert.equal(normalizeCountry("Ireland"), "IE");
+  assert.equal(normalizeCountry("lu"), "LU");
+  assert.equal(normalizeCountry("Irlande"), "IE");
+  assert.equal(normalizeCountry("UK"), "GB");
+  assert.equal(normalizeCountry("Jersey"), "JE");
+  assert.equal(normalizeCountry("Narnia"), null);
+  assert.deepEqual(normalizeCountries(["Luxembourg", "Ireland", "LU", "Netherlands", "Jersey", "?"]), ["IE", "JE", "LU", "NL"]);
+  assert.equal(countryName("JE"), "Jersey");
+});
+
+test("diff: clients added and removed on the website become relation events", () => {
+  const base: ParsedRecord = {
+    source: "web",
+    externalId: "arendt.com",
+    state: "found",
+    facts: { website: "https://www.arendt.com", operatingCountries: ["LU"] },
+    identifiers: [],
+    names: [],
+    relations: [
+      { kind: "client", objectName: "Silverline SICAV", evidenceUrl: "https://www.arendt.com/clients", confidence: 0.8 },
+      { kind: "client", objectName: "Baltica PE S.à r.l.", evidenceUrl: "https://www.arendt.com/clients", confidence: 0.8 },
+    ],
+  };
+  const next: ParsedRecord = {
+    ...base,
+    facts: { ...base.facts, operatingCountries: ["IE", "LU"] },
+    // Same client spelled differently (legal form) is NOT a change; Baltica is gone; Kingsway is new.
+    relations: [
+      { kind: "client", objectName: "SILVERLINE SICAV", evidenceUrl: null, confidence: 0.8 },
+      { kind: "client", objectName: "Kingsway RE", evidenceUrl: null, confidence: 0.8 },
+    ],
+  };
+  const changes = diffRecords(base, next);
+  assert.deepEqual(changes.map((c) => `${c.kind}:${c.attribute}`).sort(), ["attribute_changed:operatingCountries", "relation_added:client", "relation_ended:client"]);
+  // A record that does not report relations at all never ends existing ones.
+  assert.equal(diffRecords(base, { ...base, relations: undefined }).filter((c) => c.kind === "relation_ended").length, 0);
+});
+
+test("golden: website, countries and logo come from the web source", () => {
+  const logo = { blobKey: "logos/ab/ab.png", sourceUrl: "https://www.arendt.com/logo.png", mime: "image/png", sha256: "ab", bytes: 10 };
+  const g = buildGolden([
+    { source: "gleif", attribute: "website", value: "http://arendt.lu" },
+    { source: "web", attribute: "website", value: "https://www.arendt.com" },
+    { source: "web", attribute: "operatingCountries", value: ["LU"] },
+    { source: "web", attribute: "logo", value: logo },
+  ]);
+  assert.equal(g.website, "https://www.arendt.com");
+  assert.deepEqual(g.operatingCountries, ["LU"]);
+  assert.deepEqual(g.logo, logo);
+  // An empty list is "no information", not "operates nowhere".
+  assert.equal(buildGolden([{ source: "web", attribute: "operatingCountries", value: [] }]).operatingCountries, undefined);
 });
 
 test("normalize: names and RCS numbers compare across sources", () => {

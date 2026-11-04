@@ -13,6 +13,7 @@ import { test } from "node:test";
 import { parseCssf } from "../src/sources/cssf/parse";
 import { parseGleif } from "../src/sources/gleif/parse";
 import { parseRcsText } from "../src/sources/rcs/parse";
+import { parseCsv, parseLbrRow, resolveColumns } from "../src/sources/lbr-bulk/parse";
 import type { RawCapture } from "../src/core/types";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url));
@@ -123,6 +124,29 @@ test("RCS: company page text — profile and filings", () => {
   const accounts = r.rcsFilings!.find((f) => f.filingNumber === "L260093654")!;
   assert.equal(accounts.type, "Annual accounts (eCDF)");
   assert.deepEqual(accounts.details, ["Financial year from 01/01/2025 to 12/31/2025"]);
+});
+
+test("LBR bulk extract: CSV with quotes and French headers → RCS-keyed records", () => {
+  const csv = '﻿Numéro RCS;Dénomination;Forme juridique;Siège social;Date d\'immatriculation;Statut\r\n' +
+    'B145917;"Arendt Investor Services SA";Société anonyme;"9, Rue de Bitbourg, L-1273 Luxembourg";04/05/2009;Inscrite\r\n' +
+    'B 1234;"Old ""Quoted"" Co; Sàrl";Société à responsabilité limitée;;01/01/1990;Radiée\r\n' +
+    'not-a-number;Bad row;;;;\r\n';
+  const rows = parseCsv(csv);
+  assert.equal(rows.length, 4);
+  const cols = resolveColumns(rows[0]);
+  const a = parseLbrRow(rows[1], cols)!;
+  assert.equal(a.externalId, "B145917");
+  assert.equal(a.facts.name, "Arendt Investor Services SA");
+  assert.equal(a.facts.registrationDate, "2009-05-04");
+  assert.equal((a.facts.address as { postcode: string }).postcode, "1273");
+  assert.equal(a.facts.status, "active"); // "Inscrite" = registered
+  const b = parseLbrRow(rows[2], cols)!;
+  assert.equal(b.externalId, "B1234");
+  assert.equal(b.facts.name, 'Old "Quoted" Co; Sàrl');
+  assert.equal(b.facts.status, "struck_off");
+  assert.equal(parseLbrRow(rows[3], cols), null);
+  assert.throws(() => resolveColumns(["Name", "City"]));
+  assert.equal(resolveColumns(["Company", "RCS-Nr"], { rcs: "RCS-Nr" }).rcs, 1);
 });
 
 test("RCS: unknown page shapes fail loudly, 'no result' pages are not_found", () => {

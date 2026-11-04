@@ -8,7 +8,7 @@
  * TYPESCRIPT YOU WILL SEE HERE: `interface`, optional members `?`, generics, union types.
  */
 
-import type { Address, EngineSource, IdScheme } from "@fundhub/engine-db/schema";
+import type { Address, EngineSource, IdScheme, Logo, RelationKind } from "@fundhub/engine-db/schema";
 
 /** Kind: type alias. Raw bytes fetched from a source, before parsing. */
 export type RawCapture = {
@@ -35,6 +35,12 @@ export type Facts = {
   lei?: string | null;
   rcsNumber?: string | null;
   website?: string | null;
+  /** ISO time when the source confirmed the website belongs to the entity (legal notice shows its RCS no.). */
+  websiteVerifiedAt?: string | null;
+  /** Countries where the entity operates, ISO 3166-1 alpha-2 (use normalizeCountries()). */
+  operatingCountries?: string[];
+  /** Logo already stored in object storage (see core/media.ts storeLogo()). */
+  logo?: Logo | null;
   /** Anything source-specific (CSSF type, GLEIF legal-form code, last filing date…). */
   [key: string]: unknown;
 };
@@ -61,6 +67,12 @@ export type RcsFilingRow = {
   hasDocuments: boolean;
 };
 
+/**
+ * Kind: type alias. One relation stated by a source, from the point of view of the record's entity:
+ * "this entity is <kind> of <objectName>" (e.g. kind "client" = objectName is one of its clients).
+ */
+export type RelationRow = { kind: RelationKind; objectName: string; evidenceUrl: string | null; confidence: number };
+
 /** Kind: type alias. What a parser returns for one source record. */
 export type ParsedRecord = {
   source: EngineSource;
@@ -74,6 +86,8 @@ export type ParsedRecord = {
   names: { name: string; kind: "legal" | "former" | "trade"; validFrom: string | null }[];
   cssfDetails?: CssfDetailRow[];
   rcsFilings?: RcsFilingRow[];
+  /** Clients and other relations (web agent, filings…). A full list each time: missing ones are ended. */
+  relations?: RelationRow[];
 };
 
 /** Kind: type alias. An id found during discovery, possibly with its raw content already in hand. */

@@ -12,7 +12,11 @@
  */
 
 import PgBoss from "pg-boss";
+import { eq } from "drizzle-orm";
+import { db } from "@fundhub/engine-db/client";
 import { engineDirectUrl } from "@fundhub/engine-db/env";
+import { DISABLED_SCHEDULES_KEY } from "@fundhub/engine-db/jobs-catalog";
+import { engineSettings } from "@fundhub/engine-db/schema";
 import { makeContext, type EnqueueOptions } from "./jobs/context";
 import { GROUPS, isJob, JOBS, type Group, type JobDef, type JobName } from "./jobs/index";
 import { log } from "./log";
@@ -92,7 +96,9 @@ export async function startWorker(groups: Group[]) {
 export async function startScheduler() {
   const boss = await startBoss({ schedule: true });
   const tz = process.env.ENGINE_TZ ?? "Europe/Luxembourg";
-  const disabled = new Set((process.env.ENGINE_DISABLED_SCHEDULES ?? "").split(",").filter(Boolean));
+  // Switched off by env (deploy-time) or from the admin console (engine_settings, applied live there too).
+  const [setting] = await db.select({ value: engineSettings.value }).from(engineSettings).where(eq(engineSettings.key, DISABLED_SCHEDULES_KEY));
+  const disabled = new Set([...(process.env.ENGINE_DISABLED_SCHEDULES ?? "").split(",").filter(Boolean), ...((setting?.value as string[] | undefined) ?? [])]);
   for (const [name, def] of Object.entries(JOBS) as [JobName, JobDef][]) {
     if (!def.schedule) continue;
     if (disabled.has(name)) {

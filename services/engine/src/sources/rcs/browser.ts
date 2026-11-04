@@ -29,8 +29,14 @@ export class RcsSessionError extends Error {
   }
 }
 
-/** Kind: constant. Page text that means a bot check or a block. */
-const BLOCKED_RE = /captcha|are you a robot|unusual traffic|access denied|too many requests/i;
+/**
+ * Kind: constant. Page text that means LBR is limiting us. LBR redirects to `AccessLimitation.html` when a
+ * quota is exceeded (seen in the portal's code), so that URL is checked too.
+ */
+const BLOCKED_RE = /access limitation|limitation d'acc[eè]s|are you a robot|unusual traffic|access denied|too many requests/i;
+const BLOCKED_URL_RE = /AccessLimitation/i;
+/** Kind: constant. LBR's anti-robot widget (Friendly Captcha). When it is shown, a person must act. */
+const CAPTCHA_SELECTOR = ".frc-captcha, .frc-widget-placeholder, [data-sitekey]";
 /** Kind: constant. URL / text that means we are on a login page. */
 const LOGGED_OUT_URL_RE = new RegExp(process.env.RCS_LOGGED_OUT_URL_RE ?? "luxtrust|/login|/auth", "i");
 
@@ -74,9 +80,14 @@ export class RcsBrowser {
    * @param page  type `Page`.
    */
   async assertUsable(page: Page) {
-    if (LOGGED_OUT_URL_RE.test(page.url())) throw new RcsSessionError("logged_out", `Redirected to login: ${page.url()}`);
+    const url = page.url();
+    if (BLOCKED_URL_RE.test(url)) throw new RcsSessionError("blocked", `LBR access limitation page: ${url}`);
+    if (LOGGED_OUT_URL_RE.test(url)) throw new RcsSessionError("logged_out", `Redirected to login: ${url}`);
     const text = await page.innerText("body").catch(() => "");
-    if (BLOCKED_RE.test(text)) throw new RcsSessionError("blocked", "Bot check / block page detected");
+    if (BLOCKED_RE.test(text)) throw new RcsSessionError("blocked", "LBR access limitation / block page detected");
+    if (await page.locator(CAPTCHA_SELECTOR).first().isVisible().catch(() => false)) {
+      throw new RcsSessionError("blocked", "LBR shows an anti-robot check — solve it in the browser (`engine rcs:login`), the engine never does");
+    }
   }
 
   /** Kind: method. A human-like pause: base delay + random jitter. */
@@ -94,21 +105,33 @@ export class RcsBrowser {
     const page = await this.open();
     await this.pace();
     if (this.cfg.entityUrlTemplate) {
-      await page.goto(this.cfg.entityUrlTemplate.replace("{number}", encodeURIComponent(rcs)), { waitUntil: "domcontentloaded" });
+      await page.goto(this.cfg.entityUrlTemplate.replace("{number}", encodeURIComponent(rcs)), { waitUntil: "networkidle" });
+    } else if (this.cfg.searchUrl.endsWith("=")) {
+      // The portal's own search page: …/consult-search-list?search=B145917 (what a person gets by typing it).
+      await page.goto(this.cfg.searchUrl + encodeURIComponent(rcs), { waitUntil: "networkidle" });
+      await this.assertUsable(page);
+      // Result list: select the row with exactly this number, then the portal's "Next" button.
+      const hit = page.getByText(rcs, { exact: true }).first();
+      if (await hit.isVisible().catch(() => false)) {
+        await this.pace();
+        await hit.click();
+        const next = page.getByRole("button", { name: /^(next|suivant|weider|weiter)$/i }).first();
+        if (await next.isEnabled().catch(() => false)) await next.click();
+        await page.waitForLoadState("networkidle").catch(() => {});
+      }
     } else {
       await page.goto(this.cfg.searchUrl, { waitUntil: "domcontentloaded" });
       await this.assertUsable(page);
       const input = page.locator(process.env.RCS_SEARCH_INPUT ?? 'input[type="search"], input[name*="rcs" i], input[id*="search" i]').first();
       await input.fill(rcs);
       await input.press("Enter");
-      await page.waitForLoadState("domcontentloaded");
+      await page.waitForLoadState("networkidle").catch(() => {});
       await this.assertUsable(page);
-      // Results list → the row whose text is exactly the number.
       const hit = page.getByText(rcs, { exact: true }).first();
       if (await hit.isVisible().catch(() => false)) {
         await this.pace();
         await hit.click();
-        await page.waitForLoadState("domcontentloaded");
+        await page.waitForLoadState("networkidle").catch(() => {});
       }
     }
     await this.assertUsable(page);

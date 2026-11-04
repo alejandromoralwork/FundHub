@@ -38,18 +38,23 @@ export class GleifAdapter implements SourceAdapter {
 
   /**
    * Kind: async generator method. Lists LU records page by page.
-   * @param since  ISO date — only records updated after it (delta); omit for the full census.
-   * Yields `{ total, items }`, where each item is a RawCapture of one record (stored like a single fetch).
+   * @param since     ISO date — only records updated after it (delta); omit for the full census.
+   * @param startUrl  a saved next-page link to resume an interrupted listing.
+   * Yields `{ total, items, next }`: each item is a RawCapture of one record (stored like a single fetch);
+   * `next` is the link of the following page (null on the last page), so callers can save it to resume.
    */
-  async *list(since?: string): AsyncGenerator<{ total: number | null; items: RawCapture[] }> {
+  async *list(since?: string, startUrl?: string): AsyncGenerator<{ total: number | null; items: RawCapture[]; next: string | null }> {
     const q = new URLSearchParams({ "filter[entity.legalAddress.country]": "LU", "page[size]": String(this.cfg.pageSize), "page[cursor]": "*" });
     if (since) q.set("filter[registration.lastUpdateDate]", `>${since}`);
-    let url: string | undefined = `${this.cfg.apiBase}/lei-records?${q}`;
+    let url: string | undefined = startUrl ?? `${this.cfg.apiBase}/lei-records?${q}`;
     while (url) {
-      const { json }: { json: GleifPage | null } = await this.http.getJson<GleifPage>(url, { delayMs: this.cfg.delayMs });
+      const res: { json: GleifPage | null } = await this.http.getJson<GleifPage>(url, { delayMs: this.cfg.delayMs });
+      const json: GleifPage | null = res.json;
       if (!json) return;
+      const next: string | null = json.data.length ? (json.links.next ?? null) : null;
       yield {
         total: json.meta.pagination?.total ?? null,
+        next,
         items: json.data.map((r) => ({
           source: "gleif",
           externalId: r.attributes.lei,
@@ -60,7 +65,7 @@ export class GleifAdapter implements SourceAdapter {
           ext: "json",
         })),
       };
-      url = json.data.length ? json.links.next : undefined;
+      url = next ?? undefined;
     }
   }
 }

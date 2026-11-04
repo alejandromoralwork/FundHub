@@ -8,11 +8,13 @@
  * TYPESCRIPT YOU WILL SEE HERE: `Record<string, …>`, `satisfies`, function types.
  */
 
+import { JOB_CATALOG, type JobInfo, type JobName as CatalogName } from "@fundhub/engine-db/jobs-catalog";
 import type { JobContext } from "./context";
 import { cssfCensus, cssfFetch } from "./cssf";
 import { gleifFetch, gleifSync } from "./gleif";
 import { censusSnapshot, cssfRefresh, reclassify } from "./maintenance";
 import { rcsFetch, rcsFrontier, rcsRefresh, rcsSweep } from "./rcs";
+import { rcsImportFile, rcsSeedFrontier } from "./rcs-list";
 
 /** Kind: constant. Worker groups. One RCS worker only (one browser session, human pace). */
 export const GROUPS = ["cssf", "gleif", "rcs", "maintenance"] as const;
@@ -30,20 +32,31 @@ export type JobDef = {
   schedule?: { cron: string; data?: Record<string, unknown> };
 };
 
-/** Kind: constant. Every job. Queue names use only letters, digits and "_" (pg-boss rule). */
-export const JOBS = {
-  cssf_census: { group: "cssf", handler: cssfCensus, retryLimit: 2, expireInSeconds: 3 * 3600, schedule: { cron: "0 2 * * 0" } },
-  cssf_fetch: { group: "cssf", handler: cssfFetch, retryLimit: 5, expireInSeconds: 300 },
-  cssf_refresh: { group: "maintenance", handler: cssfRefresh, retryLimit: 1, expireInSeconds: 600, schedule: { cron: "0 3 * * *" } },
-  gleif_sync: { group: "gleif", handler: gleifSync, retryLimit: 3, expireInSeconds: 6 * 3600, schedule: { cron: "0 4 * * *" } },
-  gleif_fetch: { group: "gleif", handler: gleifFetch, retryLimit: 5, expireInSeconds: 300 },
-  rcs_fetch: { group: "rcs", handler: rcsFetch, retryLimit: 3, expireInSeconds: 600 },
-  rcs_frontier: { group: "rcs", handler: rcsFrontier, retryLimit: 1, expireInSeconds: 4 * 3600, schedule: { cron: "15 8 * * *", data: { prefix: "B" } } },
-  rcs_sweep: { group: "rcs", handler: rcsSweep, retryLimit: 2, expireInSeconds: 4 * 3600, schedule: { cron: "0 10 * * *", data: { prefix: "B" } } },
-  rcs_refresh: { group: "maintenance", handler: rcsRefresh, retryLimit: 1, expireInSeconds: 600, schedule: { cron: "30 7 * * *" } },
-  reclassify: { group: "maintenance", handler: reclassify, retryLimit: 1, expireInSeconds: 3 * 3600, schedule: { cron: "0 5 * * 0" } },
-  census_snapshot: { group: "maintenance", handler: censusSnapshot, retryLimit: 2, expireInSeconds: 600, schedule: { cron: "30 23 * * *" } },
-} satisfies Record<string, JobDef>;
+/**
+ * Kind: function. One job: its group, title and default schedule come from the shared catalog
+ * (packages/engine-db/src/jobs-catalog.ts, also used by the admin console); the handler and queue policy live here.
+ */
+const job = (name: CatalogName, handler: JobDef["handler"], retryLimit: number, expireInSeconds: number): JobDef => {
+  const info: JobInfo = JOB_CATALOG[name];
+  return { group: info.group, handler, retryLimit, expireInSeconds, schedule: info.schedule };
+};
+
+/** Kind: constant. Every job, keyed like the catalog. Queue names use only letters, digits and "_" (pg-boss rule). */
+export const JOBS: Record<CatalogName, JobDef> = {
+  cssf_census: job("cssf_census", cssfCensus, 2, 3 * 3600),
+  cssf_fetch: job("cssf_fetch", cssfFetch, 5, 300),
+  cssf_refresh: job("cssf_refresh", cssfRefresh, 1, 600),
+  gleif_sync: job("gleif_sync", gleifSync, 3, 6 * 3600),
+  gleif_fetch: job("gleif_fetch", gleifFetch, 5, 300),
+  rcs_fetch: job("rcs_fetch", rcsFetch, 3, 600),
+  rcs_frontier: job("rcs_frontier", rcsFrontier, 1, 4 * 3600),
+  rcs_sweep: job("rcs_sweep", rcsSweep, 2, 4 * 3600),
+  rcs_seed_frontier: job("rcs_seed_frontier", rcsSeedFrontier, 1, 600),
+  rcs_import_file: job("rcs_import_file", rcsImportFile, 0, 12 * 3600),
+  rcs_refresh: job("rcs_refresh", rcsRefresh, 1, 600),
+  reclassify: job("reclassify", reclassify, 1, 3 * 3600),
+  census_snapshot: job("census_snapshot", censusSnapshot, 2, 600),
+};
 
 export type JobName = keyof typeof JOBS;
 /** Kind: function. Type guard: is this a known job name? */

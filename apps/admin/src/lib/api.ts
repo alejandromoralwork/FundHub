@@ -35,10 +35,12 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import { NextResponse } from "next/server";
 // `@fundhub/…` = our shared packages. The database connection.
 import { db } from "@fundhub/db/client";
+import { db as engineDb } from "@fundhub/engine-db/client";
+import { withActor } from "@fundhub/engine-db/core/entity";
 // `./…` = files in this folder. Reads the staff session from the cookie; `Staff` is the signed-in user type.
 import { getSession, type Staff } from "./auth";
 // The allow-list of tables ("resources"): look one up, describe its columns, convert text to column types.
-import { coerce, columnsOf, getResource, type ColumnMeta } from "./resources";
+import { coerce, columnsOf, getResource, type ColumnMeta, type ResourceDef } from "./resources";
 
 /**
  * Kind: async function (exported).
@@ -85,8 +87,35 @@ export function loadResource(name: string) {
   const selection = Object.fromEntries(meta.map((m) => [m.name, cols[m.name]!]));
   // `.some(test)` returns true if at least one item passes the test.
   const hasId = meta.some((m) => m.name === "id");
-  // Return several values together as one object (shorthand property names).
-  return { def, meta, cols, selection, hasId };
+  // Return several values together as one object (shorthand property names). `db` = the database holding
+  // the table (website or Scraping Engine).
+  return { def, meta, cols, selection, hasId, db: dbFor(def) };
+}
+
+/**
+ * Kind: function (exported).
+ * The Drizzle client for a table: the website database, or the Scraping Engine's own database.
+ * Both clients have the same query API, so callers do not care which one they get.
+ * @param def  `ResourceDef`.
+ */
+export function dbFor(def: ResourceDef) {
+  return (def.database === "engine" ? engineDb : db) as unknown as typeof db;
+}
+
+/**
+ * Kind: async function (exported).
+ * Runs a write on a table's database. For engine tables it runs in a transaction tagged with the staff member
+ * (`app.actor`), so the engine's row_history triggers record who changed the row.
+ * @param r      the loaded resource.
+ * @param staff  who is writing.
+ * @param fn     the write, given the database (or transaction) to use.
+ */
+export async function writeTx<T>(r: NonNullable<ReturnType<typeof loadResource>>, staff: Staff, fn: (d: typeof db) => Promise<T>): Promise<T> {
+  if (r.def.database !== "engine") return fn(db);
+  return engineDb.transaction(async (tx) => {
+    await withActor(tx, `staff:${staff.email}`);
+    return fn(tx as unknown as typeof db);
+  });
 }
 
 /**
@@ -189,7 +218,7 @@ export async function listRows(r: NonNullable<ReturnType<typeof loadResource>>, 
   // `Promise.all([a, b])` runs both queries at the same time and waits for both. The result is destructured:
   // `data` = the rows; `[{ n }]` = the first (only) row of the count query, taking its `n` field.
   const [data, [{ n }]] = await Promise.all([
-    db
+    r.db
       .select(r.selection)
       .from(r.def.table)
       .where(where)
@@ -198,7 +227,7 @@ export async function listRows(r: NonNullable<ReturnType<typeof loadResource>>, 
       .limit(p.pageSize)
       .offset((p.page - 1) * p.pageSize),
     // SELECT COUNT(*) with the same WHERE, for "showing 1–20 of 345".
-    db.select({ n: count() }).from(r.def.table).where(where),
+    r.db.select({ n: count() }).from(r.def.table).where(where),
   ]);
   return { data, total: n };
 }

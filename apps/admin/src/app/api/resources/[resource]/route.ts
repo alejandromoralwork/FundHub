@@ -16,10 +16,9 @@
 // `NextResponse` builds HTTP responses.
 import { NextResponse } from "next/server";
 // `@fundhub/…` = our shared packages. The database connection.
-import { db } from "@fundhub/db/client";
 // `@/…` = this app's src folder. API helpers: login check, error reply, page-of-rows query, table loader,
 // URL option parser, and the "keep only editable fields" filter.
-import { apiStaff, jsonError, listRows, loadResource, parseListParams, writable } from "@/lib/api";
+import { apiStaff, jsonError, listRows, loadResource, parseListParams, writable, writeTx } from "@/lib/api";
 // Audit-log writer.
 import { audit } from "@/lib/audit";
 
@@ -66,7 +65,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const values = writable(r.meta, await req.json());
     // INSERT the row and get it back (`.returning`). `as never` bypasses TypeScript, which cannot know the
     // columns of a table chosen at run time.
-    const [row] = await db.insert(r.def.table).values(values as never).returning(r.selection);
+    const [row] = await writeTx(r, staff, (d) => d.insert(r.def.table).values(values as never).returning(r.selection));
     // Audit: "create" on this table, with the new id (if the table has one) and the values used.
     await audit(staff, "create", name, (row as { id?: number }).id, values);
     return NextResponse.json({ data: row }, { status: 201 });

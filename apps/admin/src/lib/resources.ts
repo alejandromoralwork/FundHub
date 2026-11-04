@@ -30,6 +30,7 @@ import * as s from "@fundhub/db/schema";
 import type { StaffRole } from "@fundhub/core/enums";
 // The role table: which roles may perform which kind of action.
 import { CAN } from "./auth";
+import { ENGINE_RESOURCES } from "./engine-resources";
 
 /**
  * Kind: type alias.
@@ -42,10 +43,12 @@ import { CAN } from "./auth";
  *  - `readOnly?`: columns shown but not editable; `write?`: roles allowed to edit (no `write` = read-only table);
  *  - `canCreate?` / `canDelete?`: whether new rows may be added or rows removed; `defaultSort?`: initial sort column.
  */
-type ResourceDef = {
+export type ResourceDef = {
   table: PgTable;
   label: string;
-  group: "Catalogue" | "Accounts" | "Requests & reviews" | "Platform" | "Billing" | "Data pipeline";
+  group: "Catalogue" | "Accounts" | "Requests & reviews" | "Platform" | "Billing" | "Data pipeline" | "Scraping engine";
+  /** Which database holds the table: the website database (default) or the Scraping Engine database. */
+  database?: "main" | "engine";
   search?: string[];
   hidden?: string[];
   readOnly?: string[];
@@ -89,6 +92,8 @@ export const RESOURCES: Record<string, ResourceDef> = {
   ingest_runs: { table: s.ingestRuns, label: "Ingest runs", group: "Data pipeline" },
   ingest_jobs: { table: s.ingestJobs, label: "Ingest jobs", group: "Data pipeline" },
   ingest_records: { table: s.ingestRecords, label: "Ingest records", group: "Data pipeline", search: ["sourceUrl"] },
+  // Scraping Engine tables (separate database): see lib/engine-resources.ts.
+  ...ENGINE_RESOURCES,
 };
 
 /**

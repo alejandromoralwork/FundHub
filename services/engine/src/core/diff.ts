@@ -3,13 +3,14 @@
  * PART: scraping engine (services/engine)
  * WHAT IT DOES: Compares the previous parsed record of a source id with the new one and lists the changes
  *   as change events: attribute changes (name / status / address get their own event kinds), CSSF
- *   authorisations added or ended, and new RCS filings. Pure function: no database, easy to test.
+ *   authorisations added or ended, new RCS filings, and relations (clients…) added or ended.
+ *   Pure function: no database, easy to test.
  * WHERE IT RUNS: called by core/ingest.ts when a record's content hash changed.
  * TYPESCRIPT YOU WILL SEE HERE: `Set`, `Map`, type narrowing, object spread.
  */
 
 import type { ChangeKind } from "@fundhub/engine-db/schema";
-import { sameValue } from "./normalize";
+import { normalizeName, sameValue } from "./normalize";
 import type { ParsedRecord } from "./types";
 
 /** Kind: type alias. One detected change (entity / record ids are added by the caller). */
@@ -51,6 +52,18 @@ export function diffRecords(prev: ParsedRecord | null, next: ParsedRecord): Chan
   // 3. RCS filings: any filing number not seen before is new.
   const seen = new Set((prev.rcsFilings ?? []).map((f) => f.filingNumber));
   for (const f of next.rcsFilings ?? []) if (!seen.has(f.filingNumber)) out.push({ kind: "new_filing", attribute: f.type, newValue: f });
+
+  // 4. Relations (clients…): keyed by kind + normalized client name. Only compared when the new record
+  //    states relations at all, so a source that does not report them never "ends" existing ones.
+  if (next.relations) {
+    const rk = (r: { kind: string; objectName: string }) => `${r.kind}:${normalizeName(r.objectName)}`;
+    const had = new Map((prev.relations ?? []).map((r) => [rk(r), r]));
+    for (const r of next.relations) {
+      if (!had.has(rk(r))) out.push({ kind: "relation_added", attribute: r.kind, newValue: r });
+      had.delete(rk(r));
+    }
+    for (const r of had.values()) out.push({ kind: "relation_ended", attribute: r.kind, oldValue: r });
+  }
 
   return out;
 }

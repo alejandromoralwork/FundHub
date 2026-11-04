@@ -20,11 +20,10 @@ import { eq } from "drizzle-orm";
 // `NextResponse` builds HTTP responses; `NextResponse.json(x)` sends x as JSON.
 import { NextResponse } from "next/server";
 // `@fundhub/…` = our shared packages. The database connection.
-import { db } from "@fundhub/db/client";
 // `@/…` = this app's src folder. Shared API helpers:
 // apiStaff = login check for APIs (returns a 401 response instead of redirecting); jsonError = error reply;
 // loadResource = settings + columns of an allowed table; writable = keep only fields staff may change.
-import { apiStaff, jsonError, loadResource, writable } from "@/lib/api";
+import { apiStaff, jsonError, loadResource, writable, writeTx } from "@/lib/api";
 // Writes an entry to the audit log.
 import { audit } from "@/lib/audit";
 
@@ -72,7 +71,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   // `"error" in s` checks whether `s` has an `error` field; TypeScript then knows which shape `s` is.
   if ("error" in s) return s.error;
   // SELECT the allowed columns WHERE id = … LIMIT 1; `[row]` takes the first result (or undefined).
-  const [row] = await db.select(s.r.selection).from(s.r.def.table).where(s.where).limit(1);
+  const [row] = await s.r.db.select(s.r.selection).from(s.r.def.table).where(s.where).limit(1);
   // Ternary: found -> send it; not found -> 404.
   return row ? NextResponse.json({ data: row }) : jsonError("Not found", 404);
 }
@@ -97,11 +96,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     // `Object.keys(values).length` = number of fields; 0 means nothing to do.
     if (!Object.keys(values).length) return jsonError("Nothing to update");
     // Read the record as it is now, for the audit log's "from" values.
-    const [before] = await db.select(s.r.selection).from(s.r.def.table).where(s.where);
+    const [before] = await s.r.db.select(s.r.selection).from(s.r.def.table).where(s.where);
     if (!before) return jsonError("Not found", 404);
     // UPDATE … SET <values> WHERE id = … and return the updated row (`.returning(...)`).
     // `values as never` sidesteps TypeScript, which cannot know the columns of a table chosen at run time.
-    const [row] = await db.update(s.r.def.table).set(values as never).where(s.where).returning(s.r.selection);
+    const [row] = await writeTx(s.r, s.staff, (d) => d.update(s.r.def.table).set(values as never).where(s.where).returning(s.r.selection));
     // Build `{ field: { from, to } }` for the fields that really changed:
     // - `.filter(...)` keeps fields whose before/after values differ (compared as JSON text, which also
     //   works for dates and lists);
@@ -133,7 +132,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   // Deleting must be switched on for this table (`canDelete`) AND the role must be allowed to write.
   if (!s.r.def.canDelete || !s.r.def.write?.includes(s.staff.role)) return jsonError("Not allowed", 403);
   // DELETE … WHERE id = … and get the removed row back.
-  const [row] = await db.delete(s.r.def.table).where(s.where).returning(s.r.selection);
+  const [row] = await writeTx(s.r, s.staff, (d) => d.delete(s.r.def.table).where(s.where).returning(s.r.selection));
   if (!row) return jsonError("Not found", 404);
   // Keep a full copy of the deleted record in the audit log, so it could be restored by hand.
   await audit(s.staff, "delete", s.resource, s.id, { deleted: row });

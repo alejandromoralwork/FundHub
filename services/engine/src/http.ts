@@ -67,9 +67,10 @@ export class PoliteHttp {
       } catch (err) {
         // Network errors / timeouts are retried like 5xx; our own "HTTP xxx" errors are rethrown above.
         if (err instanceof Error && err.message.startsWith("HTTP ")) throw err;
-        if (attempt >= this.retries) throw err;
+        // Network outages get more patience than HTTP errors: up to ~8 minutes in total.
+        if (attempt >= this.retries + 3) throw err;
         log.warn("http network retry", { url, error: String(err) });
-        await sleep(2 ** attempt * 2000);
+        await sleep(Math.min(2 ** attempt * 2000, 120_000));
       }
       attempt++;
     }

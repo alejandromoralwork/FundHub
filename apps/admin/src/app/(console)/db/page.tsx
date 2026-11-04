@@ -21,6 +21,7 @@ import type { Metadata } from "next";
 import { sql } from "drizzle-orm";
 // `@fundhub/…` = our shared packages. The database connection.
 import { db } from "@fundhub/db/client";
+import { db as engineDb } from "@fundhub/engine-db/client";
 // `@/…` = this app's src folder. The overview component and the type of one row it shows.
 import { TablesOverview, type TableRow } from "@/components/db-views";
 // `can(staff, action)` = true/false permission check; `requireStaff` = login check.
@@ -99,6 +100,33 @@ export default async function DatabasePage() {
       restricted: RESTRICTED.has(r.table_name),
     };
   });
+
+  // Scraping Engine tables (separate database). Row counts are Postgres estimates there (some tables grow to
+  // millions of rows), and an unreachable engine database just leaves its section out.
+  try {
+    const engine = await engineDb.execute<{ table_name: string; rows: number; size: string }>(sql`
+      select c.relname as table_name,
+             greatest(c.reltuples, 0)::bigint as rows,
+             pg_size_pretty(pg_total_relation_size(c.oid)) as size
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = public and c.relkind = r and c.relname not like __drizzle%
+      order by c.relname`);
+    for (const r of engine.rows) {
+      const reg = byTable.get(r.table_name);
+      tables.push({
+        table: `engine.${r.table_name}`,
+        rows: Number(r.rows),
+        size: r.size,
+        resource: reg?.key ?? null,
+        label: reg?.def.label ?? null,
+        group: "Scraping engine",
+        editable: !!reg?.def.write?.includes(staff.role),
+        restricted: false,
+      });
+    }
+  } catch (err) {
+    console.error("engine database unavailable:", err);
+  }
 
   // Render the overview; `canSql` decides whether the "SQL console" button is shown.
   return <TablesOverview tables={tables} canSql={can(staff, "sql")} />;

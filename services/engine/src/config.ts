@@ -31,7 +31,7 @@ export type EngineConfig = {
     dailyCap: number;
     /** Hours (local time of the worker) when RCS requests may run, e.g. "8-19". */
     activeHours: [number, number];
-    /** Search page URL on lbr.lu (verify after the first `rcs:capture`). */
+    /** LBR search page. Ending in "=" means the RCS number is appended (the portal's own search URL). */
     searchUrl: string;
     /** Optional direct entity URL with {number} placeholder, if LBR exposes one. */
     entityUrlTemplate?: string;
@@ -79,7 +79,7 @@ export function config(): EngineConfig {
       jitterMs: num("RCS_JITTER_MS", 3_000),
       dailyCap: num("RCS_DAILY_CAP", 1_500),
       activeHours: hours,
-      searchUrl: process.env.RCS_SEARCH_URL ?? "https://www.lbr.lu/",
+      searchUrl: process.env.RCS_SEARCH_URL ?? "https://www.lbr.lu/mjrcs-web-front/consult-search-list?search=",
       entityUrlTemplate: process.env.RCS_ENTITY_URL_TEMPLATE || undefined,
       frontierMisses: num("RCS_FRONTIER_MISSES", 30),
     },

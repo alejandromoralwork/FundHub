@@ -1,7 +1,8 @@
 /**
  * FILE: services/engine/src/jobs/maintenance.ts
  * PART: scraping engine (services/engine) — jobs that are not tied to one source
- *   reclassify {}       — re-applies classification rules to every entity (after editing rules).
+ *   reclassify {}       — re-applies classification rules to every entity (after editing rules), then links
+ *                         clients (entity_relations) to entities that appeared since they were recorded.
  *   census_snapshot {}  — writes today's registry-wide census (totals by kind, service providers, coverage).
  *   cssf_refresh {}     — queues `cssf_fetch` for CSSF records whose refresh date has passed.
  * WHERE IT RUNS: queue "maintenance" workers, or inline from the CLI.
@@ -11,8 +12,9 @@
 import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { entities, sourceRecords } from "@fundhub/engine-db/schema";
-import { clearRulesCache, recomputeEntity } from "../core/ingest";
+import { clearRulesCache, linkRelations, recomputeEntity } from "@fundhub/engine-db/core/entity";
 import { snapshotRegistry } from "../core/ops";
+import { snapshotRcsKnown } from "./rcs-list";
 import { log } from "../log";
 import type { JobContext } from "./context";
 
@@ -29,11 +31,14 @@ export async function reclassify() {
     last = page[page.length - 1].id;
     log.info("reclassify", { done });
   }
-  return { entities: done };
+  // Clients named before their own entity existed can be linked now.
+  const linkedRelations = await linkRelations();
+  return { entities: done, linkedRelations };
 }
 
 /** Kind: async function. Job "census_snapshot". */
 export async function censusSnapshot() {
+  await snapshotRcsKnown();
   const rows = await snapshotRegistry();
   return Object.fromEntries(rows.map((r) => [r.scope, r.seen]));
 }

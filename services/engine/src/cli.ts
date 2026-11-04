@@ -28,9 +28,9 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db, pool } from "@fundhub/engine-db/client";
-import { censusSnapshots, crawlRuns, entities, entityIdentifiers, sessionHealth, sourceRecords } from "@fundhub/engine-db/schema";
+import { censusSnapshots, crawlRuns, entities, entityIdentifiers, entityRelations, sessionHealth, sourceRecords } from "@fundhub/engine-db/schema";
 import { makeContext, type JobContext } from "./jobs/context";
 import { GROUPS, inlineEnqueue, isJob, JOBS, type Group, type JobDef } from "./jobs/index";
 import { setSessionHealth } from "./core/ops";
@@ -108,8 +108,16 @@ async function showEntity(q: string) {
     console.log(JSON.stringify(e, null, 2));
     const ids = await db.select({ scheme: entityIdentifiers.scheme, value: entityIdentifiers.value, source: entityIdentifiers.source }).from(entityIdentifiers).where(eq(entityIdentifiers.entityId, e.id));
     const recs = await db.select({ source: sourceRecords.source, id: sourceRecords.externalId, state: sourceRecords.state, scope: sourceRecords.scope, lastChanged: sourceRecords.lastChangedAt }).from(sourceRecords).where(eq(sourceRecords.entityId, e.id));
+    const rels = await db
+      .select({ kind: entityRelations.kind, client: entityRelations.objectName, linked: entityRelations.objectEntityId, source: entityRelations.source })
+      .from(entityRelations)
+      .where(and(eq(entityRelations.subjectEntityId, e.id), isNull(entityRelations.validTo)));
     console.table(ids);
     console.table(recs);
+    if (rels.length) {
+      console.log("Clients / relations:");
+      console.table(rels);
+    }
   }
   if (!rows.length) console.log("No entity found.");
 }

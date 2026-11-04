@@ -10,8 +10,8 @@
  */
 
 /** Kind: constant. Every data source the engine knows. Adding a source = add its name here + an adapter. */
-export const ENGINE_SOURCES = ["cssf", "gleif", "rcs", "web"] as const;
-/** "cssf" | "gleif" | "rcs" | "web" */
+export const ENGINE_SOURCES = ["cssf", "gleif", "rcs", "lbr_bulk", "web", "manual"] as const;
+/** "cssf" | "gleif" | "rcs" | "lbr_bulk" (official LBR extract file) | "web" | "manual" (an edit by FundHub staff in the admin console) */
 export type EngineSource = (typeof ENGINE_SOURCES)[number];
 
 /** Kind: constant. What we last learned about an id at its source. */
@@ -53,9 +53,30 @@ export const CHANGE_KINDS = [
   "new_filing",
   "authorisation_added",
   "authorisation_ended",
+  "relation_added",
+  "relation_ended",
   "entities_merged",
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
+
+/**
+ * Kind: constant. What the SUBJECT entity (usually a service provider) is to the OBJECT entity.
+ * "client" = a client named without a specific role (website client lists, case studies);
+ * the others are specific roles, e.g. subject = Arendt, kind = "administrator", object = a fund.
+ */
+export const RELATION_KINDS = [
+  "client",
+  "administrator",
+  "transfer_agent",
+  "depositary",
+  "management_company",
+  "domiciliation_agent",
+  "auditor",
+  "legal_adviser",
+  "parent",
+  "other",
+] as const;
+export type RelationKind = (typeof RELATION_KINDS)[number];
 
 /** Kind: constant. How a match between a source record and an entity was found. */
 export const MATCH_METHODS = ["rcs_exact", "lei_exact", "cssf_exact", "gleif_bridge", "name_postcode", "name_only", "manual"] as const;

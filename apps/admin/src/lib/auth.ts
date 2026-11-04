@@ -246,6 +246,12 @@ export const CAN = {
   content: ["owner", "operations", "sales"],
   finance: ["owner"],
   gdpr: ["owner", "operations"],
+  /** Scraping Engine: view the registry, census, queue and history. */
+  engine: ["owner", "operations", "analyst"],
+  /** Scraping Engine: edit entities, clients, rules; resolve matches. */
+  engineEdit: ["owner", "operations"],
+  /** Scraping Engine: start jobs, enable/disable schedules, RCS number space. */
+  engineJobs: ["owner", "operations"],
 } as const satisfies Record<string, readonly StaffRole[]>;
 
 /**

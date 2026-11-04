@@ -49,6 +49,7 @@ import {
   SafetyCertificateOutlined,
   StarOutlined,
   TeamOutlined,
+  ApartmentOutlined,
 } from "@ant-design/icons";
 // Next.js link component: changes page without a full reload.
 import Link from "next/link";
@@ -126,6 +127,12 @@ const RESOURCES = [
   { name: "finance", list: "/finance", meta: { label: "Finance", icon: <WalletOutlined /> } },
   { name: "analytics", list: "/analytics", meta: { label: "Analytics", icon: <BarChartOutlined /> } },
   { name: "pipeline", list: "/pipeline", meta: { label: "Data pipeline", icon: <CloudDownloadOutlined /> } },
+  // Scraping Engine (its own database): registry of all Luxembourg entities, jobs, matching.
+  { name: "engine", meta: { label: "Scraping engine", icon: <ApartmentOutlined /> } },
+  { name: "engine-overview", list: "/engine", meta: { label: "Overview", parent: "engine" } },
+  { name: "engine-registry", list: "/engine/registry", meta: { label: "Registry", parent: "engine" } },
+  { name: "engine-jobs", list: "/engine/jobs", meta: { label: "Jobs & schedules", parent: "engine" } },
+  { name: "engine-matches", list: "/engine/matches", meta: { label: "Match review", parent: "engine" } },
   { name: "reports-admin", list: "/reports", meta: { label: "Reports", icon: <FilePdfOutlined /> } },
   { name: "database", list: "/db", meta: { label: "Database", icon: <DatabaseOutlined /> } },
   { name: "gdpr", list: "/gdpr", meta: { label: "GDPR requests", icon: <LockOutlined /> } },

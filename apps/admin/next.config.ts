@@ -26,10 +26,10 @@ const nextConfig: NextConfig = {
   basePath: "/admin",
   // Our shared packages (`@fundhub/…` in packages/) are plain TypeScript source; this tells Next.js to
   // compile them along with the app.
-  transpilePackages: ["@fundhub/core", "@fundhub/db", "@fundhub/email"],
+  transpilePackages: ["@fundhub/core", "@fundhub/db", "@fundhub/email", "@fundhub/engine-db"],
   // "pg" (the Postgres driver from npm) is loaded by Node.js directly at run time instead of being bundled,
   // because it relies on Node features that do not survive bundling well.
-  serverExternalPackages: ["pg"],
+  serverExternalPackages: ["pg", "pg-boss"],
   // PDF report uploads go through a server action (Vercel's request limit is 4.5 MB).
   // Next.js's own default limit for server actions is lower (1 MB), so it is raised to match.
   experimental: { serverActions: { bodySizeLimit: "4.5mb" } },
