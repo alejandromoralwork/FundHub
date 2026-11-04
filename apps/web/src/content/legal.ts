@@ -1,15 +1,40 @@
+/**
+ * FILE: apps/web/src/content/legal.ts
+ * PART: website (apps/web)
+ * WHAT IT DOES: Holds the text of the website's four legal pages: legal notice, privacy policy, cookie policy and
+ *   terms of use. A single page component reads this data and lays it out, so the wording can be changed here
+ *   without touching any page design. Company details (address, VAT number, …) are filled in from COMPANY.
+ * WHERE IT RUNS: on the server, where the legal pages are built (it is plain data, so it could run anywhere).
+ * FRAMEWORK NOTES: files in src/content/ keep fixed website content as TypeScript data instead of in the database.
+ * TYPESCRIPT YOU WILL SEE HERE:
+ *   - type aliases with optional fields (`heading?: string` = may be left out).
+ *   - `Record<string, LegalPage>` = an object whose keys are texts (page names) and whose values are LegalPages.
+ *   - template strings `` `VAT number: ${c.vatNumber}` `` = text with a value inserted.
+ */
+
+// `import { a } from "b"` loads a named thing from module b. `@fundhub/...` = our own shared packages.
+// COMPANY = FundHub's official company details, defined once and reused across the site and emails.
 import { COMPANY } from "@fundhub/core/company";
 
 /**
  * Legal texts. Drafted as a starting point for FundHub's processing activities;
  * have them reviewed by a Luxembourg lawyer before launch.
+ *
+ * Kind: type alias. One section of a legal page: an optional heading, then optional paragraphs and/or bullet points.
  */
 export type LegalSection = { heading?: string; paragraphs?: string[]; bullets?: string[] };
+/** Kind: type alias. One legal page: its title, a short description (used for search engines), and its sections. */
 export type LegalPage = { title: string; description: string; sections: LegalSection[] };
 
+/** Kind: constant. A short alias for COMPANY, to keep the long template strings below readable. */
 const c = COMPANY;
 
+/**
+ * Kind: constant (lookup table of pages). The keys (`notice`, `privacy`, `cookies`, `terms`) identify the pages;
+ * each value follows the LegalPage shape above. Within the texts, `${c.something}` inserts a company detail.
+ */
 export const LEGAL: Record<string, LegalPage> = {
+  // Legal notice: who publishes and hosts the site (required for Luxembourg websites).
   notice: {
     title: "Legal notice",
     description: "Publisher and hosting information for fundhub.lu.",
@@ -36,6 +61,7 @@ export const LEGAL: Record<string, LegalPage> = {
     ],
   },
 
+  // Privacy policy (GDPR): who is responsible, what is collected and why, who receives it, how long it is kept.
   privacy: {
     title: "Privacy policy",
     description: "How FundHub collects, uses and protects personal data (GDPR).",
@@ -88,6 +114,7 @@ export const LEGAL: Record<string, LegalPage> = {
     ],
   },
 
+  // Cookie policy. "fh_session" is the login cookie set in src/lib/auth/session.ts (30 days there too).
   cookies: {
     title: "Cookie policy",
     description: "Which cookies fundhub.lu uses.",
@@ -109,6 +136,7 @@ export const LEGAL: Record<string, LegalPage> = {
     ],
   },
 
+  // Terms of use: rules for accounts, reviews, independence, liability and governing law.
   terms: {
     title: "Terms of use",
     description: "Rules for using fundhub.lu and FundHub accounts.",

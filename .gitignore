@@ -30,3 +30,6 @@ business_plan.pdf
 
 # Python bytecode (marketing diagram scripts)
 __pycache__/
+
+# Scraping Engine local data (fs blobs, RCS browser profile with your LuxTrust session)
+.engine-data/

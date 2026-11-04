@@ -1,13 +1,37 @@
+/**
+ * FILE: apps/web/src/app/independence/page.tsx
+ * PART: website (apps/web)
+ * WHAT IT DOES: The /independence page ("Independence charter"). It sets out FundHub's promises: what it
+ *   never does (referral fees, paid rankings...), what it always does, who pays FundHub and for what, how the
+ *   comparator orders providers, and four questions buyers should ask any adviser.
+ * WHERE IT RUNS: on the server (Node.js), as a React server component. No database reads: the content is
+ *   written into this file, so Next.js can pre-build the page once.
+ * FRAMEWORK NOTES: In the Next.js App Router, page.tsx inside app/ is a web page and its folder path is the
+ *   URL (app/independence/page.tsx -> /independence). Exporting `metadata` sets the <title>/description.
+ * TYPESCRIPT YOU WILL SEE HERE:
+ *   - array constants of strings, of objects `{ who, what, how }`, and of pairs `[label, text]`.
+ *   - `.map` to turn each array item into JSX; `(n) => (...)` arrow functions.
+ *   - array destructuring in parameters `([k, v]) =>`: name the two items of each pair.
+ *   - template strings / number arithmetic in JSX: `0{i + 1}` shows 01, 02...
+ */
+
+// `import { a } from "b"` loads named exports ("next", "lucide-react" = npm libraries; "@/..." = this app's
+// src folder).
+// Metadata: the Next.js type for page title/description data.
 import type { Metadata } from "next";
+// Lucide icons: Ban (no-entry sign), CheckCircle2 (tick in a circle), Coins, ShieldCheck.
 import { Ban, CheckCircle2, Coins, ShieldCheck } from "lucide-react";
+// Our design pieces: CtaBand (call-to-action strip), Panel (bordered box), SectionTitle (heading block).
 import { CtaBand, Panel, SectionTitle } from "@/components/marketing";
 
+/** Kind: constant (Next.js metadata). Tab title "Independence charter · FundHub" plus description. */
 export const metadata: Metadata = {
   title: "Independence charter",
   description:
     "How FundHub stays independent: no referral fees, no commissions, rankings that can't be bought, and reviews uncoupled from provider spend.",
 };
 
+/** Kind: constant (array of strings). The things FundHub never does; each becomes a red-icon bullet. */
 const NEVER = [
   "Accept referral fees, finder's fees, commissions or retrocessions from service providers",
   "Enter reciprocal 'you send me, I send you' arrangements with law firms, administrators or consultants",
@@ -18,6 +42,11 @@ const NEVER = [
   "Publish reviews from unauthenticated reviewers or delete negative reviews on request",
 ];
 
+/**
+ * Kind: constant (array of objects). One row of the "who pays us" table per payer.
+ * Each object has three text properties: `who` (the payer), `what` (what they buy) and `how` (pricing and
+ * the limits on what money can buy). TypeScript works the type out from the values ("type inference").
+ */
 const REVENUE = [
   {
     who: "Fund managers & investors (clients)",
@@ -36,6 +65,10 @@ const REVENUE = [
   },
 ];
 
+/**
+ * Kind: constant (array of two-item arrays). Each pair is [ranking factor, explanation], shown as a
+ * definition list (term on the left, meaning on the right).
+ */
 const RANKING = [
   ["Default order", "Peer Opinion Score, then number of verified reviews"],
   ["Peer Opinion Score", "Average rating from authenticated asset managers in a closed, double-blind review loop"],
@@ -43,7 +76,12 @@ const RANKING = [
   ["FundHub Verified", "Audit against RCS, RESA, CSSF registers and a management DDQ, included in provider subscriptions; granted only on a pass, re-checked twice a year"],
 ];
 
+/**
+ * Kind: React component (server component) — the page. Takes no parameters.
+ * @returns JSX: the charter sections and a call-to-action band.
+ */
 export default function IndependencePage() {
+  // Tailwind: `space-y-12` puts big gaps between the sections; `max-w-5xl` limits the width.
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 space-y-12 p-4 sm:p-6">
       <section>
@@ -55,12 +93,15 @@ export default function IndependencePage() {
         />
       </section>
 
+      {/* Two boxes side by side from medium screens: "never does" (red border) and "always does" (green). */}
       <section className="grid gap-4 md:grid-cols-2">
         <Panel className="border-red-200">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Ban className="h-4 w-4 text-red-500" /> What FundHub never does
           </h2>
           <ul className="mt-3 space-y-2.5">
+            {/* `.map` turns each text in NEVER into a list item; the text itself is the unique `key` React
+                needs for list items. `shrink-0` stops the icon being squashed by long text. */}
             {NEVER.map((n) => (
               <li key={n} className="flex gap-2 text-sm leading-relaxed text-ink-600">
                 <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
@@ -74,6 +115,7 @@ export default function IndependencePage() {
             <ShieldCheck className="h-4 w-4 text-emerald" /> What FundHub always does
           </h2>
           <ul className="mt-3 space-y-2.5">
+            {/* Same pattern as above, but the array is written inline here instead of in a constant. */}
             {[
               "Lists every active provider for free, from boutique to institutional",
               "Discloses how every score, range and badge is computed (see Methodology)",
@@ -97,6 +139,8 @@ export default function IndependencePage() {
           title="How FundHub earns revenue"
           lead="Full transparency on who pays us and what they get, and what they don't."
         />
+        {/* The table is at least 640px wide (`min-w-[640px]`); on narrower phones the wrapper scrolls
+            sideways (`overflow-x-auto`) instead of squashing the columns. */}
         <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-canvas text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -106,7 +150,9 @@ export default function IndependencePage() {
                 <th className="px-4 py-2.5">How, and the limits</th>
               </tr>
             </thead>
+            {/* `divide-y` draws a thin line between rows; `align-top` aligns cell text to the top. */}
             <tbody className="divide-y divide-slate-100 align-top">
+              {/* One table row per REVENUE object; `r.who` etc. read its properties. */}
               {REVENUE.map((r) => (
                 <tr key={r.who}>
                   <td className="px-4 py-3 font-medium text-ink">
@@ -125,7 +171,9 @@ export default function IndependencePage() {
 
       <section>
         <SectionTitle eyebrow="Rankings" title="How the comparator orders providers" />
+        {/* <dl> is HTML's "definition list": <dt> = term, <dd> = its description. */}
         <dl className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+          {/* `([k, v]) =>` destructures each pair: k = the factor name, v = its explanation. */}
           {RANKING.map(([k, v]) => (
             <div key={k} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-6">
               <dt className="w-48 shrink-0 text-sm font-medium text-ink">{k}</dt>
@@ -142,6 +190,7 @@ export default function IndependencePage() {
           lead="Whoever recommends a service provider to you, FundHub included, should be able to answer these in writing."
         />
         <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+          {/* `.map((q, i) => ...)` also gives the position `i` (0, 1, 2, 3); `0{i + 1}` shows "01", "02"... */}
           {[
             "Do you or your firm receive any fee, commission or benefit if we appoint this provider?",
             "Do you have a reciprocal referral relationship with them?",
@@ -156,6 +205,7 @@ export default function IndependencePage() {
         </ol>
       </section>
 
+      {/* Closing call-to-action: request a fee audit, or go to the comparator. */}
       <CtaBand
         title="Get an independent second opinion"
         body="Already received a recommendation or a proposal? We'll benchmark it against the market, with nothing to gain from your choice."

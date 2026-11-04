@@ -1,0 +1,33 @@
+{
+  "name": "@fundhub/engine-db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Scraping Engine database (separate from the website DB): registry entities, raw captures, observations, change events, census.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:local": "tsx scripts/local-postgres.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:setup": "npm run db:migrate && npm run db:seed"
+  },
+  "dependencies": {
+    "@fundhub/core": "*",
+    "drizzle-orm": "^0.45.3",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.15.6",
+    "dotenv": "^18.0.5",
+    "drizzle-kit": "^0.31.11",
+    "embedded-postgres": "18.4.0-beta.17",
+    "lucide-react": "^1.49.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
+  }
+}

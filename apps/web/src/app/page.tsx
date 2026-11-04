@@ -1,6 +1,33 @@
+/**
+ * FILE: apps/web/src/app/page.tsx
+ * PART: website (apps/web)
+ * WHAT IT DOES: The home page ("/"). A dark "hero" banner with the pitch and a search box, headline statistics,
+ *   the problem FundHub solves, how it works in four steps, the eight service categories, a "referral route vs
+ *   FundHub" comparison table, the advisory offer, top-rated providers, the latest articles, and a closing
+ *   call to action for service providers.
+ * WHERE IT RUNS: on the server (Node.js), as a React server component: it reads the database directly and
+ *   sends finished HTML. Even the search box works without any browser code (it is a plain HTML form).
+ * FRAMEWORK NOTES: In the Next.js App Router, app/page.tsx (at the top of the app folder) is the home page.
+ *   `metadata` sets the <title>/description; `title: { absolute: ... }` ignores the root layout's
+ *   "%s · FundHub" template so the home page uses exactly this title. `dynamic = "force-dynamic"` makes
+ *   Next.js rebuild the page on every visit so the figures are live.
+ * TYPESCRIPT YOU WILL SEE HERE:
+ *   - arrays of objects as constants, and a tuple type `[string, string, string][]` (list of 3-text rows).
+ *   - `Promise.all` with array destructuring `const [a, b, c] = await ...`.
+ *   - `Map` lookup tables; `.map`, `.find`; optional chaining `?.`; nullish coalescing `??`.
+ *   - destructuring with renaming `({ icon: Icon, title })`: take `icon` but call it `Icon`.
+ *   - JSX `style={{ ... }}`: inline CSS given as a JavaScript object (outer braces = "JS value", inner = object).
+ */
+
+// `import { a } from "b"` loads named exports ("next", "lucide-react" = npm libraries; "@/..." = this app's
+// src folder; "@fundhub/..." = our shared packages). `import X from "b"` loads the default export.
+// Metadata: the Next.js type for page title/description data.
 import type { Metadata } from "next";
+// Link: Next.js in-site link (switches pages without a full reload).
 import Link from "next/link";
+// articleHref(kind, slug): builds an article's address, e.g. "/news/my-story".
 import { articleHref } from "@/lib/articles";
+// Icons from the Lucide library, each drawn as an inline SVG component.
 import {
   ArrowRight,
   BadgeCheck,
@@ -15,23 +42,41 @@ import {
   ShieldCheck,
   TrendingDown,
 } from "lucide-react";
+// IndependentBadge: the small "Independent" pill shown in the hero.
 import { IndependentBadge } from "@/components/badges";
+// Our design pieces: ButtonLink (link styled as a button), CtaBand (call-to-action strip), Panel (bordered
+// box), SectionTitle (heading with eyebrow label and intro).
 import { ButtonLink, CtaBand, Panel, SectionTitle } from "@/components/marketing";
+// StatCards: the row of headline-number tiles under the hero.
 import { StatCards } from "@/components/stat-cards";
+// Stars: draws a 0–5 star rating.
 import { Stars } from "@/components/stars";
+// Database queries: overall stats, providers per category, fee benchmarks, best-rated providers, articles.
 import { getCategoryCounts, getEcosystemStats, getFeeBenchmarks, getTopRatedProviders, listPublishedPosts } from "@fundhub/db/queries";
+// Formatting helpers: euros ("€2,500"), plain numbers ("1,234"), and a fee range ("€1,000 – €2,000").
 import { formatEur, formatNumber, formatPriceRange } from "@fundhub/core/format";
+// ADVISORY_SERVICES: the list of advisory offers (id, label, description) shared with the request forms.
 import { ADVISORY_SERVICES } from "@fundhub/core/request-options";
+// TAXONOMY: the eight service categories with their slug, label, icon and summary.
 import { TAXONOMY } from "@fundhub/core/taxonomy";
 
+/** Kind: constant (Next.js setting). Render on every request so the live figures are always current. */
 export const dynamic = "force-dynamic";
 
+/**
+ * Kind: constant (Next.js metadata). `absolute` means "use this exact title" (no "· FundHub" suffix added by
+ * the root layout's template, since the brand is already in it).
+ */
 export const metadata: Metadata = {
   title: { absolute: "FundHub · Independent Fund Services Comparator & Advisor in Luxembourg" },
   description:
     "Compare Luxembourg fund administrators, depositaries, ManCos, tax and legal providers on real fees, technology and peer reviews. Independent: no referral fees, no commissions.",
 };
 
+/**
+ * Kind: constant (array of objects). The three market problems shown in "The problem" section.
+ * `icon` holds a component itself (not text), so it can be drawn later as <Icon />.
+ */
 const PROBLEMS = [
   {
     icon: Network,
@@ -50,6 +95,10 @@ const PROBLEMS = [
   },
 ];
 
+/**
+ * Kind: constant (array of objects). The four "How FundHub works" steps: number label `n`, `title`,
+ * explanation `body`, and `href`, the page each step card links to.
+ */
 const STEPS = [
   {
     n: "01",
@@ -77,6 +126,11 @@ const STEPS = [
   },
 ];
 
+/**
+ * Kind: constant with an explicit type. `[string, string, string][]` means "an array of rows, each row being
+ * exactly three texts" (a fixed-length array is called a tuple). Each row is
+ * [topic, how the usual referral route does it, how FundHub does it] for the comparison table.
+ */
 const ROUTE_ROWS: [string, string, string][] = [
   ["Who pays the adviser", "Often the provider, via referral fees or reciprocal deals", "Only you: flat fee or share of savings"],
   ["Providers considered", "Two or three pre-selected 'partners'", "The whole indexed market, from boutique to institutional"],
@@ -85,7 +139,15 @@ const ROUTE_ROWS: [string, string, string][] = [
   ["Reviews & reputation", "Word of mouth", "Closed, verified peer reviews, independent of ad spend"],
 ];
 
+/**
+ * Kind: async React component (server component) — the home page. Takes no parameters.
+ * @returns `Promise<JSX>`: the whole home page, ready once the database figures have arrived.
+ */
 export default async function HomePage() {
+  // Run five database queries at the same time and wait for all of them. The results come back in the same
+  // order as the list, and array destructuring gives each a name:
+  // stats (overall figures), counts (providers per category), benchmarks (fees per category),
+  // top (the 4 best-rated providers), latest (the 3 newest articles).
   const [stats, counts, benchmarks, top, latest] = await Promise.all([
     getEcosystemStats(),
     getCategoryCounts(),
@@ -93,12 +155,19 @@ export default async function HomePage() {
     getTopRatedProviders(4),
     listPublishedPosts({ limit: 3 }),
   ]);
+  // A Map (lookup table) from category slug to its benchmark, so each category card can find its fees with
+  // `bench.get(slug)`. Each `[b.category, b]` is a [key, value] pair.
   const bench = new Map(benchmarks.map((b) => [b.category, b]));
 
   return (
     <main className="flex-1">
       {/* Hero */}
+      {/* Dark full-width banner. `relative` lets the grid pattern below be positioned over it, and
+          `overflow-hidden` hides anything that sticks out. */}
       <section className="relative overflow-hidden bg-ink-900 text-white">
+        {/* Decorative faint grid in the background: two CSS gradients drawing 1px white lines every 40px, at
+            7% opacity (`opacity-[0.07]`). `aria-hidden` hides it from screen readers; `pointer-events-none`
+            lets clicks pass through it. `style={{...}}` is inline CSS written as a JavaScript object. */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -119,6 +188,8 @@ export default async function HomePage() {
             table. <span className="font-semibold text-white">No referral fees. No commissions. Ever.</span>
           </p>
 
+          {/* Search box as a plain HTML form: submitting it opens /compare?q=<typed text> (method "get" puts
+              the field values in the URL). No JavaScript is needed. `role="search"` helps screen readers. */}
           <form action="/compare" method="get" role="search" className="mt-7 flex max-w-2xl flex-col gap-2 sm:flex-row">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -138,6 +209,7 @@ export default async function HomePage() {
             </button>
           </form>
 
+          {/* Three trust points with a shield icon each: an inline array of texts turned into <span>s by `.map`. */}
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-300">
             {["Paid by buyers, never by referrals", "Rankings can't be bought", "Data from RCS, RESA & CSSF registers"].map(
               (t) => (
@@ -159,6 +231,9 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Headline numbers. Each tile is an object: `label`, display `value` (already formatted as text;
+          `String(...)` turns a number into text), an `icon`, an optional `hint` and optional `accent`
+          (highlighted tile). */}
       <StatCards
         stats={[
           { label: "Indexed Providers", value: formatNumber(stats.indexedProviders), icon: Database },
@@ -182,6 +257,8 @@ export default async function HomePage() {
             lead="Europe's largest fund domicile still selects service providers through closed networks and personal contacts. That creates conflicts of interest and keeps prices hidden."
           />
           <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {/* `({ icon: Icon, title, body })` destructures each object and renames `icon` to `Icon`, because
+                JSX only treats capitalised names as components. */}
             {PROBLEMS.map(({ icon: Icon, title, body }) => (
               <Panel key={title}>
                 <Icon className="h-5 w-5 text-red-500" />
@@ -198,6 +275,8 @@ export default async function HomePage() {
             eyebrow="How FundHub works"
             title="From opaque referrals to an objective, data-driven choice"
           />
+          {/* 1, 2 or 4 columns depending on screen width. `group` on the link lets children react to hovering
+              the whole card (`group-hover:underline` underlines the title). */}
           <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s) => (
               <li key={s.n}>
@@ -224,9 +303,15 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* One clickable card per category. The arrow function has a `{ }` body so it can prepare
+                variables, then `return`s the JSX. */}
             {TAXONOMY.map((c) => {
+              // Capitalised copy of the icon so it can be drawn as <Icon />.
               const Icon = c.icon;
+              // This category's fee benchmark, or undefined if none.
               const b = bench.get(c.slug);
+              // In the card footer: `counts[c.slug] ?? 0` = provider count or 0; `b && ...` shows the
+              // "from €X/qtr" starting price only when fee data exists.
               return (
                 <Link
                   key={c.slug}
@@ -255,6 +340,7 @@ export default async function HomePage() {
             title="The referral route vs. FundHub"
             lead="We don't take a cut from the providers we compare. That's the whole point."
           />
+          {/* Comparison table; scrolls sideways on phones narrower than its 640px minimum width. */}
           <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-canvas text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -273,6 +359,7 @@ export default async function HomePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
+                {/* Each row tuple is destructured into k (topic), them (referral route), us (FundHub). */}
                 {ROUTE_ROWS.map(([k, them, us]) => (
                   <tr key={k}>
                     <td className="px-4 py-3 font-medium text-ink">{k}</td>
@@ -289,6 +376,7 @@ export default async function HomePage() {
         </section>
 
         {/* Advisory */}
+        {/* A 5-column grid on large screens: the pitch takes 2 columns (`lg:col-span-2`), the service boxes 3. */}
         <section className="grid gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <SectionTitle
@@ -328,6 +416,10 @@ export default async function HomePage() {
                 Open comparator →
               </Link>
             </div>
+            {/* One row per top provider: name and category on the left, stars, rating and fee range on the right.
+                `TAXONOMY.find(...)?.label` finds the provider's category and reads its label; `?.` avoids a
+                crash if no category matches. `p.rating.toFixed(1)` shows the rating with one decimal ("4.3").
+                `truncate` cuts long names with "…" instead of wrapping. */}
             <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
               {top.map((p) => (
                 <li key={p.id}>
@@ -365,6 +457,8 @@ export default async function HomePage() {
                 </Link>
               </span>
             </div>
+            {/* The three newest articles (news or learn) as clickable cards; `line-clamp-2` cuts the summary
+                after two lines. */}
             <ul className="mt-3 space-y-3">
               {latest.map((i) => (
                 <li key={i.slug}>
@@ -382,6 +476,7 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* Closing call to action aimed at service providers. */}
         <CtaBand
           title="Are you a service provider?"
           body="Every active Luxembourg provider is listed for free. Claim your profile, get your data verified at no cost, and compete on merit, not on referral networks."

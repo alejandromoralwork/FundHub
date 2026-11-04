@@ -1,3 +1,25 @@
+/**
+ * FILE: packages/core/src/taxonomy.ts
+ * PART: shared package (packages/core)
+ * WHAT IT DOES: The master list of FundHub's eight service categories (fund administration, domiciliation,
+ *   compliance, accounting, tax, AIFM/ManCo, depositary, professional support). For each category it stores
+ *   its URL slug, names, icon, the exact sub-service names, when a fund needs it, what to compare between
+ *   providers, common red flags in fee proposals, and which provider facts to highlight on comparator cards.
+ *   The website pages, filters, forms, awards and scraper all read from this one list.
+ * WHERE IT RUNS: both (server and browser). It imports icon components from lucide-react, which are drawn in
+ *   the browser but are also fine on the server.
+ * FRAMEWORK NOTES: lucide-react is an icon library for React; each icon (e.g. `Calculator`) is a React
+ *   component, i.e. a function that produces the icon's SVG picture when placed in a page as `<Calculator />`.
+ * TYPESCRIPT YOU WILL SEE HERE:
+ *   - `import { …, type X }`: importing values and (with `type`) a type-only name in one statement.
+ *   - union of string literals `"a" | "b"`; object types with `readonly` lists.
+ *   - `as const satisfies readonly ServiceCategory[]`: keep exact values AND check the shape (see TAXONOMY).
+ *   - indexed access types `(typeof TAXONOMY)[number]["slug"]`; tuple assertion `[A, ...A[]]`.
+ *   - `Map`, `.map`, `.flatMap`, optional chaining `a?.b`, `??`, `Record<K, V>`, `T | undefined` returns.
+ */
+
+// Icon components from lucide-react (a library from npm), one per category. `type LucideIcon` imports only
+// the TypeScript type that describes "any lucide icon component"; it is used in ServiceCategory below.
 import {
   Briefcase,
   Building2,
@@ -16,10 +38,19 @@ import {
  */
 
 /** Provider attributes a category highlights on comparator cards. */
+// Kind: type alias, a union of exact texts. Each text is the name of a field of a provider profile, so a
+// category can say e.g. "show techStack and licences" and TypeScript rejects any misspelt field name.
 export type HighlightField = "techStack" | "assetClasses" | "licences" | "certifications" | "regulatoryScope" | "footprint" | "mandates";
 
+/**
+ * Kind: type alias for an object type. The shape every category in TAXONOMY must have.
+ * `field: type;` per line. `readonly string[]` = a list of texts that code may read but not change.
+ * `icon: LucideIcon` = the field holds an icon component (a function), not text.
+ */
 export type ServiceCategory = {
+  // URL-friendly id, e.g. "fund-administration" (used in /compare?category=… and in the database).
   slug: string;
+  // Full name and one-line summary, both shown on the website.
   label: string;
   short: string;
   icon: LucideIcon;
@@ -37,11 +68,23 @@ export type ServiceCategory = {
   mandatesLabel: string;
 };
 
+/**
+ * Kind: constant (read-only list of category objects). The eight categories, in display order.
+ * Every item has the same fields, described in ServiceCategory above, so they are not repeated per item.
+ *
+ * The ending `as const satisfies readonly ServiceCategory[]` does two jobs:
+ * - `as const` keeps the exact texts as types (e.g. the slug type is "tax", not just `string`), which lets
+ *   CategorySlug below be computed from this list.
+ * - `satisfies X` asks TypeScript to CHECK that the value fits type X (every category has every required field
+ *   with the right type) without replacing the exact types that `as const` produced. A plain annotation
+ *   `: ServiceCategory[]` would check too, but would forget the exact slugs.
+ */
 export const TAXONOMY = [
   {
     slug: "fund-administration",
     label: "Fund Administration",
     short: "NAV, fund accounting, transfer agency and investor reporting.",
+    // The icon component itself (no `< />`): it is stored here and drawn later by the page that shows it.
     icon: Calculator,
     services: [
       "Fund Accounting & NAV Calculation",
@@ -243,20 +286,54 @@ export const TAXONOMY = [
   },
 ] as const satisfies readonly ServiceCategory[];
 
+/**
+ * Kind: type alias. Any one category slug: "fund-administration" | "governance-domiciliation" | … | "professional-support".
+ * Read it as: take the type of TAXONOMY, then the type of any item (`[number]`), then its `slug` field.
+ */
 export type CategorySlug = (typeof TAXONOMY)[number]["slug"];
+/**
+ * Kind: constant. All slugs as a list, in order. `as [CategorySlug, ...CategorySlug[]]` asserts "a non-empty list
+ * of slugs", the shape Zod's `z.enum` requires (it is used that way in filters.ts).
+ */
 export const CATEGORY_SLUGS = TAXONOMY.map((c) => c.slug) as [CategorySlug, ...CategorySlug[]];
+/**
+ * Kind: constant. Every sub-service name of every category in one flat list.
+ * `.flatMap(fn)` is like `.map` but, when `fn` returns a list, it merges all those lists into one, so we get
+ * ["Fund Accounting & NAV Calculation", …, "HR Sourcing & Interim Management"] instead of a list of lists.
+ */
 export const ALL_SERVICES: readonly string[] = TAXONOMY.flatMap((c) => c.services);
 
+/**
+ * Kind: constant (file-private). A lookup table from slug to category, so finding a category is instant instead
+ * of searching the list each time. `new Map(pairs)` builds it from a list of [key, value] pairs, which
+ * `TAXONOMY.map((c) => [c.slug, c])` provides. `<string, ServiceCategory>` states the key and value types.
+ */
 const BY_SLUG = new Map<string, ServiceCategory>(TAXONOMY.map((c) => [c.slug, c]));
 
+/**
+ * Kind: function. Finds a category by its slug.
+ * @param slug  type `string` — e.g. "tax" (often straight from a URL, so it may be wrong).
+ * @returns `ServiceCategory | undefined` — the category, or `undefined` when no category has that slug.
+ *          Callers must handle the `undefined` case; TypeScript makes sure they do.
+ */
 export function getCategory(slug: string): ServiceCategory | undefined {
   return BY_SLUG.get(slug);
 }
 
+/**
+ * Kind: function. The display name for a slug, e.g. "tax" → "Tax Services".
+ * @param slug  type `string`.
+ * @returns `string`. `?.` (optional chaining) reads `.label` only if a category was found (otherwise gives
+ *          `undefined` instead of crashing); `?? slug` then falls back to the slug itself as the label.
+ */
 export function categoryLabel(slug: string): string {
   return BY_SLUG.get(slug)?.label ?? slug;
 }
 
+/**
+ * Kind: constant. Screen labels for each HighlightField. `Record<HighlightField, string>` forces one label for
+ * every possible field, so adding a new field without a label is a compile error.
+ */
 export const HIGHLIGHT_LABELS: Record<HighlightField, string> = {
   techStack: "Tech stack",
   assetClasses: "Asset classes",

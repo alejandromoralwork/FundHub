@@ -22,7 +22,13 @@
     "db:migrate": "npm run db:migrate -w @fundhub/db",
     "db:seed": "npm run db:seed -w @fundhub/db",
     "db:setup": "npm run db:setup -w @fundhub/db",
-    "scrape": "npm run scrape -w @fundhub/scraper --"
+    "scrape": "npm run scrape -w @fundhub/scraper --",
+    "engine": "npm run engine -w @fundhub/engine --",
+    "engine:db:local": "npm run db:local -w @fundhub/engine-db",
+    "engine:db:generate": "npm run db:generate -w @fundhub/engine-db",
+    "engine:db:migrate": "npm run db:migrate -w @fundhub/engine-db",
+    "engine:db:seed": "npm run db:seed -w @fundhub/engine-db",
+    "engine:db:setup": "npm run db:setup -w @fundhub/engine-db"
   },
   "devDependencies": {
     "turbo": "^2.11.8",

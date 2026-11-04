@@ -1,0 +1,106 @@
+# FundHub Scraping Engine — full stack for a laptop, an Azure VM or any Docker host.
+#
+#   cp services/engine/.env.example services/engine/.env      # then edit
+#   docker compose -f services/engine/docker-compose.yml up -d --build
+#   docker compose -f services/engine/docker-compose.yml --profile rcs up -d   # + the RCS worker
+#
+# With a managed Postgres (Neon / Azure Database for PostgreSQL) and a real bucket (R2 / Azure via S3
+# gateway), set ENGINE_DATABASE_URL and S3_* in .env and run only the engine services:
+#   docker compose -f services/engine/docker-compose.yml up -d engine-worker engine-scheduler
+
+x-engine: &engine
+  build:
+    context: ../..
+    dockerfile: services/engine/Dockerfile
+  image: fundhub-engine:latest
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    ENGINE_DATABASE_URL: ${ENGINE_DATABASE_URL:-postgres://engine:engine@postgres:5432/fundhub_engine}
+    STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+    S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+    S3_BUCKET: ${S3_BUCKET:-fundhub-engine}
+    S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-engine}
+    S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-engine-secret}
+    LOG_FORMAT: json
+  depends_on:
+    postgres: { condition: service_healthy }
+    minio-init: { condition: service_completed_successfully }
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: engine
+      POSTGRES_PASSWORD: engine
+      POSTGRES_DB: fundhub_engine
+    volumes: [engine-pg:/var/lib/postgresql/data]
+    ports: ["127.0.0.1:5434:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engine -d fundhub_engine"]
+      interval: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: engine
+      MINIO_ROOT_PASSWORD: engine-secret
+    volumes: [engine-blobs:/data]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on: [minio]
+    entrypoint: >
+      sh -c "until mc alias set local http://minio:9000 engine engine-secret; do sleep 1; done;
+             mc mb --ignore-existing local/fundhub-engine"
+
+  # Migrates + seeds once, then serves CSSF, GLEIF and maintenance jobs.
+  engine-worker:
+    <<: *engine
+    environment:
+      ENGINE_DATABASE_URL: ${ENGINE_DATABASE_URL:-postgres://engine:engine@postgres:5432/fundhub_engine}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-fundhub-engine}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-engine}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-engine-secret}
+      LOG_FORMAT: json
+      ENGINE_MIGRATE: "1"
+    command: ["worker", "--groups", "cssf,gleif,maintenance"]
+
+  engine-scheduler:
+    <<: *engine
+    command: ["scheduler"]
+    depends_on:
+      engine-worker: { condition: service_started }
+
+  # ONE RCS worker: one browser profile, human pace. Log in first:
+  #   docker compose … --profile rcs run --rm -p 127.0.0.1:6080:6080 engine-rcs rcs:login
+  #   → open http://localhost:6080/vnc.html (via SSH tunnel on a VM), log in with LuxTrust, press Enter.
+  engine-rcs:
+    <<: *engine
+    profiles: ["rcs"]
+    environment:
+      ENGINE_DATABASE_URL: ${ENGINE_DATABASE_URL:-postgres://engine:engine@postgres:5432/fundhub_engine}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-fundhub-engine}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-engine}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-engine-secret}
+      LOG_FORMAT: json
+      ENGINE_VNC: "1"
+      RCS_HEADLESS: "false"
+    volumes: [engine-rcs-profile:/data/rcs-profile]
+    command: ["worker", "--groups", "rcs"]
+    stdin_open: true
+    tty: true
+
+volumes:
+  engine-pg:
+  engine-blobs:
+  engine-rcs-profile:

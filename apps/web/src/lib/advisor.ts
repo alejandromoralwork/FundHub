@@ -1,7 +1,35 @@
 import "server-only";
+/**
+ * FILE: apps/web/src/lib/advisor.ts
+ * PART: website (apps/web)
+ * WHAT IT DOES: The "brain" of the website's advisor chat box. Despite the name it does NOT call an AI model: it
+ *   is a rule-based knowledge base. It looks for keywords in the visitor's question (e.g. "raif", "depositary"),
+ *   picks the best-matching topic, and replies with a short explanation, three key points, up to three matching
+ *   providers from the database, and a link to the comparison page with suitable filters already set.
+ * WHERE IT RUNS: on the server only (`import "server-only"` makes the build fail if browser code imports it).
+ *   It is called by the API route apps/web/src/app/api/advisor/route.ts, which the chat box talks to.
+ * FRAMEWORK NOTES: none specific; this is plain TypeScript plus a shared database query (`searchProviders`).
+ * TYPESCRIPT YOU WILL SEE HERE:
+ *   - type aliases `type X = { … }`, optional fields `filterHref?:`, arrays `string[]`, inline object types.
+ *   - `Omit<Topic, "keywords">` = "the Topic type without its keywords field".
+ *   - array methods: `.reduce` (combine a list into one value), `.map`, `.filter`, `.sort`, `.slice`, `.join`.
+ *   - `let` = a name that CAN be reassigned later (unlike `const`); `delete obj.key` removes a field.
+ *   - type predicates `(e): e is [string, string] => …`; optional chaining `?.`; `??`; spread `{ ...obj }`.
+ */
+
+// `import { a } from "b"` loads named things from module b; `@fundhub/...` = our shared packages.
+// `searchProviders` = the same provider search the comparison page uses.
 import { searchProviders } from "@fundhub/db/queries";
+// `parseFilters` cleans raw URL-style filters ({ category: "tax", sort: "fee" }) into the search's filter object;
+// `RawSearchParams` is the type of those raw filters: an object of texts (or lists of texts).
 import { parseFilters, type RawSearchParams } from "@fundhub/core/filters";
 
+/**
+ * Kind: type alias. What the advisor sends back to the chat box:
+ * - `title`, `body`, `points`: the explanation (a heading, a paragraph, and a list of key points);
+ * - `providers`: up to three suggested providers (each an object with these five fields; `{…}[]` = a list of them);
+ * - `filterHref` (optional): a link to the comparison page with the matching filters, e.g. "/compare?reg=RAIF".
+ */
 export type AdvisorReply = {
   title: string;
   body: string;
@@ -10,6 +38,12 @@ export type AdvisorReply = {
   filterHref?: string;
 };
 
+/**
+ * Kind: type alias (not exported: only used in this file). One entry of the knowledge base:
+ * - `keywords`: lower-case words that point to this topic;
+ * - `title`, `body`, `points`: the reply text;
+ * - `filters`: the comparison-page filters used to find suitable providers.
+ */
 type Topic = {
   keywords: string[];
   title: string;
@@ -22,6 +56,14 @@ type Topic = {
 /**
  * Rule-based knowledge base for common Luxembourg fund-servicing questions.
  * Guidance is general information, not legal or tax advice.
+ *
+ * Kind: constant (a list of Topic objects). Every entry below has the same shape (see `Topic` above), so only
+ * the shape is explained here. In `filters`, the keys match the comparison page's URL parameters:
+ * `category` (service category slug), `reg` (regulatory scope), `service` (one named service),
+ * `q` (free-text search) and `sort` ("score" = best FundHub Score first, "fee" = cheapest first).
+ * Keywords with a trailing space (e.g. "rc ", "tp ") must be followed by a space, so "rc" does not match
+ * inside words such as "source"; the question gets a space added at both ends for this reason.
+ * Some keywords are deliberately cut short ("overcharg", "negotiat", "domicil") to match several word endings.
  */
 const TOPICS: Topic[] = [
   {
@@ -235,6 +277,10 @@ const TOPICS: Topic[] = [
   },
 ];
 
+/**
+ * Kind: constant. The reply used when no topic's keywords match: it explains what the advisor can help with and
+ * suggests example questions. Its type is a Topic without keywords (`Omit<…>`), since it is never matched.
+ */
 const FALLBACK: Omit<Topic, "keywords"> = {
   title: "How I can help",
   body: "I can guide you on Luxembourg fund structures and servicing: RAIF, UCITS, SCSp, depositary models, ManCos, domiciliation, SPV accounting, AML/MLRO, tax, SFDR, AIFMD reporting, fee benchmarking and avoiding referral-driven choices.",
@@ -246,38 +292,69 @@ const FALLBACK: Omit<Topic, "keywords"> = {
   filters: { sort: "score" },
 };
 
+/**
+ * Kind: constant. Fund-administration software names (lower case) the advisor recognises in a question. If one is
+ * mentioned, suggested providers are limited to those using that software.
+ */
 const STACKS = ["efront", "yardi", "investran", "paxus", "multifonds", "allvue"];
 
+/**
+ * Kind: function.
+ * @param text  type `string` — the visitor's question, lower-cased, with a space at each end.
+ * @param t     type `Topic` — one knowledge-base topic.
+ * @returns     `number` (inferred): how well the topic matches; 0 = not at all.
+ * How: `.reduce` walks through the keywords carrying a running total `s` that starts at 0. For each keyword `k`
+ * found in the text, it adds the keyword's length, so longer (more specific) matches count for more.
+ */
 function scoreTopic(text: string, t: Topic) {
   return t.keywords.reduce((s, k) => (text.includes(k) ? s + k.length : s), 0);
 }
 
+/**
+ * Kind: async function (exported; used by the advisor API route).
+ * @param question  type `string` — what the visitor typed into the chat box.
+ * @returns         `Promise<AdvisorReply>`: the answer to show (arrives later because it queries the database).
+ */
 export async function answerAdvisorQuestion(question: string): Promise<AdvisorReply> {
+  // Lower-case for easy matching; the spaces at both ends let keywords like "rc " match at the very end too.
   const text = ` ${question.toLowerCase()} `;
+  // Rank the topics: `.map` pairs each topic `t` with its score `s`; `.filter` drops non-matches; `.sort` puts
+  // the highest score first (`b.s - a.s` = descending); `[0]?.t` = the top topic, or `undefined` if none matched.
   const best = TOPICS.map((t) => ({ t, s: scoreTopic(text, t) }))
     .filter((x) => x.s > 0)
     .sort((a, b) => b.s - a.s)[0]?.t;
+  // No match → use the general "How I can help" reply.
   const topic = best ?? FALLBACK;
 
   // Respect any tech stack mentioned in the question.
+  // `{ ...topic.filters }` makes a COPY, so changing `filters` below never alters the shared TOPICS data.
   const filters: RawSearchParams = { ...topic.filters };
+  // Find mentioned software names and write them as the comparison page expects: "eFront" is a special case,
+  // others get a capital first letter (`s[0]!.toUpperCase()` + the rest of the word, `s.slice(1)`).
   const stacks = STACKS.filter((s) => text.includes(s)).map((s) =>
     s === "efront" ? "eFront" : s[0]!.toUpperCase() + s.slice(1),
   );
+  // Several names become one comma-separated filter, e.g. "Yardi,Paxus".
   if (stacks.length) filters.stack = stacks.join(",");
 
+  // `let` because `matches` may be replaced by a second search below.
   let matches = await searchProviders(parseFilters(filters));
   // A free-text term can be too narrow; fall back to the structured filters.
   if (!matches.length && filters.q) {
+    // Copy the filters without `q` (`q: _q` takes it out under an unused name; `...rest` keeps the others).
     const { q: _q, ...rest } = filters;
     matches = await searchProviders(parseFilters(rest));
+    // Also drop `q` from the link we give the visitor, so the comparison page shows the same results.
     delete filters.q;
   }
 
+  // Turn the filters into URL query text, e.g. "category=tax&sort=fee". The `.filter` keeps only pairs whose
+  // value is non-empty text; the `e is [string, string]` part tells TypeScript that is now guaranteed.
   const qs = new URLSearchParams(
     Object.entries(filters).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]),
   ).toString();
 
+  // Build the reply. `.slice(0, 3)` = at most three providers; `.map` keeps only the fields the chat box shows.
   return {
     title: topic.title,
     body: topic.body,
