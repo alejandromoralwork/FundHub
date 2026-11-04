@@ -71,25 +71,71 @@ npm run engine -- scheduler
 npm run engine -- worker --groups cssf,gleif,maintenance
 ```
 
-## RCS with your LuxTrust account
+## Admin console (`/admin/engine`)
 
-1. Log in: `npm run engine -- rcs:login`. A browser opens on lbr.lu. Log in with LuxTrust, check that a company page opens, then press Enter. The session is stored in `RCS_PROFILE_DIR`, and `session_health.rcs` is set to `ok`. **RCS jobs do not run until this is done.**
-2. Capture one page: `npm run engine -- rcs:capture B145917`. Open the company's "List of filings" and press Enter.
-   * The page's text and HTML are saved under `test/fixtures/`, and the parser is run on them.
-   * Do this once for an active company, a struck-off company and one in liquidation. Then adjust [rcs/parse.ts](src/sources/rcs/parse.ts) and the URL and selectors (`RCS_ENTITY_URL_TEMPLATE`, `RCS_SEARCH_INPUT`) to the real site.
-3. Fetch one company: `npm run engine -- run rcs_fetch --rcs B145917`.
-4. Set the starting point for new registrations: `npm run engine -- run rcs_frontier --prefix B --from <a recent B number>`.
-5. Start the RCS worker: `npm run engine -- worker --groups rcs`. Run **only one**.
+The admin console has a **Scraping engine** section. It needs `ENGINE_DATABASE_URL` in the console's environment.
 
-**Safeguards**
+| Page | What it does | Who |
+|---|---|---|
+| Overview | Totals, census against what each source reports, RCS coverage per prefix, RCS session state (pause / resume), queue, runs, latest changes | owner, operations, analyst |
+| Registry | Every entity, searchable by name, former name, RCS no., LEI or CSSF code. Filters: kind, service provider, category, status, tier, source, has-RCS | owner, operations, analyst |
+| Entity page | Golden record and which source won each field; edit or remove your overrides; classification; clients (add / end); history of every attribute, change events, CSSF statuses, RCS filings, row history | owner and operations can edit |
+| Jobs & schedules | Run any job with its parameters, switch schedules on/off, edit the RCS number space, see the queue | owner, operations |
+| Match review | Possible duplicates: "Same company" merges them, "Different" keeps them apart | owner, operations |
 
-* Pacing: `RCS_DELAY_MS` plus jitter between requests.
-* Activity window: `RCS_ACTIVE_HOURS`.
-* Volume: a daily cap, `RCS_DAILY_CAP`.
-* Bot checks: a logout or bot check marks the session `logged_out` or `blocked`. All RCS work then pauses until you run `rcs:login` again. The engine never tries to get past a captcha.
-* Order of work: the `rcs_refresh` job first queues companies already known from CSSF and GLEIF, highest tier first, so service providers and asset managers come before the blind sweep.
+Engine tables also appear in **Database**, and in the read-only SQL console via `?db=engine`.
 
-> ⚠️ Before running bulk sweeps, check LBR's terms of use and data-reuse licence. LBR also sells official bulk data, which is safer and faster. If you take that route, swap it in as another adapter. RCS filings contain personal data (directors), so record the GDPR basis and a retention period before collecting them at scale.
+**Changes are recorded at three levels:**
+
+1. **Attribute history (`observations`).** Every value each source stated, with the period it held.
+2. **Change events (`change_events`).** The feed, with the actor: `staff:<email>`, or `null` for the engine.
+3. **Row history (`row_history`).** Database triggers record every row change, including direct SQL, with the actor taken from `app.actor`.
+
+A staff edit is stored as source `manual`. It overrides the registers, and removing it lets the registers win again.
+
+## Getting the first list of RCS entities
+
+> **Tested on 2026-11-04 with a real LuxTrust login: automated browsing of LBR does not work, by LBR's design.** Each search starts a Friendly Captcha check. It never completes in an automated browser, and the engine does not get around it. Full details are in [docs/lbr-findings.md](docs/lbr-findings.md).
+
+The list is built from legitimate sources:
+
+1. **Free official sources, now.**
+   * `gleif_sync --full` loads about 73k Luxembourg LEIs and their RCS numbers (`registeredAs`, authority RA000432).
+   * `cssf_census` loads all supervised entities.
+   * `rcs_seed_frontier` then sets the highest known B-number, and the census shows coverage.
+2. **An official LBR extract: the only route to *every* RCS number and to filing PDFs at scale.**
+   * Request it under LBR's data-reuse terms, using [docs/lbr-data-reuse-request.md](docs/lbr-data-reuse-request.md), and include filing documents in the request.
+   * Then run `rcs_import_file --file extract.csv [--map rcs=<header>,name=<header>]`. Each RCS number becomes an `lbr_bulk` record.
+3. **Optional: capture with a person in the loop.** A staff member browses LBR in their own Chrome and saves the company page they are viewing into the engine. That fits a few priority entities, not a census.
+
+### Capture with a person in the loop: the Chrome snippet
+
+You browse LBR in your own Chrome, where LBR's check passes normally, and a snippet sends the page you are viewing to the engine on your machine. The engine never browses LBR and never calls LBR's internal API.
+
+1. Start the receiver: `cd services/engine && node --import tsx src/cli.ts capture-server`.
+   * It listens on `127.0.0.1:4477` and accepts requests from `https://www.lbr.lu` only.
+2. Add the snippet once: Chrome → lbr.lu → F12 → **Sources → Snippets → + New snippet** → paste [snippets/lbr-save-to-fundhub.js](snippets/lbr-save-to-fundhub.js) → Ctrl+S.
+3. For each company: open it on LBR (search, then company page and its list of filings), then run the snippet with Ctrl+Enter in the snippet or Ctrl+P → `!FundHub save`.
+   * A panel shows what was stored: status, name and number of filings.
+   * It also links to the **next RCS numbers** from the work list: known from GLEIF or CSSF, not captured yet, service providers first.
+4. You can stop at any time. The work list skips numbers already captured, so the next session continues where you stopped.
+5. Every page is also saved to `.engine-data/captures/`. After a parser update, `rcs:import-captures` re-imports them. If the receiver was down, the snippet downloads a `.json` file instead; import those with `rcs:import-captures --dir <Downloads>`.
+
+Keep the scheduled browser jobs off: `ENGINE_DISABLED_SCHEDULES=rcs_frontier,rcs_sweep,rcs_refresh`, or switch them off on the console's Jobs page.
+
+## RCS browser tooling (kept for diagnosis)
+
+* **`npm run engine -- rcs:test B145917 [B… …] --wait-file .engine-data/go-rcs`** opens one browser at lbr.lu and waits for your LuxTrust login. It continues when the page shows *My account*, or when the file exists. It then runs each lookup in that same session and parses the result.
+  * Each step leaves a screenshot and a page summary (URL, buttons, inputs, links, text) under `.engine-data/rcs-debug/<rcs>-<time>/`.
+  * Use it to check whether anything has changed on LBR's side.
+* **Use one browser for login and work.** LuxTrust/TAM sessions are session cookies, so they are lost when the browser closes. `rcs:login` followed by a separate process therefore does **not** keep you logged in.
+* **What the adapter does with LBR's checks.**
+  * It waits for LBR's automatic check to finish (`RcsBrowser.settle()`).
+  * If the check asks for a person, or does not finish within 90 s, the session is marked `blocked` and all RCS work pauses.
+  * An `AccessLimitation` page does the same.
+* **Safeguards for any RCS job:** pacing (`RCS_DELAY_MS` plus jitter), active hours (`RCS_ACTIVE_HOURS`), a daily cap (`RCS_DAILY_CAP`), and one RCS worker only.
+
+> ⚠️ RCS filings contain personal data (directors). Record the GDPR basis and a retention period before collecting them at scale.
 
 ## Deploy: Docker, Azure VM, any cloud
 

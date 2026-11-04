@@ -111,8 +111,8 @@ export async function registryList(f: RegistryFilters) {
         ilike(entities.canonicalName, term),
         ilike(entities.rcsNumber, term),
         ilike(entities.lei, term),
-        sql`exists (select 1 from entity_identifiers i where i.entity_id = ${entities.id} and i.value ilike ${term})`,
-        sql`exists (select 1 from entity_names n where n.entity_id = ${entities.id} and n.name ilike ${term})`,
+        sql`exists (select 1 from entity_identifiers i where i.entity_id = entities.id and i.value ilike ${term})`,
+        sql`exists (select 1 from entity_names n where n.entity_id = entities.id and n.name ilike ${term})`,
       )!,
     );
   }
@@ -125,12 +125,14 @@ export async function registryList(f: RegistryFilters) {
   if (f.rcs === "yes") conds.push(sql`${entities.rcsNumber} is not null`);
   if (f.rcs === "no") conds.push(isNull(entities.rcsNumber));
   if (f.source && (ENGINE_SOURCES as readonly string[]).includes(f.source)) {
-    conds.push(sql`exists (select 1 from source_records s where s.entity_id = ${entities.id} and s.source = ${f.source} and s.state = 'found')`);
+    conds.push(sql`exists (select 1 from source_records s where s.entity_id = entities.id and s.source = ${f.source} and s.state = 'found')`);
   }
   const where = conds.length ? and(...conds) : undefined;
-  const cat = sql<string | null>`(select label from activity_categories c where c.id = ${entities.activityCategoryId})`;
-  const sub = sql<string | null>`(select label from activity_categories c where c.id = ${entities.activitySubcategoryId})`;
-  const sources = sql<string[]>`(select coalesce(array_agg(distinct s.source order by s.source), '{}') from source_records s where s.entity_id = ${entities.id} and s.state = 'found')`;
+  // Correlated subqueries name the outer table explicitly (`entities.id`): an interpolated column would render
+  // as a bare "id", which Postgres would resolve to the inner table's id.
+  const cat = sql<string | null>`(select label from activity_categories c where c.id = entities.activity_category_id)`;
+  const sub = sql<string | null>`(select label from activity_categories c where c.id = entities.activity_subcategory_id)`;
+  const sources = sql<string[]>`(select coalesce(array_agg(distinct s.source order by s.source), '{}') from source_records s where s.entity_id = entities.id and s.state = 'found')`;
   const [rows, [{ n }]] = await Promise.all([
     engineDb
       .select({

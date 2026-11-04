@@ -5,7 +5,10 @@
  *   engine enqueue <job> [--flag value …]  put a job on the queue for the workers
  *   engine worker --groups cssf,gleif,maintenance   serve queued jobs (one RCS worker: --groups rcs)
  *   engine scheduler                       register cron schedules and keep the clock running
- *   engine rcs:login                       open the RCS browser; log in with LuxTrust; press Enter
+ *   engine rcs:login [--wait]              open the RCS browser; log in with LuxTrust; press Enter (or --wait: auto-detect)
+ *   engine capture-server                  receive LBR pages you open in Chrome (snippets/lbr-save-to-fundhub.js)
+ *   engine rcs:import-captures [--dir d]   re-import saved captures (after a parser update)
+ *   engine rcs:session [B… …] [--limit n] [--cap n] [--check-wait min]   collect RCS pages with you at the screen
  *   engine rcs:capture [B123456] [--out d] open the browser, save a company page as a parser fixture
  *   engine parse <cssf|gleif|rcs> <file>   parse a saved file and print the result (debugging)
  *   engine status                          census, queues, session health, recent runs
@@ -25,6 +28,7 @@
  * TYPESCRIPT YOU WILL SEE HERE: `switch`, `readline/promises`, dynamic flag parsing, `Promise<number>`.
  */
 
+import { existsSync } from "node:fs";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -41,6 +45,8 @@ import { parseGleif } from "./sources/gleif/parse";
 import { parseRcsText } from "./sources/rcs/parse";
 import { RcsBrowser } from "./sources/rcs/browser";
 import { config } from "./config";
+import { runRcsSession } from "./rcs-session";
+import { importCaptures, startCaptureServer } from "./capture-server";
 
 /** Kind: constant. Flags whose value is a comma-separated list. */
 const LIST_FLAGS = new Set(["types", "groups"]);
@@ -162,13 +168,116 @@ async function main(): Promise<number> {
       const cfg = config();
       const browser = new RcsBrowser(cfg.rcs);
       const page = await browser.open(false);
-      await page.goto(cfg.rcs.searchUrl);
-      await waitForEnter("\nLog in with LuxTrust in the browser window, open any company page to check, then press Enter here… ");
-      await browser.assertUsable(page);
-      await setSessionHealth("rcs", "ok", "login confirmed by operator");
+      await page.goto("https://www.lbr.lu/mjrcs-web-front/");
+      if (flags.wait) {
+        // --wait: no terminal needed. Watch the page until it shows a logged-in state (a log-out link), for up
+        // to 15 minutes, then save. Useful when the command is started for you (VM, background task).
+        console.log("\nLog in with LuxTrust in the browser window that just opened. It closes by itself once you are logged in.");
+        const LOGGED_IN = /log ?out|sign ?out|se d[ée]connecter|d[ée]connexion|ofmellen|abmelden/i;
+        const deadline = Date.now() + 15 * 60_000;
+        let ok = false;
+        let lastSnap = 0;
+        browser.debugDir = resolve(cfg.rcs.profileDir, "..", "rcs-debug", "login");
+        while (Date.now() < deadline && !ok) {
+          await new Promise((r) => setTimeout(r, 3_000));
+          const p = browser.currentPage() ?? page;
+          const text = await p.innerText("body").catch(() => "");
+          ok = !/luxtrust/i.test(p.url()) && LOGGED_IN.test(text);
+          // A screenshot every 30 s, so a missed detection can be diagnosed from the files.
+          if (Date.now() - lastSnap > 30_000) {
+            await browser.snap(p, ok ? "logged-in" : "waiting");
+            lastSnap = Date.now();
+          }
+        }
+        if (!ok) {
+          await browser.close();
+          console.log("✘ No login detected within 15 minutes. Run it again, or use `rcs:login` without --wait and press Enter.");
+          return 1;
+        }
+        await setSessionHealth("rcs", "ok", "login detected (rcs:login --wait)");
+      } else {
+        await waitForEnter("\nLog in with LuxTrust in the browser window, open any company page to check, then press Enter here… ");
+        await browser.assertUsable(page);
+        await setSessionHealth("rcs", "ok", "login confirmed by operator");
+      }
       await browser.close();
       console.log("✔ RCS session saved in", resolve(cfg.rcs.profileDir));
       return 0;
+    }
+    case "capture-server":
+      // Receives LBR pages you open in your own Chrome (snippets/lbr-save-to-fundhub.js). See src/capture-server.ts.
+      await startCaptureServer();
+      return -1;
+    case "rcs:import-captures":
+      console.log(JSON.stringify(await importCaptures(flags.dir as string | undefined), null, 2));
+      return 0;
+    case "rcs:session":
+      // RCS collection with a person at the screen: resumable, interruptible (see src/rcs-session.ts).
+      return runRcsSession({
+        numbers: positional,
+        limit: flags.limit as number | undefined,
+        cap: flags.cap as number | undefined,
+        checkWaitMin: flags.checkWait as number | undefined,
+        waitFile: flags.waitFile as string | undefined,
+        debug: !!flags.debug,
+      });
+    case "rcs:test": {
+      // One real lookup through the logged-in browser, with a screenshot + page summary at every step, and the
+      // parser run on the result. Writes nothing to the database. Usage: engine rcs:test B145917 [--headless]
+      const cfg = config();
+      const rcs = normalizeRcs(positional[0] ?? "B145917");
+      if (!rcs) throw new Error("Usage: engine rcs:test <RCS number>");
+      const browser = new RcsBrowser({ ...cfg.rcs, headless: !!flags.headless, delayMs: 1_500, jitterMs: 1_000 });
+      browser.debugDir = resolve(cfg.rcs.profileDir, "..", "rcs-debug", `${rcs}-${Date.now()}`);
+      if (flags.checkWait) browser.checkWaitMs = Number(flags.checkWait) * 1000;
+      console.log(`Debug trail: ${browser.debugDir}`);
+      try {
+        if (flags.waitFile) {
+          // Login in the SAME browser that runs the test (LuxTrust session cookies do not survive a browser
+          // restart). Proceeds when the given file exists — created when the operator says "logged in".
+          const page = await browser.open(false);
+          await page.goto("https://www.lbr.lu/mjrcs-web-front/");
+          console.log(`Log in with LuxTrust in the browser window. Continuing when a logged-in page is seen or ${flags.waitFile} exists (20 min)…`);
+          const LOGGED_IN = /log ?out|sign ?out|se d[ée]connecter|d[ée]connexion|ofmellen|abmelden/i;
+          const deadline = Date.now() + 20 * 60_000;
+          let lastSnap = 0;
+          for (;;) {
+            if (existsSync(String(flags.waitFile))) break;
+            const cur = browser.currentPage() ?? page;
+            const text = await cur.innerText("body").catch(() => "");
+            if (!/luxtrust|\/login\//i.test(cur.url()) && LOGGED_IN.test(text)) break;
+            if (Date.now() > deadline) throw new Error("Timed out waiting for login");
+            if (Date.now() - lastSnap > 30_000) {
+              await browser.snap(browser.currentPage() ?? page, "waiting-login");
+              lastSnap = Date.now();
+            }
+            await new Promise((r) => setTimeout(r, 2_000));
+          }
+          await browser.snap(browser.currentPage() ?? page, "logged-in");
+          console.log("Login confirmed — running the lookup.");
+        }
+        // Every number given (one login covers them all), each saved as page-<rcs>.txt / .html.
+        const numbers = [rcs, ...positional.slice(1).map((n) => normalizeRcs(n)).filter((n): n is string => !!n)];
+        for (const n of numbers) {
+          const cap = await browser.capture(n);
+          await writeFile(join(browser.debugDir, `page-${n}.txt`), cap.text);
+          await writeFile(join(browser.debugDir, `page-${n}.html`), cap.html);
+          try {
+            const parsed = parseRcsText(cap.text, n);
+            console.log(JSON.stringify({ rcs: n, url: cap.url, state: parsed.state, facts: parsed.facts, filings: parsed.rcsFilings?.length ?? 0, firstFilings: parsed.rcsFilings?.slice(0, 2) }, null, 2));
+          } catch (err) {
+            console.log(`${n}: captured (${cap.url}) but the parser does not recognise it yet: ${err instanceof Error ? err.message : err}`);
+          }
+        }
+        return 0;
+      } catch (err) {
+        const page = browser.currentPage();
+        if (page) await browser.snap(page, "error");
+        console.error(`✘ ${err instanceof Error ? err.message : err}`);
+        return 1;
+      } finally {
+        await browser.close();
+      }
     }
     case "rcs:capture": {
       const cfg = config();
