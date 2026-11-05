@@ -85,7 +85,8 @@ export function normalizeName(name: string): string {
 export function normalizeRcs(v: string | null | undefined): string | null {
   if (!v) return null;
   const m = v.toUpperCase().replace(/[\s.-]/g, "").match(/^([A-Z])0*(\d{1,7})$/);
-  return m ? `${m[1]}${m[2]}` : null;
+  // "B0" / "B000" are placeholders seen in GLEIF data, not RCS numbers.
+  return m && Number(m[2]) > 0 ? `${m[1]}${m[2]}` : null;
 }
 
 /** Kind: function. Splits "B145917" into ["B", 145917]. */

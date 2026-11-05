@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parseCssf } from "../src/sources/cssf/parse";
 import { parseGleif } from "../src/sources/gleif/parse";
-import { parseRcsText } from "../src/sources/rcs/parse";
+import { parseRcsSearchList, parseRcsText, rcsFromUrl } from "../src/sources/rcs/parse";
 import { parseCsv, parseLbrRow, resolveColumns } from "../src/sources/lbr-bulk/parse";
 import type { RawCapture } from "../src/core/types";
 
@@ -147,6 +147,35 @@ test("LBR bulk extract: CSV with quotes and French headers → RCS-keyed records
   assert.equal(parseLbrRow(rows[3], cols), null);
   assert.throws(() => resolveColumns(["Name", "City"]));
   assert.equal(resolveColumns(["Company", "RCS-Nr"], { rcs: "RCS-Nr" }).rcs, 1);
+});
+
+test("RCS live page (LBR 2026): company header, address, filings — not fooled by 'Registered office' in a filing", () => {
+  const text = fixture("lbr-company-B100554.txt").toString("utf8");
+  const r = parseRcsText(text, rcsFromUrl("https://www.lbr.lu/mjrcs-web-front/consult-company/B100554?tab=deposit")!);
+  assert.equal(r.state, "found");
+  assert.equal(r.externalId, "B100554");
+  assert.equal(r.facts.name, "SOPRA STERIA PSF LUXEMBOURG S.A.");
+  assert.equal(r.facts.legalForm, "Société anonyme");
+  assert.equal(r.facts.registrationDate, "2004-05-07");
+  assert.equal(r.facts.rcsLastFilingDate, "2026-10-16");
+  assert.equal(r.facts.status, "active");
+  assert.equal((r.facts.address as { postcode: string; city: string }).postcode, "3364");
+  assert.equal((r.facts.address as { postcode: string; city: string }).city, "Leudelange");
+  assert.ok(r.rcsFilings!.length >= 60);
+  assert.deepEqual(r.rcsFilings![0], { filingNumber: "L260403335", filingDate: "2026-10-16", type: "Annual accounts (eCDF)", details: ["Financial year from 01/01/2025 to 31/12/2025"], corrects: null, correctedBy: null, hasDocuments: true });
+  assert.equal(r.rcsFilings!.find((f) => f.filingNumber === "L210139264")!.corrects, "L210116926");
+  assert.equal(r.rcsFilings!.at(-1)!.type, "Registration");
+});
+
+test("RCS search-results page: companies with struck-off flag, sole traders (A…) dropped", () => {
+  const list = parseRcsSearchList(fixture("lbr-search-arendt.txt").toString("utf8"))!;
+  assert.equal(list.total, 199);
+  assert.ok(list.items.length > 10);
+  assert.ok(list.items.every((i) => !i.rcs.startsWith("A")));
+  assert.deepEqual(list.items[0], { rcs: "B145917", name: "Arendt Investor Services SA", struckOff: false });
+  assert.deepEqual(list.items.find((i) => i.rcs === "B171349"), { rcs: "B171349", name: "RBC Investor Services Limited", struckOff: true });
+  assert.ok(list.items.some((i) => i.rcs === "E7998"));
+  assert.equal(parseRcsSearchList(fixture("lbr-company-B100554.txt").toString("utf8")), null);
 });
 
 test("RCS: unknown page shapes fail loudly, 'no result' pages are not_found", () => {

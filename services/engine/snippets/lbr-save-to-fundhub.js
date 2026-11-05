@@ -11,7 +11,9 @@
  *   2. Chrome → open https://www.lbr.lu → F12 (DevTools) → Sources → Snippets → "+ New snippet"
  *      → name it "FundHub save" → paste this whole file → Ctrl+S.
  * USE (each company):
- *   1. Search the RCS number on LBR as usual and open the company page (and its "List of filings").
+ *   1. Open the company page on its "List of filings" tab (search on LBR as usual, or click a "Next" link in the
+ *      FundHub panel). Saving a SEARCH RESULTS page also works: it stores every company listed (RCS no., name,
+ *      struck-off), skipping sole traders.
  *   2. Run the snippet: in DevTools press Ctrl+Enter in the snippet, or Ctrl+P → type "!FundHub save" → Enter.
  *   3. A small FundHub panel shows what was saved and links to the next numbers. Click one, repeat.
  * If the receiver is not running, the page is downloaded as a .json file instead; import those later with
@@ -19,10 +21,14 @@
  */
 (async () => {
   const ENGINE = "http://127.0.0.1:4477";
-  const SEARCH = "https://www.lbr.lu/mjrcs-web-front/consult-search-list?search=";
+  // Next companies open directly on their "List of filings" tab (the page you would reach by searching).
+  const COMPANY = (rcs) => "https://www.lbr.lu/mjrcs-web-front/consult-company/" + encodeURIComponent(rcs) + "?tab=deposit";
+
+  // Read the page FIRST, before the FundHub panel is added to it.
+  document.getElementById("fundhub-panel")?.remove();
+  const payload = { url: location.href, text: document.body.innerText, html: document.documentElement.outerHTML };
 
   // --- small floating panel (replaced on every run)
-  document.getElementById("fundhub-panel")?.remove();
   const panel = document.createElement("div");
   panel.id = "fundhub-panel";
   panel.style.cssText =
@@ -41,7 +47,7 @@
   const nextLinks = (next) =>
     next && next.length
       ? '<div style="margin-top:8px">Next to open:</div>' +
-        next.map((n) => `<div><a href="${SEARCH}${encodeURIComponent(n)}" style="color:#0b5cad">${esc(n)}</a> · <a href="#" data-skip="${esc(n)}" style="color:#999">skip</a></div>`).join("")
+        next.map((n) => `<div><a href="${COMPANY(n)}" style="color:#0b5cad">${esc(n)}</a> · <a href="#" data-skip="${esc(n)}" style="color:#999">skip</a></div>`).join("")
       : '<div style="margin-top:8px;color:#666">Work list empty.</div>';
   const wireSkips = () =>
     panel.querySelectorAll("[data-skip]").forEach((a) => {
@@ -53,11 +59,11 @@
       };
     });
 
-  const payload = { url: location.href, text: document.body.innerText, html: document.documentElement.outerHTML };
-
   try {
     const r = await fetch(ENGINE + "/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then((x) => x.json());
-    const head = r.ok
+    const head = r.kind === "list"
+      ? `<div style="color:#0a7a3d">✓ Search list saved — ${esc(r.companies)} companies (sole traders skipped)</div><div style="color:#666">${esc(JSON.stringify(r.stats))}</div>`
+      : r.ok
       ? `<div style="color:#0a7a3d">✓ ${esc(r.rcs)} saved — ${esc(r.status)}</div><div>${esc(r.name)}</div><div style="color:#666">${esc(r.filings)} filings${r.changes ? ` · ${esc(r.changes)} changes` : ""}</div>`
       : `<div style="color:#b45309">⚠ ${esc(r.rcs || "")} ${esc(r.error)}</div>`;
     show(head + nextLinks(r.next));

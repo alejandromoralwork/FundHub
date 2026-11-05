@@ -23,7 +23,7 @@ export const RCS_NOT_FOUND_RE = /no (result|company|match)|aucun r[ée]sultat|no
 
 const FILING_RE = /^L\d{9}$/;
 const DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
-const CORRECTS_RE = /^Corrects filing N°\s*(L\d{9})/i;
+const CORRECTS_RE = /^(?:Corrects filing|Correction of filing) N°\s*(L\d{9})/i;
 const CORRECTED_BY_RE = /^Corrected by the filing N°\s*(L\d{9})/i;
 
 /** Kind: class. Thrown when the page is not a company page (login page, layout change…). */
@@ -70,10 +70,27 @@ export function parseFilings(lines: string[]): RcsFilingRow[] {
   return out;
 }
 
+/** Kind: constant. An RCS number on its own line (B123456, E7998, I6…). */
+const RCS_LINE_RE = /^[A-Z]\s?\d{1,7}$/;
+/** Kind: constant. The header label just below the RCS number (2026 portal: "Registered headquarters"). */
+const HQ_RE = /^(registered )?(headquarters|office)$|^si[èe]ge (social|statutaire)$/i;
+
 /**
- * Kind: function. Parses the visible text of an RCS company page.
+ * Kind: function. The RCS number in an LBR URL (…/consult-company/B100554?tab=deposit), or null.
+ * @param url  type `string | undefined`.
+ */
+export function rcsFromUrl(url: string | undefined): string | null {
+  return normalizeRcs(url?.match(/consult-company\/([A-Za-z]\d{1,7})/)?.[1]);
+}
+
+/**
+ * Kind: function. Parses the visible text of an RCS company page (LBR portal, English), e.g.
+ *   "… SOPRA STERIA PSF LUXEMBOURG S.A. / B100554 / Manage this company / Registered headquarters /
+ *    2-4, Rue du Chateau d'Eau / 3364 Leudelange / Registration date / 07/05/2004 / Legal form / Société anonyme /
+ *    … Date of last filing :16/10/2026 … Filing N° / Date / Type of filing / Details / Consult the filing / L26…".
+ * Header labels are only searched ABOVE the filings list: a filing detail can also read "Registered office".
  * @param text        type `string` — innerText of the page.
- * @param externalId  type `string` — the RCS number we asked for (e.g. "B145917").
+ * @param externalId  type `string` — the RCS number asked for / from the URL (e.g. "B145917").
  * @returns `ParsedRecord`.
  * @throws  `RcsPageError` when the text is neither a company page nor a "not found" page.
  */
@@ -83,21 +100,26 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
     .map((l) => l.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 
-  const h = lines.findIndex((l) => l.toLowerCase() === "headquarters" || l.toLowerCase() === "registered office");
-  if (h < 2) {
+  const firstFiling = lines.findIndex((l) => FILING_RE.test(l));
+  const top = firstFiling >= 0 ? lines.slice(0, firstFiling) : lines;
+  const h = top.findIndex((l) => HQ_RE.test(l));
+  // The RCS number is the nearest RCS-looking line above the header label; the name is the line above it.
+  let r = h - 1;
+  while (r >= 0 && h - r <= 4 && !RCS_LINE_RE.test(top[r])) r--;
+  if (h < 2 || r < 1 || !RCS_LINE_RE.test(top[r])) {
     if (RCS_NOT_FOUND_RE.test(text)) return { source: "rcs", externalId, state: "not_found", scope: externalId[0], facts: {}, identifiers: [], names: [] };
-    throw new RcsPageError(`Unrecognised RCS page for ${externalId} (no "headquarters" line)`);
+    throw new RcsPageError(`Unrecognised RCS page for ${externalId} (no company header)`);
   }
 
-  const rcsNumber = normalizeRcs(lines[h - 1]) ?? normalizeRcs(externalId);
-  const name = lines[h - 2];
-  // Address lines run from after "headquarters" to "Registration date".
-  const regIdx = lines.findIndex((l, idx) => idx > h && /^registration date$/i.test(l));
-  const addressLines = lines.slice(h + 1, regIdx > h ? regIdx : h + 3);
-  const lastFiling = text.match(/Date of last filing:\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const rcsNumber = normalizeRcs(top[r]) ?? normalizeRcs(externalId);
+  const name = top[r - 1];
+  // Address lines run from after the header label to "Registration date".
+  const regIdx = top.findIndex((l, idx) => idx > h && /^registration date$/i.test(l));
+  const addressLines = top.slice(h + 1, regIdx > h ? regIdx : h + 3);
+  const lastFiling = text.match(/Date of last filing\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
 
-  // Status is read from the header part only (before the filings), where LBR shows it.
-  const header = lines.slice(0, regIdx > 0 ? regIdx + 6 : h + 8).join(" \n");
+  // Status is read from the header part only (name … legal form), where LBR shows it.
+  const header = top.slice(r - 1, regIdx > 0 ? regIdx + 4 : h + 8).join(" \n");
   const status = /struck off|deregistered|radi[ée]e/i.test(header) ? "struck_off" : /liquidation/i.test(header) ? "in_liquidation" : "active";
 
   const filingsStart = lines.findIndex((l) => /^consult the filing$/i.test(l));
@@ -112,8 +134,8 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
       name,
       rcsNumber,
       address: addressLines.length ? parseLuAddress(addressLines.join(", ")) : null,
-      registrationDate: dmyToIso(after(lines, "Registration date")),
-      legalForm: after(lines, "Legal form"),
+      registrationDate: dmyToIso(after(top, "Registration date")),
+      legalForm: after(top, "Legal form"),
       status,
       rcsLastFilingDate: dmyToIso(lastFiling?.[1]),
       rcsFilingCount: rcsFilings.length,
@@ -124,11 +146,41 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
   };
 }
 
+/** Kind: type alias. One row of an LBR search-results list. */
+export type RcsListItem = { rcs: string; name: string; struckOff: boolean };
+
+/**
+ * Kind: function. Parses an LBR search-results page ("199 search result(s) for …", then pairs of
+ * RCS number / trade name, each optionally followed by "struck off"). Returns null if it is not such a page.
+ * Natural persons (prefix A = sole traders) are DROPPED here: their names are personal data and out of scope.
+ * @param text  type `string`.
+ */
+export function parseRcsSearchList(text: string): { total: number | null; items: RcsListItem[] } | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const head = lines.findIndex((l) => /^\d+ search result\(s\)/i.test(l));
+  if (head < 0) return null;
+  const total = Number(lines[head].match(/^(\d+)/)?.[1] ?? NaN);
+  const items: RcsListItem[] = [];
+  for (let i = head + 1; i < lines.length; i++) {
+    if (/^site map$/i.test(lines[i])) break;
+    if (!RCS_LINE_RE.test(lines[i]) || i + 1 >= lines.length) continue;
+    const rcs = normalizeRcs(lines[i]);
+    const name = lines[i + 1];
+    const struckOff = /^struck off$/i.test(lines[i + 2] ?? "");
+    if (rcs && !rcs.startsWith("A") && !RCS_LINE_RE.test(name)) items.push({ rcs, name, struckOff });
+  }
+  return { total: Number.isFinite(total) ? total : null, items };
+}
+
 /**
  * Kind: function. The adapter's `parse`: the raw body is JSON `{ url, text, html }` saved by the browser.
+ * The RCS number in the page URL (consult-company/B…) wins over the id asked for.
  * @param raw  type `RawCapture`.
  */
 export function parseRcs(raw: RawCapture): ParsedRecord {
-  const { text } = JSON.parse(raw.body.toString("utf8")) as { text: string };
-  return parseRcsText(text, raw.externalId);
+  const { text, url } = JSON.parse(raw.body.toString("utf8")) as { text: string; url?: string };
+  return parseRcsText(text, rcsFromUrl(url) ?? raw.externalId);
 }

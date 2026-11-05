@@ -54,12 +54,18 @@ export async function snapshotRcsKnown() {
 export async function rcsSeedFrontier() {
   const maxes = (
     await db.execute<{ prefix: string; max: number }>(sql`
-      select left(value, 1) as prefix, max(substring(value from 2)::int) as max
-      from entity_identifiers where scheme = 'rcs' and value ~ '^[A-Z][0-9]+$'
-      group by 1`)
+      -- The highest number that has another known number within 1000 below it: a lone typo far above the
+      -- real range (GLEIF once had B563447 while new companies were around B313xxx) is ignored.
+      with n as (
+        select left(value, 1) as prefix, substring(value from 2)::int as num
+        from entity_identifiers where scheme = 'rcs' and value ~ '^[A-Z][0-9]+$'
+      ), d as (
+        select prefix, num, num - lag(num) over (partition by prefix order by num) as gap from n
+      )
+      select prefix, max(num) as max from d where gap is not null and gap <= 1000 group by 1`)
   ).rows;
   for (const m of maxes) {
-    await db.execute(sql`update rcs_number_space set max_known = greatest(max_known, ${m.max}), updated_at = now() where prefix = ${m.prefix}`);
+    await db.execute(sql`update rcs_number_space set max_known = ${m.max}, updated_at = now() where prefix = ${m.prefix} and (max_known < ${m.max} or max_known > ${m.max} + 1000)`);
   }
   const census = await snapshotRcsKnown();
   log.info("rcs frontier seeded", { maxes });

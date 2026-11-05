@@ -45,7 +45,8 @@ export type GleifRecord = {
 function luDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+  // GLEIF has a few typos (e.g. "0022-07-07"): keep only plausible years.
+  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 1800 || d.getUTCFullYear() > 2100) return null;
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Luxembourg", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
