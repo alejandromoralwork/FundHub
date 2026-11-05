@@ -6,7 +6,9 @@
  *   engine worker --groups cssf,gleif,maintenance   serve queued jobs (one RCS worker: --groups rcs)
  *   engine scheduler                       register cron schedules and keep the clock running
  *   engine rcs:login [--wait]              open the RCS browser; log in with LuxTrust; press Enter (or --wait: auto-detect)
- *   engine capture-server                  receive LBR pages you open in Chrome (snippets/lbr-save-to-fundhub.js)
+ *   engine capture-server                  receive LBR pages you open in Chrome (browser-extension/)
+ *   engine round:start --kind initial|update [--scope sp|am] [--skip-days n]   start a capture round
+ *   engine round:status | round:list | round:close | round:reset-skipped       capture rounds (register)
  *   engine rcs:import-captures [--dir d]   re-import saved captures (after a parser update)
  *   engine rcs:session [B… …] [--limit n] [--cap n] [--check-wait min]   collect RCS pages with you at the screen
  *   engine rcs:capture [B123456] [--out d] open the browser, save a company page as a parser fixture
@@ -38,6 +40,8 @@ import { censusSnapshots, crawlRuns, entities, entityIdentifiers, entityRelation
 import { makeContext, type JobContext } from "./jobs/context";
 import { GROUPS, inlineEnqueue, isJob, JOBS, type Group, type JobDef } from "./jobs/index";
 import { setSessionHealth } from "./core/ops";
+import { withActor } from "@fundhub/engine-db/core/entity";
+import { activeRound, closeRound, listRounds, nextItems, resetSkipped, roundStats, startRound } from "@fundhub/engine-db/core/rounds";
 import { normalizeLei, normalizeRcs } from "./core/normalize";
 import { bossEnqueue, startBoss, startScheduler, startWorker } from "./queue";
 import { parseCssf } from "./sources/cssf/parse";
@@ -204,6 +208,47 @@ async function main(): Promise<number> {
       console.log("✔ RCS session saved in", resolve(cfg.rcs.profileDir));
       return 0;
     }
+    case "round:start": {
+      // A capture round (see packages/engine-db/src/core/rounds.ts): initial = never captured; update = re-visit.
+      const kind = flags.kind === "update" ? "update" : flags.kind === "initial" ? "initial" : null;
+      if (!kind) throw new Error("Usage: engine round:start --kind initial|update [--scope all|sp|am] [--text <name or B…>] [--skip-days n] [--name …]");
+      const scope = {
+        filter: (flags.text ? "text" : ((flags.scope as string) ?? "all")) as "all" | "sp" | "am" | "text",
+        ...(flags.text ? { text: String(flags.text) } : {}),
+        ...(flags.skipDays ? { skipCapturedWithinDays: Number(flags.skipDays) } : {}),
+      };
+      const out = await db.transaction(async (tx) => {
+        await withActor(tx, "cli");
+        return startRound({ kind, scope, name: flags.name as string | undefined, actor: "cli" }, tx);
+      });
+      console.log(`✔ Round "${out.round.name}" started with ${out.items} companies.`);
+      return 0;
+    }
+    case "round:close": {
+      const r = await db.transaction(async (tx) => {
+        await withActor(tx, "cli");
+        return closeRound(tx);
+      });
+      console.log(r ? `✔ Round "${r.name}" closed.` : "No active round.");
+      return 0;
+    }
+    case "round:reset-skipped":
+      console.log(`✔ ${await resetSkipped()} skipped/failed companies are pending again.`);
+      return 0;
+    case "round:status": {
+      const r = await activeRound();
+      if (!r) {
+        console.log("No active round. Start one: engine round:start --kind initial|update");
+        return 0;
+      }
+      console.log(`Round "${r.name}" (${r.kind}, ${JSON.stringify(r.scope)}) since ${r.startedAt.toISOString().slice(0, 16)}`);
+      console.table([await roundStats(r.id)]);
+      console.log("Next:", (await nextItems(5)).map((i) => `${i.rcs} ${i.name ?? ""}`).join(" · "));
+      return 0;
+    }
+    case "round:list":
+      console.table((await listRounds()).map((r) => ({ id: r.id, name: r.name, kind: r.kind, status: r.status, started: r.startedAt.toISOString().slice(0, 10), total: r.stats.total, done: r.stats.done, changed: r.stats.changed, unchanged: r.stats.unchanged, newFilings: r.stats.new_filings, newDocs: r.stats.new_documents })));
+      return 0;
     case "capture-server":
       // Receives LBR pages you open in your own Chrome (snippets/lbr-save-to-fundhub.js). See src/capture-server.ts.
       await startCaptureServer();

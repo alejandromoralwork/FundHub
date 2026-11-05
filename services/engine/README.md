@@ -108,7 +108,13 @@ The list is built from legitimate sources:
    * Then run `rcs_import_file --file extract.csv [--map rcs=<header>,name=<header>]`. Each RCS number becomes an `lbr_bulk` record.
 3. **Optional: capture with a person in the loop.** A staff member browses LBR in their own Chrome and saves the company page they are viewing into the engine. That fits a few priority entities, not a census.
 
-### Capture with a person in the loop: the Chrome snippet
+### Capture with a person in the loop: the Chrome extension (recommended) or snippet
+
+The **FundHub LBR Capture** extension ([browser-extension/](browser-extension/README.md)) saves every LBR company or search page you open, and every filing PDF your browser receives, with no clicks. On a company page, **Save all documents of this company** opens that company's remaining documents at a human pace and stops on LBR's check or access limit. It never navigates between companies by itself. The snippet below is the manual alternative.
+
+**Capture rounds:** run an *initial* round once, then an *update* round about every month. An update round re-visits captured companies, most-likely-changed first. Unchanged pages cost nothing, and only new filings' PDFs are fetched. Every round is kept in a register: the admin page `/admin/engine/rounds`, or `npm run engine -- round:list`. See [browser-extension/README.md](browser-extension/README.md#capture-rounds-first-full-pass-then-monthly-updates).
+
+#### The snippet
 
 You browse LBR in your own Chrome, where LBR's check passes normally, and a snippet sends the page you are viewing to the engine on your machine. The engine never browses LBR and never calls LBR's internal API.
 

@@ -165,6 +165,8 @@ test("RCS live page (LBR 2026): company header, address, filings — not fooled 
   assert.deepEqual(r.rcsFilings![0], { filingNumber: "L260403335", filingDate: "2026-10-16", type: "Annual accounts (eCDF)", details: ["Financial year from 01/01/2025 to 31/12/2025"], corrects: null, correctedBy: null, hasDocuments: true });
   assert.equal(r.rcsFilings!.find((f) => f.filingNumber === "L210139264")!.corrects, "L210116926");
   assert.equal(r.rcsFilings!.at(-1)!.type, "Registration");
+  // The page footer must not leak into the last filing.
+  assert.deepEqual(r.rcsFilings!.at(-1)!.details, []);
 });
 
 test("RCS search-results page: companies with struck-off flag, sole traders (A…) dropped", () => {
@@ -181,4 +183,17 @@ test("RCS search-results page: companies with struck-off flag, sole traders (A�
 test("RCS: unknown page shapes fail loudly, 'no result' pages are not_found", () => {
   assert.equal(parseRcsText("Search\nNo result found for B999999", "B999999").state, "not_found");
   assert.throws(() => parseRcsText("Please log in with LuxTrust", "B1"));
+});
+
+test("RCS struck-off company page ('radiée'): status, deletion date, address, legal form", () => {
+  const r = parseRcsText(fixture("lbr-company-B151142-struck-off.txt").toString("utf8"), "B151142");
+  assert.equal(r.state, "found");
+  assert.equal(r.externalId, "B151142");
+  assert.equal(r.facts.name, "CSCP CREDIT ACQUISITION HOLDINGS LUXCO SARL");
+  assert.equal(r.facts.status, "struck_off");
+  assert.equal(r.facts.registrationDate, "2010-02-09");
+  assert.equal(r.facts.rcsDeletionDate, "2025-02-13");
+  assert.equal(r.facts.legalForm, "Société à responsabilité limitée");
+  assert.deepEqual(r.facts.address, { street: "8-10, rue Genistre", postcode: "1623", city: "Luxembourg", country: "LU", raw: "8-10, rue Genistre, 1623 Luxembourg" });
+  assert.equal(r.rcsFilings!.length, 0);
 });

@@ -12,11 +12,12 @@
 import Link from "next/link";
 import { Alert, Button, Card, Col, Empty, Popconfirm, Progress, Row, Space, Statistic, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
-import type { engineDashboard } from "@/lib/engine-data";
+import type { currentRound, engineDashboard } from "@/lib/engine-data";
 import { setRcsSession } from "@/lib/engine-actions";
 import { useAction } from "./use-action";
 
 type Data = Awaited<ReturnType<typeof engineDashboard>>;
+type Round = Awaited<ReturnType<typeof currentRound>>;
 
 /** Kind: function. Short date-time. */
 export const fmt = (d: string | null | undefined) => (d ? dayjs(d).format("D MMM YYYY HH:mm") : "—");
@@ -66,14 +67,36 @@ export function RcsSessionCard({ sessions }: { sessions: { source: string; state
   );
 }
 
+/** Kind: React component. The active capture round: progress, results so far, next companies. */
+function CurrentRoundCard({ round }: { round: Round }) {
+  if (!round)
+    return (
+      <Card size="small" title="Capture round">
+        <Typography.Text type="secondary">No active round. </Typography.Text>
+        <Link href="/engine/rounds">Start one in Capture rounds →</Link>
+      </Card>
+    );
+  const s = round.stats;
+  return (
+    <Card size="small" title={<>Capture round: <b>{round.name}</b> <Tag color={round.kind === "update" ? "blue" : "purple"}>{round.kind}</Tag></>} extra={<Link href="/engine/rounds">Register →</Link>}>
+      <Progress percent={s.total ? Math.round((s.done / s.total) * 100) : 0} />
+      <Typography.Text type="secondary">
+        {s.done.toLocaleString()} / {s.total.toLocaleString()} · new {s.captured} · changed {s.changed} · unchanged {s.unchanged} · skipped {s.skipped} · new filings {s.new_filings} · new PDFs {s.new_documents}
+      </Typography.Text>
+      {round.next.length > 0 && <div style={{ marginTop: 6 }}>Next: {round.next.map((n) => <Tag key={n.rcs}>{n.rcs} {n.name}</Tag>)}</div>}
+    </Card>
+  );
+}
+
 /** Kind: React component. The dashboard. */
-export function EngineOverview({ data }: { data: Data }) {
+export function EngineOverview({ data, round }: { data: Data; round: Round }) {
   const t = data.totals;
   const sourceCensus = data.census.filter((c) => c.source !== "registry");
   const known = data.census.filter((c) => c.scope.startsWith("rcs:known:"));
   const queue = data.queue;
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <CurrentRoundCard round={round} />
       <Row gutter={16}>
         <Col span={4}><Card size="small"><Statistic title="Entities" value={t.entities} /></Card></Col>
         <Col span={4}><Card size="small"><Statistic title="Service providers" value={t.service_providers} /></Card></Col>

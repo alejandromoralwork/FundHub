@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body class="popup">
+    <header class="fh-head">
+      <img src="icons/icon32.png" width="24" height="24" alt="" />
+      <div>
+        <div class="fh-title">FundHub LBR Capture</div>
+        <div class="fh-sub" id="engine">Checking engine…</div>
+      </div>
+    </header>
+
+    <!-- The current capture round and the NEXT company to open. -->
+    <section class="fh-round" id="round">
+      <div class="fh-row0">
+        <div>
+          <div class="fh-h2" id="r-name">No active round</div>
+          <div class="fh-muted0" id="r-kind"></div>
+        </div>
+        <div class="fh-actions" id="r-actions"></div>
+      </div>
+      <div class="fh-progress0"><div id="r-bar"></div></div>
+      <div class="fh-muted0" id="r-line"></div>
+      <div class="fh-next" id="r-next"></div>
+    </section>
+
+    <!-- Start a new round (hidden until "New round…"). -->
+    <section class="fh-card" id="newRound" hidden>
+      <div class="fh-h2">New capture round</div>
+      <label class="fh-switch"><input type="radio" name="kind" value="initial" checked /> Initial — companies never captured</label>
+      <label class="fh-switch"><input type="radio" name="kind" value="update" /> Update — re-visit captured companies (only changes and new PDFs are saved)</label>
+      <div class="fh-grid">
+        <label>Scope
+          <select id="n-scope">
+            <option value="all">All</option>
+            <option value="sp">Service providers</option>
+            <option value="am">Asset managers</option>
+            <option value="text">Name / B-number…</option>
+          </select>
+        </label>
+        <label id="n-text-wrap" hidden>Text <input id="n-text" class="fh-input0" placeholder="e.g. Arendt or B14" /></label>
+        <label id="n-skip-wrap" hidden>Skip if captured in last <input id="n-skip" type="number" min="0" value="20" class="fh-input0" style="width:56px" /> days</label>
+        <label>Name <input id="n-name" class="fh-input0" placeholder="(automatic)" /></label>
+      </div>
+      <div class="fh-row0" style="margin-top:6px">
+        <button class="fh-btn" id="n-start">Start round</button>
+        <button class="fh-btn ghost" id="n-cancel">Cancel</button>
+      </div>
+      <div class="fh-muted0">Starting a round closes the current one (it stays in the register).</div>
+    </section>
+
+    <section class="fh-stats" id="stats">
+      <div><b id="s-captured">–</b><span>companies captured</span></div>
+      <div><b id="s-docs">–</b><span>documents saved</span></div>
+      <div><b id="s-today">–</b><span>today</span></div>
+      <div><b id="s-remaining">–</b><span>never captured</span></div>
+    </section>
+
+    <section class="fh-card">
+      <label class="fh-switch"><input type="checkbox" id="enabled" /> Save the LBR pages I open</label>
+      <label class="fh-switch"><input type="checkbox" id="autoDocs" /> Also save each company's documents when I open it (only those not saved yet)</label>
+      <label class="fh-switch"><input type="checkbox" id="keepLocalCopy" /> Also keep a copy of each PDF in my Downloads (shows Chrome's save dialog)</label>
+      <div class="fh-muted0">Shortcut: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the next company.</div>
+    </section>
+
+    <section>
+      <div class="fh-row">
+        <div class="fh-h2">Up next</div>
+        <select id="filter" title="Only used when no round is active">
+          <option value="">Priority order</option>
+          <option value="sp">Service providers</option>
+          <option value="am">Asset managers</option>
+        </select>
+      </div>
+      <input id="search" class="fh-input" placeholder="Filter by name or B-number… (no round only)" />
+      <ol class="fh-queue" id="queue"></ol>
+    </section>
+
+    <footer class="fh-foot">
+      <a href="http://localhost:3001/admin/engine/rounds" target="_blank">Round register</a>
+      <a href="http://localhost:3001/admin/engine/registry" target="_blank">Registry</a>
+      <span class="fh-muted">Only pages you open are saved.</span>
+    </footer>
+    <script src="popup.js"></script>
+  </body>
+</html>

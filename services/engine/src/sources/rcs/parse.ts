@@ -50,7 +50,8 @@ export function parseFilings(lines: string[]): RcsFilingRow[] {
     const filingNumber = lines[i];
     // The block ends at the next filing number (or the end of the page).
     let end = i + 1;
-    while (end < lines.length && !FILING_RE.test(lines[end])) end++;
+    // …or at the page footer ("Site map"), so footer links never become filing details.
+    while (end < lines.length && !FILING_RE.test(lines[end]) && !/^site map$/i.test(lines[end])) end++;
     const block = lines.slice(i + 1, end);
     // A complete block has at least a date and a type; a truncated last block is skipped.
     if (block.length >= 2 && DATE_RE.test(block[0])) {
@@ -65,7 +66,7 @@ export function parseFilings(lines: string[]): RcsFilingRow[] {
       }
       out.push(row);
     }
-    i = end < lines.length ? end : -1;
+    i = end < lines.length && FILING_RE.test(lines[end]) ? end : -1;
   }
   return out;
 }
@@ -135,6 +136,8 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
       rcsNumber,
       address: addressLines.length ? parseLuAddress(addressLines.join(", ")) : null,
       registrationDate: dmyToIso(after(top, "Registration date")),
+      // Struck-off companies ("radiée") show when they were removed from the register.
+      rcsDeletionDate: dmyToIso(after(top, "Deletion date") ?? after(top, "Date de radiation")),
       legalForm: after(top, "Legal form"),
       status,
       rcsLastFilingDate: dmyToIso(lastFiling?.[1]),

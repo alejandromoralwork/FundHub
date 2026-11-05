@@ -1,0 +1,68 @@
+/* FundHub LBR Capture — popup styles (the on-page panel has its own scoped styles in content.js). */
+:root {
+  --navy: #0b2a4a;
+  --gold: #f2b233;
+  --ink: #14202e;
+  --muted: #6b7785;
+  --line: #e4e8ee;
+  --ok: #0a7a3d;
+  --warn: #b45309;
+  --bg: #ffffff;
+  --soft: #f5f7fa;
+}
+* { box-sizing: border-box; }
+body.popup { width: 360px; margin: 0; font: 13px/1.45 system-ui, "Segoe UI", Arial, sans-serif; color: var(--ink); background: var(--bg); }
+.fh-head { display: flex; gap: 10px; align-items: center; padding: 12px 14px; background: var(--navy); color: #fff; }
+.fh-title { font-weight: 650; }
+.fh-sub { font-size: 12px; opacity: 0.85; }
+.fh-sub.ok::before { content: "● "; color: #4ade80; }
+.fh-sub.bad::before { content: "● "; color: #f87171; }
+.fh-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 12px 14px 6px; }
+.fh-stats div { background: var(--soft); border-radius: 8px; padding: 6px; text-align: center; }
+.fh-stats b { display: block; font-size: 16px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.fh-stats span { font-size: 10.5px; color: var(--muted); }
+.fh-progress { height: 6px; margin: 4px 14px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.fh-progress div { height: 100%; width: 0; background: var(--gold); transition: width 0.4s; }
+.fh-muted { color: var(--muted); font-size: 11.5px; padding: 0 14px; }
+.fh-card { margin: 10px 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.fh-card .fh-muted { padding: 0; margin-top: 4px; }
+.fh-switch { display: flex; gap: 8px; align-items: center; margin: 4px 0; cursor: pointer; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; background: var(--soft); }
+section { padding: 0 0 4px; }
+.fh-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 14px 4px; }
+.fh-h2 { font-weight: 650; }
+select, .fh-input { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.fh-input { width: calc(100% - 28px); margin: 0 14px 6px; }
+.fh-queue { list-style: none; margin: 0; padding: 0 8px 6px; max-height: 260px; overflow: auto; }
+.fh-queue li { display: flex; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 6px; }
+.fh-queue li:hover { background: var(--soft); }
+.fh-queue .rcs { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--navy); min-width: 64px; }
+.fh-queue .name { flex: 1; min-width: 0; }
+.fh-queue .name div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fh-queue .meta { font-size: 11px; color: var(--muted); }
+.fh-tag { display: inline-block; font-size: 10px; padding: 0 5px; border-radius: 8px; background: #e8f0fb; color: #0b5cad; margin-right: 4px; }
+.fh-tag.sp { background: #fdf3dc; color: #8a5a00; }
+.fh-tag.off { background: #fde8e8; color: #9b1c1c; }
+.fh-btn { font: inherit; font-size: 12px; border: 1px solid var(--navy); background: var(--navy); color: #fff; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.fh-btn.ghost { background: #fff; color: var(--muted); border-color: var(--line); }
+.fh-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 14px 12px; border-top: 1px solid var(--line); }
+.fh-foot a { color: #0b5cad; font-size: 12px; }
+.fh-foot .fh-muted { padding: 0; }
+.fh-empty { color: var(--muted); padding: 8px; }
+
+/* Capture round card + new-round form */
+.fh-round { margin: 10px 14px 4px; padding: 10px; border: 2px solid var(--navy); border-radius: 10px; background: #fbfcfe; }
+.fh-row0 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fh-actions { display: flex; gap: 4px; }
+.fh-muted0 { color: var(--muted); font-size: 11.5px; }
+.fh-progress0 { height: 8px; margin: 6px 0 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.fh-progress0 div { height: 100%; width: 0; background: var(--gold); transition: width 0.4s; }
+.fh-next { margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--navy); color: #fff; }
+.fh-next .lbl { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8; }
+.fh-next .rcs { font-family: ui-monospace, Consolas, monospace; font-weight: 700; color: var(--gold); }
+.fh-next .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fh-next .go { width: 100%; margin-top: 6px; font: inherit; font-weight: 650; border: 0; border-radius: 6px; padding: 6px; background: var(--gold); color: var(--navy); cursor: pointer; }
+.fh-grid { display: grid; gap: 4px; margin-top: 6px; }
+.fh-grid label { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.fh-input0 { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.fh-foot a { margin-right: 6px; }

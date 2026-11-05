@@ -6,7 +6,7 @@
   "description": "FundHub Scraping Engine: CSSF, GLEIF and RCS registers + AI web agent, cross-matched into one registry with change tracking.",
   "scripts": {
     "engine": "tsx src/cli.ts",
-    "test": "node --import tsx --test test/parsers.test.ts test/core.test.ts test/db.integration.test.ts",
+    "test": "node --import tsx --test test/parsers.test.ts test/core.test.ts test/db.integration.test.ts test/rounds.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

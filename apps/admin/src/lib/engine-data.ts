@@ -14,6 +14,7 @@ import { and, asc, count, desc, eq, ilike, isNull, or, sql, type SQL } from "dri
 import { db as engineDb } from "@fundhub/engine-db/client";
 import { DISABLED_SCHEDULES_KEY, JOB_CATALOG } from "@fundhub/engine-db/jobs-catalog";
 import { PRECEDENCE } from "@fundhub/engine-db/core/golden";
+import { activeRound, listRounds, nextItems, roundItems, roundStats } from "@fundhub/engine-db/core/rounds";
 import {
   activityCategories,
   censusSnapshots,
@@ -277,4 +278,21 @@ export async function jobsPage() {
     sessions,
     runs,
   });
+}
+
+// ------------------------------------------------------------------ capture rounds (register)
+
+/** Kind: async function. The register of capture rounds (newest first) with totals, plus one round's items. */
+export async function roundsPage(roundId?: number, status?: string) {
+  const rounds = await listRounds(engineDb);
+  const selected = roundId ? rounds.find((r) => r.id === roundId) : (rounds.find((r) => r.status === "active") ?? rounds[0]);
+  const items = selected ? await roundItems(selected.id, { status: status || undefined, limit: 500 }, engineDb) : [];
+  return plain({ rounds, selectedId: selected?.id ?? null, items });
+}
+
+/** Kind: async function. The active round and its totals (dashboard card), or null. */
+export async function currentRound() {
+  const r = await activeRound(engineDb);
+  if (!r) return null;
+  return plain({ ...r, stats: await roundStats(r.id, engineDb), next: await nextItems(3, engineDb) });
 }

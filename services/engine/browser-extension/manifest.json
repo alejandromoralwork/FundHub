@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "FundHub LBR Capture",
+  "version": "0.3.6",
+  "description": "Saves the LBR (RCS) pages and filing documents you open into your local FundHub engine. It never browses LBR on its own.",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["https://www.lbr.lu/*", "http://127.0.0.1:4477/*"],
+  "background": { "service_worker": "bg.js" },
+  "action": {
+    "default_title": "FundHub LBR Capture",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png" }
+  },
+  "commands": {
+    "open-next": {
+      "suggested_key": { "default": "Alt+Shift+N" },
+      "description": "Open the next company of the FundHub work list"
+    }
+  },
+  "web_accessible_resources": [{ "resources": ["icons/icon32.png"], "matches": ["https://www.lbr.lu/*"] }],
+  "content_scripts": [
+    {
+      "matches": ["https://www.lbr.lu/mjrcs-web-front/*"],
+      "js": ["hook.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.lbr.lu/mjrcs-web-front/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -9,7 +9,7 @@
 import type { Metadata } from "next";
 import { EngineOverview, EngineUnavailable } from "@/components/engine-overview";
 import { CAN, requireStaff } from "@/lib/auth";
-import { engineDashboard } from "@/lib/engine-data";
+import { currentRound, engineDashboard } from "@/lib/engine-data";
 
 export const metadata: Metadata = { title: "Scraping engine" };
 // Always fresh: the engine changes in the background.
@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
 export default async function EnginePage() {
   await requireStaff(CAN.engine);
   try {
-    return <EngineOverview data={await engineDashboard()} />;
+    const [data, round] = await Promise.all([engineDashboard(), currentRound()]);
+    return <EngineOverview data={data} round={round} />;
   } catch (err) {
     return <EngineUnavailable error={err instanceof Error ? err.message : String(err)} />;
   }

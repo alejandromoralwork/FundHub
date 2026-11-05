@@ -19,6 +19,7 @@ import { z } from "zod";
 import { db as engineDb } from "@fundhub/engine-db/client";
 import { applyManualEdit, endRelation, mergeEntities, setManualRelation, withActor } from "@fundhub/engine-db/core/entity";
 import { parseLuAddress } from "@fundhub/engine-db/core/normalize";
+import { closeRound, resetSkipped, startRound } from "@fundhub/engine-db/core/rounds";
 import { DISABLED_SCHEDULES_KEY, JOB_CATALOG, isJobName, type JobInfo } from "@fundhub/engine-db/jobs-catalog";
 import { ENTITY_KINDS, ENTITY_STATUSES, RELATION_KINDS, engineSettings, matchCandidates, rcsNumberSpace, sessionHealth, sourceRecords } from "@fundhub/engine-db/schema";
 import { audit } from "./audit";
@@ -238,4 +239,51 @@ export async function decideMatch(candidateId: number, accept: boolean): Promise
   } catch (err) {
     return fail(err);
   }
+}
+
+// ------------------------------------------------------------------ capture rounds
+
+const roundInput = z.object({
+  kind: z.enum(["initial", "update"]),
+  filter: z.enum(["all", "sp", "am", "text"]),
+  text: z.string().trim().optional(),
+  skipDays: z.number().int().min(0).max(365).optional(),
+  name: z.string().trim().max(80).optional(),
+});
+
+/** Kind: server action. Starts a capture round (closes the active one, which stays in the register). */
+export async function startCaptureRound(input: z.infer<typeof roundInput>): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineJobs);
+  const v = roundInput.safeParse(input);
+  if (!v.success) return { error: v.error.issues[0]?.message ?? "Invalid values" };
+  if (v.data.filter === "text" && !v.data.text) return { error: "Enter a name or B-number for the scope" };
+  const scope = { filter: v.data.filter, ...(v.data.text ? { text: v.data.text } : {}), ...(v.data.skipDays ? { skipCapturedWithinDays: v.data.skipDays } : {}) };
+  const out = await engineDb.transaction(async (tx) => {
+    await withActor(tx, actorOf(staff));
+    return startRound({ kind: v.data.kind, scope, name: v.data.name || undefined, actor: actorOf(staff) }, tx);
+  });
+  await audit(staff, "start", "engine-round", out.round.id, { ...v.data, items: out.items });
+  revalidatePath("/engine/rounds");
+  return { ok: `Round "${out.round.name}" started with ${out.items.toLocaleString()} companies` };
+}
+
+/** Kind: server action. Closes the active capture round. */
+export async function closeCaptureRound(): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineJobs);
+  const r = await engineDb.transaction(async (tx) => {
+    await withActor(tx, actorOf(staff));
+    return closeRound(tx);
+  });
+  if (r) await audit(staff, "close", "engine-round", r.id, {});
+  revalidatePath("/engine/rounds");
+  return r ? { ok: `Round "${r.name}" closed` } : { error: "No active round" };
+}
+
+/** Kind: server action. Puts skipped / failed companies of the active round back in the queue. */
+export async function resetCaptureRoundSkipped(): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineJobs);
+  const n = await resetSkipped(engineDb);
+  await audit(staff, "reset-skipped", "engine-round", null, { n });
+  revalidatePath("/engine/rounds");
+  return { ok: `${n} companies back in the queue` };
 }

@@ -335,6 +335,8 @@ export const documents = pgTable("documents", {
   mime: text("mime").notNull(),
   bytes: integer("bytes").notNull(),
   pages: integer("pages"),
+  /** The filing this document was opened from (when known), so it can be linked once the filing is captured. */
+  filingNumber: text("filing_number"),
   textStatus: text("text_status", { enum: TEXT_STATUSES }).notNull().default("pending"),
   textBlobKey: text("text_blob_key"),
   downloadedAt: ts("downloaded_at").notNull().defaultNow(),
@@ -524,6 +526,56 @@ export const rcsNumberSpace = pgTable("rcs_number_space", {
 });
 
 /**
+ * Kind: table "capture_rounds". A capture ROUND ("loop"): a planned pass over a list of RCS companies that a
+ * person works through in the browser (FundHub LBR Capture extension). "initial" = companies never captured;
+ * "update" = companies captured before, to pick up changes and new filings (unchanged pages cost nothing:
+ * content hash). At most one round is active. Closed rounds are the register of past passes.
+ */
+export const captureRounds = pgTable(
+  "capture_rounds",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["initial", "update"] }).notNull(),
+    /** { filter: "all" | "sp" | "am" | "text", text?, skipCapturedWithinDays? } */
+    scope: jsonb("scope").$type<RoundScope>().notNull(),
+    status: text("status", { enum: ["active", "closed"] }).notNull().default("active"),
+    createdBy: text("created_by"),
+    notes: text("notes"),
+    startedAt: ts("started_at").notNull().defaultNow(),
+    closedAt: ts("closed_at"),
+  },
+  (t) => [uniqueIndex("capture_rounds_one_active_uq").on(t.status).where(sql`status = 'active'`)],
+);
+
+/** Kind: type alias. Which companies a round covers. */
+export type RoundScope = { filter: "all" | "sp" | "am" | "text"; text?: string; skipCapturedWithinDays?: number };
+
+/** Kind: constant. States of one company within a round. */
+export const ROUND_ITEM_STATUSES = ["pending", "captured", "changed", "unchanged", "not_found", "skipped", "failed"] as const;
+
+/**
+ * Kind: table "capture_round_items". One company of a round and what happened when it was visited: new page
+ * (captured), changed, unchanged, not found, skipped… with the number of new filings and new documents saved.
+ */
+export const captureRoundItems = pgTable(
+  "capture_round_items",
+  {
+    roundId: integer("round_id").notNull().references(() => captureRounds.id, { onDelete: "cascade" }),
+    rcs: text("rcs").notNull(),
+    position: integer("position").notNull(),
+    status: text("status", { enum: ROUND_ITEM_STATUSES }).notNull().default("pending"),
+    visitedAt: ts("visited_at"),
+    filingsBefore: integer("filings_before"),
+    filingsAfter: integer("filings_after"),
+    newFilings: integer("new_filings").notNull().default(0),
+    newDocuments: integer("new_documents").notNull().default(0),
+    error: text("error"),
+  },
+  (t) => [primaryKey({ columns: [t.roundId, t.rcs] }), index("capture_round_items_next_idx").on(t.roundId, t.status, t.position)],
+);
+
+/**
  * Kind: table "engine_settings". Small key/value settings changed from the admin console, e.g.
  * "disabled_schedules" = ["rcs_sweep"]. The scheduler reads them at start (and the console applies them live).
  */
@@ -554,3 +606,5 @@ export type ActivityCategory = typeof activityCategories.$inferSelect;
 export type RcsFiling = typeof rcsFilings.$inferSelect;
 export type EntityRelation = typeof entityRelations.$inferSelect;
 export type RowHistory = typeof rowHistory.$inferSelect;
+export type CaptureRound = typeof captureRounds.$inferSelect;
+export type CaptureRoundItem = typeof captureRoundItems.$inferSelect;
