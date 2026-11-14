@@ -53,7 +53,7 @@ These are kept out of Git on purpose (they hold secrets or are local data). Copy
 | `services/engine/.env` (if you created one) | Engine overrides | Only if you changed engine defaults |
 | `business_plan.pdf` | Private document | Optional |
 | `services/engine/.engine-data/captures/` | LBR pages captured by the extension (~30 MB) | **Yes if any captures are not yet ingested.** Otherwise optional |
-| `services/engine/.engine-data/blobs/` | Raw files and PDFs the engine stored | Optional (needed only to re-parse old captures) |
+| `services/engine/.engine-data/blobs/` | Raw files and PDFs the engine stored (~480 MB) | Optional (needed only to re-parse old captures) |
 | `packages/engine-db/.pg-data/` | Local engine database (~1.2 GB) | Optional, see step 4 |
 | `packages/db/.pg-data/` | Local website database | No: recreate it with `npm run db:setup` |
 
