@@ -19,6 +19,8 @@ FundHub is several separate parts. Each runs in **its own terminal** and keeps r
 
 ## First time only (one-time setup)
 
+> Setting up a **new PC**? Follow [NEW-PC-SETUP.md](NEW-PC-SETUP.md) first: tools, cloning, and the files to copy that are not on GitHub.
+
 Run these once, each in a terminal at `C:\Users\pc\FundHub`:
 
 ```powershell
@@ -89,6 +91,8 @@ You only need the parts you use:
 npm run engine -- status                       # census, queue, recent runs
 npm run engine -- round:status                 # current capture round
 npm run engine -- round:list                   # register of capture rounds
+npm run engine -- sweep:plan                   # seed the LBR word-search sweep (finds companies GLEIF/CSSF miss)
+npm run engine -- sweep:status                 # search sweep progress per prefix
 npm run engine -- entity B145917               # one company with all its sources
 npm run engine -- run cssf_census --types SPP  # run a job directly (no worker needed)
 npm run engine -- run gleif_sync               # GLEIF delta since the last sync

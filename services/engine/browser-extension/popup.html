@@ -52,6 +52,22 @@
       <div class="fh-muted0">Starting a round closes the current one (it stays in the register).</div>
     </section>
 
+    <!-- Search sweep: find the companies the engine doesn't know yet (one LBR search per click). -->
+    <section class="fh-card" id="sweep">
+      <div class="fh-row0">
+        <div>
+          <div class="fh-h2">Search sweep — find missing companies</div>
+          <div class="fh-muted0" id="sw-line">Checking…</div>
+        </div>
+        <div class="fh-actions" id="sw-actions"></div>
+      </div>
+      <table class="fh-sweep" id="sw-table"></table>
+      <div class="fh-muted0 warn" id="sw-warn" hidden></div>
+      <div class="fh-next" id="sw-next"></div>
+      <label class="fh-switch"><input type="checkbox" id="sweepMode" /> Sweep mode: the panel on LBR pages offers the next <b>search</b> (instead of the next company)</label>
+      <div class="fh-muted0">Each click runs one search, as if you typed it in LBR's search box. Shortcut: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</div>
+    </section>
+
     <section class="fh-stats" id="stats">
       <div><b id="s-captured">–</b><span>companies captured</span></div>
       <div><b id="s-docs">–</b><span>documents saved</span></div>

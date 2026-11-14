@@ -51,6 +51,8 @@ Dashboard · Moderation (company claims, client reviews, provider self-edits) ·
 
 Requires Node.js 20.9+. No Docker needed.
 
+**New machine?** Start with [NEW-PC-SETUP.md](NEW-PC-SETUP.md): the tools to install and the files to copy that are not in Git. Day-to-day running is in [LOCAL-DEV.md](LOCAL-DEV.md).
+
 ```bash
 npm install
 npm run db:local            # terminal 1: real Postgres on localhost:5433 (data in packages/db/.pg-data)

@@ -10,13 +10,16 @@
  *      (4–8 s). Stops by itself on LBR's check / access limit, or when you press Stop. Never leaves the page.
  *   4. The FundHub panel (bottom-right, can be minimised): this company in the engine (captured? filings,
  *      documents saved), progress, and the next companies — you choose; nothing opens by itself.
+ *   5. Search sweep (popup switch "Sweep mode"): on a search-results page, what the search found (companies new
+ *      to FundHub, list full or not, words added) and a "Next search →" button. One click = one search; never
+ *      automatic.
  */
 (() => {
   const CHECK_RE = /captcha resolution|r[ée]solution du captcha|verifying\.\.\.|error occurred while validating the captcha|access limitation/i;
   const FILING_RE = /\bL\d{9}\b/;
   const ICON = chrome.runtime.getURL("icons/icon32.png");
 
-  const settings = { enabled: true, autoDocs: false, keepLocalCopy: false, minimized: false, filter: "" };
+  const settings = { enabled: true, autoDocs: false, keepLocalCopy: false, minimized: false, filter: "", sweepMode: false };
   let lastKey = "";
   let apiData = [];
   let lastClick = { filing: null, at: 0 };
@@ -24,12 +27,15 @@
   let autoDocsDoneFor = null;
   /** Filings whose document was saved while this page is open (manual clicks or the run): never requested twice. */
   const savedFilings = new Set();
-  const ui = { company: null, next: [], toast: "", note: "", stats: null, round: null, lastResult: null };
+  let sweepKeyTarget = null; // the word Space / N would search now (null while the page is being booked)
+  let sweepKeyBusy = false;
+  const ui = { company: null, next: [], toast: "", note: "", stats: null, round: null, lastResult: null, sweepNext: [], sweepResult: null, sweepWarn: "" };
 
   const send = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, (r) => resolve(r || { ok: false, error: chrome.runtime.lastError?.message || "no answer" })));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const pageKind = () => (/\/consult-company\//.test(location.pathname) ? "company" : /consult-search-list/.test(location.pathname + location.search) ? "list" : null);
+  const currentSearch = () => (new URLSearchParams(location.search).get("search") || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
   const rcsOfPage = () => (location.pathname.match(/consult-company\/([A-Za-z]\d{1,7})/) || [])[1] || null;
 
   // ---------------------------------------------------------------- panel (shadow DOM: LBR's CSS cannot touch it)
@@ -129,19 +135,41 @@
           }
         </div>`;
       }
-    } else if (kind === "list") body += `<div class="card muted">Search results are saved automatically (companies only; sole traders skipped).</div>`;
+    } else if (kind === "list") {
+      const sw = ui.sweepResult;
+      if (sw)
+        body += `<div class="card"><div><span class="rcs">${esc(sw.term)}</span> <span class="ok">✓ done</span>${
+          sw.capped ? ` <span class="muted">(list full: LBR shows only ${esc(sw.rows)} of them)</span>` : ""
+        }</div><div class="muted">${esc(sw.rows)} companies · <b>${esc(sw.newNumbers)} new</b> to FundHub · +${esc(sw.addedWords)} words to search</div></div>`;
+      else body += `<div class="card muted">Search results are saved automatically (companies only; sole traders skipped).</div>`;
+    }
     else body += `<div class="card muted">Open a company page to save it.</div>`;
     if (ui.note) body += `<div class="warn">${esc(ui.note)}</div>`;
     if (ui.toast) body += `<div class="toast">${ui.toast}</div>`;
+    if (ui.sweepWarn) body += `<div class="warn">${esc(ui.sweepWarn)}</div>`;
+    // Sweep mode: NEXT search instead of the next company. One click = one search.
+    const sx = settings.sweepMode ? ui.sweepNext.find((t) => t.term !== currentSearch()) : null;
+    // On a results page, offer the next word only once this page is booked (otherwise the same word comes back).
+    const waitBooking = settings.sweepMode && kind === "list" && currentSearch() && !ui.listAnswered;
+    sweepKeyTarget = settings.sweepMode && !waitBooking ? sx : null;
+    if (settings.sweepMode) {
+      if (waitBooking) body += `<div class="muted" style="margin-top:6px">Saving this page… the next search appears in a moment.</div>`;
+      else if (sx)
+        body += `<a href="#" class="go" id="sweepGo"><span class="lbl">Next search (sweep)</span>
+          <span><span class="rcs2">${esc(sx.term)}</span> ${sx.phase === 1 ? "common word" : sx.phase === 2 ? "letters" : "related names"} · in ${esc(sx.seen)} known names</span><span class="arrow">Search →</span></a>
+          <div class="row"><a href="#" class="muted" id="sweepSkip">skip (<kbd>X</kbd>)</a><span class="muted">press <kbd>Space</kbd> or <kbd>N</kbd> — one key, no mouse</span></div>`;
+      else if (ui.sweepError === "not found") body += `<div class="warn" style="margin-top:6px">The capture receiver is running old code: restart it (Ctrl+C, then start it again) to use the sweep.</div>`;
+      else body += `<div class="ok" style="margin-top:6px">Search sweep complete (or not planned yet — see the FundHub popup).</div>`;
+    }
     // NEXT company — prominent; you click (or Alt+Shift+N). Nothing opens by itself.
-    const nx = ui.next.find((c) => c.rcs !== rcsOfPage());
+    const nx = settings.sweepMode ? null : ui.next.find((c) => c.rcs !== rcsOfPage());
     if (nx)
       body += `<a href="#" class="go" data-open="${esc(nx.rcs)}"><span class="lbl">Next${ui.round ? " in round" : ""}</span>
         <span><span class="rcs2">${esc(nx.rcs)}</span> ${esc(nx.name || "")}</span><span class="arrow">Open →</span></a>
         <div class="muted" style="text-align:right">or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd></div>`;
-    else if (ui.round) body += `<div class="ok" style="margin-top:6px">Round complete — close it from the FundHub popup.</div>`;
+    else if (ui.round && !settings.sweepMode) body += `<div class="ok" style="margin-top:6px">Round complete — close it from the FundHub popup.</div>`;
     // Then the following ones.
-    const rest = ui.next.filter((c) => c !== nx && c.rcs !== rcsOfPage());
+    const rest = settings.sweepMode ? [] : ui.next.filter((c) => c !== nx && c.rcs !== rcsOfPage());
     if (rest.length) {
       body += `<div class="row" style="margin-top:8px"><b>After that</b></div><div class="next">`;
       body += rest
@@ -155,6 +183,15 @@
     root.getElementById("min").onclick = toggleMin;
     root.getElementById("bulk")?.addEventListener("click", saveAllDocuments);
     root.getElementById("stop")?.addEventListener("click", () => bulk && ((bulk.stop = true), (bulk.userStop = true)));
+    root.getElementById("sweepGo")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      send({ type: "open-sweep", item: sx });
+    });
+    root.getElementById("sweepSkip")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await send({ type: "sweep-skip", term: sx.term });
+      refresh();
+    });
     root.querySelectorAll("[data-open]").forEach((a) =>
       a.addEventListener("click", (e) => {
         e.preventDefault();
@@ -162,6 +199,31 @@
       }),
     );
   }
+  // Sweep keys — ONE key per search, so the wrist rests: Space / N = next search, X = skip the word.
+  // Still one search per key press of the person: nothing runs by itself (LBR's captcha forbids unattended use).
+  document.addEventListener(
+    "keydown",
+    async (e) => {
+      if (!sweepKeyTarget || sweepKeyBusy || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+      const el = e.composedPath()[0];
+      if (el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName || ""))) return;
+      const k = e.key.toLowerCase();
+      if (k !== " " && k !== "n" && k !== "x") return;
+      e.preventDefault();
+      const item = sweepKeyTarget;
+      sweepKeyTarget = null; // one press = one action, even if the key bounces
+      sweepKeyBusy = true;
+      try {
+        if (k === "x") {
+          await send({ type: "sweep-skip", term: item.term });
+          await refresh();
+        } else await send({ type: "open-sweep", item });
+      } finally {
+        sweepKeyBusy = false;
+      }
+    },
+    true,
+  );
   function toggleMin() {
     settings.minimized = !settings.minimized;
     chrome.storage.local.set({ minimized: settings.minimized });
@@ -174,11 +236,20 @@
 
   async function refresh() {
     const rcs = rcsOfPage();
-    const [q, st, co] = await Promise.all([
+    const [q, st, co, sw] = await Promise.all([
       send({ type: "queue", n: 6, filter: settings.filter }),
       send({ type: "stats" }),
       rcs ? send({ type: "company", rcs }) : Promise.resolve(null),
+      settings.sweepMode ? send({ type: "sweep", n: 3 }) : Promise.resolve(null),
     ]);
+    ui.sweepNext = (sw && sw.next) || [];
+    ui.sweepError = sw && !sw.ok ? sw.error : null;
+    // A sweep search that LBR answered with a company page (exact match) instead of a results list.
+    const { lastSweepOpen } = await chrome.storage.local.get("lastSweepOpen");
+    ui.sweepWarn =
+      rcs && lastSweepOpen && Date.now() - lastSweepOpen.at < 30_000
+        ? `LBR opened a company page for the search "${lastSweepOpen.term}" (one exact match): it is saved; carry on with the next search.`
+        : "";
     if (!q.ok) ui.note = "FundHub engine not reachable — start: node --import tsx src/cli.ts capture-server";
     else if (ui.note.startsWith("FundHub engine")) ui.note = "";
     ui.next = q.items || [];
@@ -199,7 +270,7 @@
   chrome.storage.onChanged.addListener((c) => {
     for (const k of Object.keys(c)) if (k in settings) settings[k] = c[k].newValue;
     sendCfg();
-    if (c.filter) refresh();
+    if (c.filter || c.sweepMode) refresh();
     else render();
   });
 
@@ -231,7 +302,7 @@
     // A company is saved from its "List of filings" tab (the filings are part of what we record).
     // Struck-off companies ("radiée", with a Deletion date) may have no filings list: save them anyway.
     const filingsShown = /consult the filing|filing n°/i.test(t) || /deletion date|date de radiation/i.test(t);
-    const ready = kind === "list" ? /\d+ search result\(s\)/i.test(t) : /registration date/i.test(t) && /legal form/i.test(t) && filingsShown;
+    const ready = kind === "list" ? /\d+ search result\(s\)|your search was not successful|aucun r[ée]sultat/i.test(t) : /registration date/i.test(t) && /legal form/i.test(t) && filingsShown;
     if (!ready) {
       if (kind === "company" && /registration date/i.test(t) && !filingsShown && !ui.note) {
         ui.note = 'Open the "List of filings" tab to save this company.';
@@ -255,10 +326,12 @@
     const payload = { url: location.href, text: t, html: document.documentElement.outerHTML, api: apiData.slice(-5) };
     const r = await send({ type: "capture", payload });
     if (r.ok && r.rcs) ui.lastResult = { rcs: r.rcs, status: r.status, newFilings: r.newFilings || 0 };
+    if (r.ok && r.kind === "list") ui.sweepResult = r.sweep || null;
+    if (kind === "list") ui.listAnswered = true;
     if (r.ok)
       toast(
         r.kind === "list"
-          ? `<span class="ok">✓ Search list: ${esc(r.companies)} companies saved</span>`
+          ? `<span class="ok">✓ Search list: ${esc(r.companies)} companies saved · ${esc(r.newNumbers ?? 0)} new to FundHub</span>`
           : `<span class="ok">✓ ${esc(r.rcs)} saved — ${esc(r.status)} (${esc(r.filings)} filings${r.linkedDocuments ? `, ${esc(r.linkedDocuments)} documents linked` : ""})</span>`,
       );
     else toast(`<span class="warn">⚠ ${esc(r.rcs || "")} ${esc(r.error)}</span>`);
@@ -301,6 +374,8 @@
       lastKey = "";
       ui.toast = "";
       ui.company = null;
+      ui.sweepResult = null;
+      ui.listAnswered = false;
       if (bulk) bulk.stop = true;
       refresh();
       schedule();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FundHub LBR Capture",
-  "version": "0.3.6",
+  "version": "0.4.1",
   "description": "Saves the LBR (RCS) pages and filing documents you open into your local FundHub engine. It never browses LBR on its own.",
   "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
   "permissions": ["storage", "tabs"],
@@ -16,6 +16,10 @@
     "open-next": {
       "suggested_key": { "default": "Alt+Shift+N" },
       "description": "Open the next company of the FundHub work list"
+    },
+    "open-next-search": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Run the next search of the FundHub search sweep"
     }
   },
   "web_accessible_resources": [{ "resources": ["icons/icon32.png"], "matches": ["https://www.lbr.lu/*"] }],

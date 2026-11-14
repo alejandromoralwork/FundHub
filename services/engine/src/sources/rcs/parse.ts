@@ -149,12 +149,24 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
   };
 }
 
+/** Kind: constant. LBR's message for a search without results (English / French portal). */
+const NO_RESULT_RE = /your search was not successful|votre recherche n'a (pas )?donn[ée] aucun r[ée]sultat|aucun r[ée]sultat/i;
+
 /** Kind: type alias. One row of an LBR search-results list. */
-export type RcsListItem = { rcs: string; name: string; struckOff: boolean };
+export type RcsListItem = { rcs: string; name: string; struckOff: boolean; status: "struck_off" | "in_liquidation" | null };
+
+/** Kind: function. The status line under a search-results row (English or French portal): struck off / in liquidation. */
+function listStatus(line: string | undefined): RcsListItem["status"] {
+  const l = (line ?? "").trim();
+  if (/^(struck off|radi[ée]e?)$/i.test(l)) return "struck_off";
+  // "en faillite" (bankrupt) and "en liquidation (judiciaire)" both mean the company is being wound up.
+  if (/^(in liquidation|in bankruptcy|bankrupt|en liquidation( judiciaire| volontaire)?|en faillite)$/i.test(l)) return "in_liquidation";
+  return null;
+}
 
 /**
  * Kind: function. Parses an LBR search-results page ("199 search result(s) for …", then pairs of
- * RCS number / trade name, each optionally followed by "struck off"). Returns null if it is not such a page.
+ * RCS number / trade name, each optionally followed by a status line: "struck off" / "radiée", "en liquidation judiciaire", "en faillite"). Returns null if it is not such a page.
  * Natural persons (prefix A = sole traders) are DROPPED here: their names are personal data and out of scope.
  * @param text  type `string`.
  */
@@ -164,7 +176,8 @@ export function parseRcsSearchList(text: string): { total: number | null; items:
     .map((l) => l.replace(/\s+/g, " ").trim())
     .filter(Boolean);
   const head = lines.findIndex((l) => /^\d+ search result\(s\)/i.test(l));
-  if (head < 0) return null;
+  // "Your search was not successful": a search with no result is a list of 0 (the sweep books the word as done).
+  if (head < 0) return lines.some((l) => NO_RESULT_RE.test(l)) ? { total: 0, items: [] } : null;
   const total = Number(lines[head].match(/^(\d+)/)?.[1] ?? NaN);
   const items: RcsListItem[] = [];
   for (let i = head + 1; i < lines.length; i++) {
@@ -172,8 +185,8 @@ export function parseRcsSearchList(text: string): { total: number | null; items:
     if (!RCS_LINE_RE.test(lines[i]) || i + 1 >= lines.length) continue;
     const rcs = normalizeRcs(lines[i]);
     const name = lines[i + 1];
-    const struckOff = /^struck off$/i.test(lines[i + 2] ?? "");
-    if (rcs && !rcs.startsWith("A") && !RCS_LINE_RE.test(name)) items.push({ rcs, name, struckOff });
+    const status = listStatus(lines[i + 2]);
+    if (rcs && !rcs.startsWith("A") && !RCS_LINE_RE.test(name)) items.push({ rcs, name, struckOff: status === "struck_off", status });
   }
   return { total: Number.isFinite(total) ? total : null, items };
 }

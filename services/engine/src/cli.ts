@@ -9,6 +9,7 @@
  *   engine capture-server                  receive LBR pages you open in Chrome (browser-extension/)
  *   engine round:start --kind initial|update [--scope sp|am] [--skip-days n]   start a capture round
  *   engine round:status | round:list | round:close | round:reset-skipped       capture rounds (register)
+ *   engine sweep:plan | sweep:status | sweep:reset-skipped        LBR search sweep (word searches YOU run)
  *   engine rcs:import-captures [--dir d]   re-import saved captures (after a parser update)
  *   engine rcs:session [B… …] [--limit n] [--cap n] [--check-wait min]   collect RCS pages with you at the screen
  *   engine rcs:capture [B123456] [--out d] open the browser, save a company page as a parser fixture
@@ -42,6 +43,7 @@ import { GROUPS, inlineEnqueue, isJob, JOBS, type Group, type JobDef } from "./j
 import { setSessionHealth } from "./core/ops";
 import { withActor } from "@fundhub/engine-db/core/entity";
 import { activeRound, closeRound, listRounds, nextItems, resetSkipped, roundStats, startRound } from "@fundhub/engine-db/core/rounds";
+import { nextSweepItems, planSweep, resetSkippedSweep, sweepStats } from "@fundhub/engine-db/core/sweep";
 import { normalizeLei, normalizeRcs } from "./core/normalize";
 import { bossEnqueue, startBoss, startScheduler, startWorker } from "./queue";
 import { parseCssf } from "./sources/cssf/parse";
@@ -248,6 +250,27 @@ async function main(): Promise<number> {
     }
     case "round:list":
       console.table((await listRounds()).map((r) => ({ id: r.id, name: r.name, kind: r.kind, status: r.status, started: r.startedAt.toISOString().slice(0, 10), total: r.stats.total, done: r.stats.done, changed: r.stats.changed, unchanged: r.stats.unchanged, newFilings: r.stats.new_filings, newDocs: r.stats.new_documents })));
+      return 0;
+    case "sweep:plan": {
+      // The LBR search sweep (packages/engine-db/src/core/sweep.ts): word searches run by a person.
+      const out = await planSweep();
+      console.log(`✔ ${out.letters} letter words (aa…zzz) + ${out.words} words from ${out.names} known names — ${out.added} added to the sweep`);
+      return 0;
+    }
+    case "sweep:status": {
+      const st = await sweepStats();
+      if (!st.planned) {
+        console.log("No sweep planned. Run: engine sweep:plan");
+        return 0;
+      }
+      console.table([st.words]);
+      console.table(st.phases.map((p) => ({ ...p, phase: ["", "1 common words", "2 letters aa…zzz", "3 related names"][p.phase] })));
+      console.table(st.coverage);
+      console.log("Next:", (await nextSweepItems(8)).map((i) => `${i.term} (phase ${i.phase}, ${i.seen})`).join(" · "));
+      return 0;
+    }
+    case "sweep:reset-skipped":
+      console.log(`✔ ${await resetSkippedSweep()} skipped terms are pending again.`);
       return 0;
     case "capture-server":
       // Receives LBR pages you open in your own Chrome (snippets/lbr-save-to-fundhub.js). See src/capture-server.ts.

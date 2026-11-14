@@ -575,6 +575,44 @@ export const captureRoundItems = pgTable(
   (t) => [primaryKey({ columns: [t.roundId, t.rcs] }), index("capture_round_items_next_idx").on(t.roundId, t.status, t.position)],
 );
 
+/** Kind: constant. States of one word of the LBR search sweep. */
+export const SWEEP_WORD_STATUSES = ["pending", "done", "skipped"] as const;
+
+/**
+ * Kind: table "lbr_search_words". The LBR SEARCH SWEEP: words that appear in company names, searched one by one
+ * on lbr.lu by a PERSON (FundHub LBR Capture extension). LBR's search matches whole words (accents ignored) and
+ * lists at most 199 results. Order (phase): 1 = every two-letter word (aa…zz), 2 = every three-letter word
+ * (aaa…zzz) — short acronym names; 3 = the words of the names the engine knows, grown from every results page
+ * (the words of each newly found name are added), most common first.
+ * The companies found are stored through the normal pipeline (source "lbr_bulk"); this table only tracks words.
+ */
+export const lbrSearchWords = pgTable(
+  "lbr_search_words",
+  {
+    /** The word as searched: lower case, accents removed (e.g. "holding", "ar"). */
+    term: text("term").primaryKey(),
+    status: text("status", { enum: SWEEP_WORD_STATUSES }).notNull().default("pending"),
+    /** How many company names known to the engine contain the word (the priority: most common first). */
+    seen: integer("seen").notNull().default(0),
+    /** "letters" (aa…zzz), "seed" (names already in the engine) or "results" (found on a results page). */
+    origin: text("origin", { enum: ["letters", "seed", "results"] }).notNull().default("seed"),
+    /** Search order: 1 = two letters, 2 = three letters, 3 = name words. */
+    phase: integer("phase").notNull().default(3),
+    /** LBR's "N search result(s)". */
+    total: integer("total"),
+    /** Company rows on the page (sole traders excluded). */
+    rows: integer("rows"),
+    /** RCS numbers the engine did not know before this search. */
+    newNumbers: integer("new_numbers"),
+    /** The list was full (199): LBR has more companies with this word than it shows. */
+    capped: boolean("capped"),
+    searchedAt: ts("searched_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("lbr_search_words_next_idx").on(t.status, t.phase, t.seen)],
+);
+export type LbrSearchWord = typeof lbrSearchWords.$inferSelect;
+
 /**
  * Kind: table "engine_settings". Small key/value settings changed from the admin console, e.g.
  * "disabled_schedules" = ["rcs_sweep"]. The scheduler reads them at start (and the console applies them live).

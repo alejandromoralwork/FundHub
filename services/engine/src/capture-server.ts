@@ -21,6 +21,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { documents, rcsFilings, type RoundScope } from "@fundhub/engine-db/schema";
 import { withActor } from "@fundhub/engine-db/core/entity";
+import { nextSweepItems, planSweep, recordSearch, resetSkippedSweep, skipSweepTerm, sweepStats } from "@fundhub/engine-db/core/sweep";
 import { activeRound, closeRound, listRounds, nextItems, recordDocument, recordVisit, resetSkipped, roundStats, skipItem, startRound } from "@fundhub/engine-db/core/rounds";
 import { config } from "./config";
 import { ingest } from "./core/ingest";
@@ -93,21 +94,72 @@ function rcsOf(body: CaptureBody): string | null {
  */
 async function storeSearchList(list: { total: number | null; items: RcsListItem[] }, url: string, blobs: ReturnType<typeof makeBlobStore>) {
   const stats: Record<string, number> = {};
-  for (const it of list.items) {
+  // A few at a time: each ingest is its own transaction with advisory locks on the record and its identifiers,
+  // so parallel ingests are safe (the worker does the same). One by one, a page of 199 new companies took ~60 s.
+  const queue = [...list.items];
+  const one = async (it: RcsListItem) => {
     const rec: ParsedRecord = {
       source: "lbr_bulk",
       externalId: it.rcs,
       state: "found",
       scope: it.rcs[0],
-      facts: { name: it.name, rcsNumber: it.rcs, status: it.struckOff ? "struck_off" : "unknown" },
+      facts: { name: it.name, rcsNumber: it.rcs, status: it.status ?? "unknown" },
       identifiers: [{ scheme: "rcs", value: it.rcs }],
       names: [{ name: it.name, kind: "legal", validFrom: null }],
     };
     const raw: RawCapture = { source: "lbr_bulk", externalId: it.rcs, url, httpStatus: 200, contentType: "application/json", body: Buffer.from(JSON.stringify(rec)), ext: "json" };
     const res = await ingest(listAdapter, raw, { blobs });
     stats[res.status] = (stats[res.status] ?? 0) + 1;
-  }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(LIST_INGEST_CONCURRENCY, queue.length) }, async () => {
+      for (let it = queue.shift(); it; it = queue.shift()) await one(it);
+    }),
+  );
   return stats;
+}
+
+/** Kind: constant. How many companies of a results page are stored at the same time. */
+const LIST_INGEST_CONCURRENCY = 6;
+/** Kind: constant. RCS numbers handed to the background store but not stored yet (they count as known). */
+const pendingNumbers = new Set<string>();
+/** Kind: variable. The background store: results pages are stored one after another, in arrival order. */
+let backgroundStore: Promise<unknown> = Promise.resolve();
+
+/**
+ * Kind: async function. Books a search-results page against the LBR search sweep — which numbers are new to the
+ * engine, the searched word done, the words of the new names added — and stores its companies.
+ * @param background  true (receiver): answer at once and store the companies in the background, so the panel's
+ *                    "Next search" is up to date immediately; the page file is already on disk, so nothing is
+ *                    lost if the receiver stops (`engine rcs:import-captures`). false (re-import): wait.
+ */
+async function storeListAndSweep(list: { total: number | null; items: RcsListItem[] }, url: string, blobs: ReturnType<typeof makeBlobStore>, background = false) {
+  const numbers = [...new Set(list.items.map((i) => i.rcs))];
+  const known = numbers.length
+    ? new Set((await db.execute<{ value: string }>(sql`select value from entity_identifiers where scheme = 'rcs' and value in ${numbers}`)).rows.map((r) => r.value))
+    : new Set<string>();
+  const newRcs = new Set(numbers.filter((n) => !known.has(n) && !pendingNumbers.has(n)));
+  const newNumbers = newRcs.size;
+  let term: string | null = null;
+  try {
+    term = new URL(url).searchParams.get("search");
+  } catch {
+    /* not a URL */
+  }
+  const sweep = term ? await recordSearch(term, list.total, list.items, newRcs) : null;
+  if (!background) return { stats: await storeSearchList(list, url, blobs), newNumbers, sweep };
+  for (const n of numbers) pendingNumbers.add(n);
+  backgroundStore = backgroundStore
+    .then(async () => {
+      const t = Date.now();
+      const stats = await storeSearchList(list, url, blobs);
+      console.log(`   ↳ stored ${list.items.length} companies of "${term}" in ${((Date.now() - t) / 1000).toFixed(1)} s ${JSON.stringify(stats)}`);
+    })
+    .catch((err) => console.error(`   ✘ storing the companies of "${term}" failed (re-run engine rcs:import-captures):`, err))
+    .finally(() => {
+      for (const n of numbers) pendingNumbers.delete(n);
+    });
+  return { stats: { queued: list.items.length }, newNumbers, sweep };
 }
 
 /** Kind: async function. The next RCS numbers to open (not captured yet, most important first). */
@@ -200,7 +252,7 @@ export async function companyStatus(rcs: string) {
  * Kind: async function. Stores one capture (file + ingest).
  * @returns what the snippet shows: status, name, filings count, or why it was not recognised.
  */
-export async function storeCapture(body: CaptureBody, dir: string, blobs = makeBlobStore(config().storage)) {
+export async function storeCapture(body: CaptureBody, dir: string, blobs = makeBlobStore(config().storage), opts: { background?: boolean } = {}) {
   // A page translated by the browser (Google Translate marks <html class="translated-ltr">) is not LBR's text:
   // saving it would record fake changes ("Limited liability company" instead of "Société à responsabilité limitée").
   if (/<html[^>]*class="[^"]*translated-(ltr|rtl)/i.test(body.html ?? "")) {
@@ -213,8 +265,8 @@ export async function storeCapture(body: CaptureBody, dir: string, blobs = makeB
   const file = join(dir, `${list ? "search" : (rcs ?? "unknown")}-${stamp}.json`);
   await writeFile(file, JSON.stringify({ ...body, rcs, capturedAt: new Date().toISOString() }));
   if (list) {
-    const stats = await storeSearchList(list, body.url, blobs);
-    return { ok: true, kind: "list", companies: list.items.length, total: list.total, stats, file };
+    const { stats, newNumbers, sweep } = await storeListAndSweep(list, body.url, blobs, opts.background ?? false);
+    return { ok: true, kind: "list", companies: list.items.length, total: list.total, stats, newNumbers, sweep, file };
   }
   if (!rcs) return { ok: false, error: "No RCS number found on this page — open the company page (or pass it in the snippet).", file };
   const raw: RawCapture = { source: "rcs", externalId: rcs, url: body.url, httpStatus: 200, contentType: "application/json", body: Buffer.from(JSON.stringify({ url: body.url, text: body.text, html: body.html ?? "" })), ext: "json" };
@@ -351,6 +403,22 @@ export async function startCaptureServer() {
         return reply(200, { ok: true, closed: r?.name ?? null });
       }
       if (req.method === "POST" && url.pathname === "/round/reset-skipped") return reply(200, { ok: true, reset: await resetSkipped(), round: await roundInfo() });
+      // LBR search sweep: the plan of searches YOU run, one click each (see packages/engine-db/src/core/sweep.ts).
+      if (req.method === "GET" && url.pathname === "/sweep") {
+        const n = Math.min(50, Number(url.searchParams.get("n")) || 6);
+        return reply(200, { ok: true, sweep: await sweepStats(), next: await nextSweepItems(n) });
+      }
+      if (req.method === "POST" && url.pathname === "/sweep/plan") {
+        const planned = await planSweep();
+        console.log(`🔎 search sweep planned: ${JSON.stringify(planned)}`);
+        return reply(200, { ok: true, planned, sweep: await sweepStats(), next: await nextSweepItems(6) });
+      }
+      if (req.method === "POST" && url.pathname === "/sweep/skip") {
+        const { term } = await readJson<{ term: string }>(req);
+        await skipSweepTerm(term);
+        return reply(200, { ok: true, sweep: await sweepStats(), next: await nextSweepItems(6) });
+      }
+      if (req.method === "POST" && url.pathname === "/sweep/reset-skipped") return reply(200, { ok: true, reset: await resetSkippedSweep(), next: await nextSweepItems(6) });
       if (req.method === "GET" && url.pathname === "/stats") return reply(200, { ok: true, stats: await captureStats() });
       if (req.method === "GET" && url.pathname === "/company") {
         const rcs = normalizeRcs(url.searchParams.get("rcs"));
@@ -359,9 +427,10 @@ export async function startCaptureServer() {
       if (req.method === "POST" && url.pathname === "/capture") {
         const body = await readJson<CaptureBody>(req);
         if (!body?.text || !body.url?.startsWith(ALLOWED_ORIGIN)) return reply(400, { ok: false, error: "Not an LBR page" });
-        const out = await storeCapture(body, dir, blobs);
-        console.log("kind" in out && out.kind === "list" ? `✓ search list — ${out.companies} companies ${JSON.stringify(out.stats)}` : out.ok ? `✓ ${out.rcs} ${out.status} — ${out.name} (${out.filings} filings)` : `✘ ${out.rcs ?? "?"} ${out.error}`);
-        return reply(200, { ...out, round: await roundInfo(), nextItems: await queue(3), next: (await queue(5)).map((q) => q.rcs) });
+        // Results pages: booked at once, companies stored in the background (the panel's next search is ready).
+        const out = await storeCapture(body, dir, blobs, { background: true });
+        console.log("kind" in out && out.kind === "list" ? `✓ search list — ${out.companies} companies, ${out.newNumbers} new${out.sweep ? ` · sweep "${out.sweep.term}"${out.sweep.capped ? " (list full)" : ""}, +${out.sweep.addedWords} words` : ""}` : out.ok ? `✓ ${out.rcs} ${out.status} — ${out.name} (${out.filings} filings)` : `✘ ${out.rcs ?? "?"} ${out.error}`);
+        return reply(200, { ...out, round: await roundInfo(), nextItems: await queue(3), next: (await queue(5)).map((q) => q.rcs), sweepNext: await nextSweepItems(6) });
       }
       if (req.method === "GET" && url.pathname === "/filings") {
         // Which filings of a company are known and which already have their document (for "save all documents").
@@ -419,7 +488,7 @@ export async function importCaptures(dir?: string) {
     }
     const list = /consult-search-list/i.test(body.url) ? parseRcsSearchList(body.text) : null;
     if (list) {
-      const st = await storeSearchList(list, body.url, blobs);
+      const { stats: st } = await storeListAndSweep(list, body.url, blobs);
       stats.list_rows = (stats.list_rows ?? 0) + list.items.length;
       for (const [k, v] of Object.entries(st)) stats[`list_${k}`] = (stats[`list_${k}`] ?? 0) + v;
       continue;

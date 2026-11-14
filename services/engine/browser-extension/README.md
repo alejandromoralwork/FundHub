@@ -50,6 +50,41 @@ Work in **rounds**. Each round is a list of companies to visit and a record of w
 
 Without an active round, the extension falls back to the list of never-captured companies.
 
+## Search sweep (find the companies FundHub doesn't know yet)
+
+GLEIF and the CSSF only list part of the RCS. The **search sweep** finds the rest by searching LBR for **words that appear in company names**, one click at a time. Each click does what typing the word in LBR's search box does, and the results page is saved automatically.
+
+**How LBR's search behaves** (checked on real pages, Nov 2026), and why the sweep uses real words:
+* an RCS number finds **only that exact company** ("B3168" → nothing, or one company), so numbers cannot be swept;
+* text matches **whole words**, accents ignored: `ar` finds "AR CAPITAL" and every "S.**àr**.l.", but not "ARENDT". Prefixes such as `aa`, `ab`, `aaa` find nothing useful;
+* a list shows **at most 199** companies.
+
+**How the plan works** (three phases, in this order)
+1. **Common words** (~1,700): words in at least 20 known names ("global", "equity", "lux", "holding"…), most common first. Each one fills a page with 199 companies.
+2. **Letters** (~17,900): every two-letter word `aa`…`zz`, then every three-letter word `aaa`…`zzz`. These find the many short acronym names ("AA+ IMMO", "ABC S.A.") that no known name would suggest. Their lists are usually complete (under 199).
+3. **Related names** (~25,000): the rarer words of known names, to find related companies ("arendt" → Arendt Digital Services next to Arendt Investor Services).
+
+* **Snowball:** each results page adds the words of the names that were **new** to FundHub. A word moves to phase 1 once it is in 20 known names.
+* A word whose list is full is marked **list full**: LBR has more companies with it than it shows. Those companies are reached through their other words.
+* A search without results ("Your search was not successful") counts as done. Words that look like an RCS number (`b2`, `e123`) are never searched.
+* **Speed:** the word is booked as soon as the page arrives, and the panel offers the next search straight away. The companies are stored in the background, 6 at a time. The receiver's terminal shows "↳ stored 199 companies of "fund" in 9.8 s". If the receiver stops before that, `npm run engine -- rcs:import-captures` stores the saved pages.
+* About 45,000 searches in all. Early ones find the most new companies. A complete list only comes from the official LBR extract ([../docs/lbr-data-reuse-request.md](../docs/lbr-data-reuse-request.md)).
+
+**Use**
+1. Popup → **Search sweep** → **Plan sweep** (once; repeating it adds words from newly known names). Or run `npm run engine -- sweep:plan`.
+2. Switch on **Sweep mode**. The panel on LBR pages then offers **Next search →** instead of the next company.
+3. Click **Search →** (or press **Alt+Shift+S**). When the list has loaded, the panel shows the result, for example "fund ✓ done · 199 companies · 23 new to FundHub · +41 words". Then the next one: on the LBR page just press **Space** (or **N**); **X** skips the word. One key per search, no mouse needed — each search is still started by you (LBR's captcha rules out unattended searching).
+4. LBR's check appears as it does for any visitor. Wait for it, then carry on. **Skip** sets a word aside; **Reset skipped** (popup) brings it back. Any search you type yourself also counts.
+
+**Merging into the registry.** Each row is stored as source `lbr_bulk` and resolved like any other record:
+* a number the registry already has (from GLEIF / CSSF) is added to **that** entity, so there are no duplicates;
+* a new number becomes a new entity;
+* a name that matches an entity without an RCS number gives a **pending match** for review, never an automatic merge.
+
+The list's status ("radiée", "en faillite"…) is recorded. An "unknown" status never overwrites a real one.
+
+Progress: popup (words searched, companies found, numbers known per RCS prefix), or `npm run engine -- sweep:status`.
+
 ## Use
 
 1. Log in on https://www.lbr.lu as usual.

@@ -21,7 +21,8 @@ import { resolveRecord, type ResolverStore } from "../src/core/resolve";
 import type { ParsedRecord } from "../src/core/types";
 import { parseCssf } from "../src/sources/cssf/parse";
 import { parseGleif } from "../src/sources/gleif/parse";
-import { parseRcsText } from "../src/sources/rcs/parse";
+import { parseRcsSearchList, parseRcsText } from "../src/sources/rcs/parse";
+import { countWords, foldTerm, letterWords, nameWords, wordPhase } from "@fundhub/engine-db/core/sweep";
 
 const fx = (n: string) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url));
 const json = (source: "cssf" | "gleif", id: string, file: string) => ({ source, externalId: id, url: "", httpStatus: 200, contentType: "application/json", body: fx(file), ext: "json" });
@@ -212,4 +213,44 @@ test("normalize: names and RCS numbers compare across sources", () => {
   assert.equal(normalizeRcs("b 145 917"), "B145917");
   assert.equal(normalizeRcs("B0145917"), "B145917");
   assert.equal(normalizeRcs("hello"), null);
+});
+
+// ---------------------------------------------------------------- LBR search sweep (words)
+test("sweep: name words are folded like LBR compares them (whole words, accents ignored)", () => {
+  assert.deepEqual(nameWords("AR CAPITAL INVEST S.àr.l."), ["ar", "capital", "invest", "s", "l"]);
+  assert.deepEqual(nameWords("B & B2B SA"), ["b", "b2b", "sa"]);
+  // RCS-number look-alikes would open one company instead of a list: never searched.
+  assert.deepEqual(nameWords("B2 Lux E123 Société"), ["lux", "societe"]);
+  assert.equal(foldTerm("  Société  Générale "), "societe generale");
+});
+
+test("sweep: phases — common words, then aa…zzz, then the rarer name words", () => {
+  assert.equal(wordPhase("fund", 20480), 1);
+  assert.equal(wordPhase("ab", 3), 2);
+  assert.equal(wordPhase("abc", 0), 2);
+  assert.equal(wordPhase("arendt", 4), 3);
+  const l = letterWords();
+  assert.equal(l.length, 26 * 26 + 26 * 26 * 26);
+  assert.deepEqual([l[0], l[1], l[675], l[676]], ["aa", "ab", "zz", "aaa"]);
+});
+
+test("search list: a search without results is an empty list (booked, not a company page)", () => {
+  const text = ["Search for information", "B3168", "Your search was not successful. Please modify your search criteria.", "Site map"].join("\n");
+  assert.deepEqual(parseRcsSearchList(text), { total: 0, items: [] });
+});
+
+test("sweep: words are counted once per name", () => {
+  const c = countWords(["Alpha Lux S.à r.l.", "Beta Lux Lux SA", "Alpha Beta"]);
+  assert.equal(c.get("lux"), 2);
+  assert.equal(c.get("alpha"), 2);
+  assert.equal(c.get("a"), 1);
+});
+
+test("search list: French status lines (radiée, en faillite, en liquidation judiciaire)", () => {
+  const text = ["199 search result(s) for \"\"", "RCS number", "Trade name", "B108301", "B de B", "B112849", "B.B. INVEST", "radiée", "B246954", "B16 TP", "en faillite", "B1", "X SA", "en liquidation judiciaire", "B250137", "Carine G.B.", "Site map"].join("\n");
+  const list = parseRcsSearchList(text)!;
+  assert.deepEqual(
+    list.items.map((i) => [i.rcs, i.status]),
+    [["B108301", null], ["B112849", "struck_off"], ["B246954", "in_liquidation"], ["B1", "in_liquidation"], ["B250137", null]],
+  );
 });

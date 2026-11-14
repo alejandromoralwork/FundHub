@@ -4,8 +4,11 @@
  *   (`engine capture-server`, http://127.0.0.1:4477): page captures, documents, the work list ("queue"),
  *   progress numbers, a company's status. It also handles the "open next company" shortcut (Alt+Shift+N):
  *   one keypress = you ask for the next company, it opens in the current LBR tab. Talks ONLY to 127.0.0.1.
+ *   Search sweep: "open next search" (button or Alt+Shift+S) opens the next planned LBR search in the current tab,
+ *   ONE search per click — exactly what typing it in LBR's search box does. Nothing runs on a timer.
  */
 const ENGINE = "http://127.0.0.1:4477";
+const SEARCH = (term) => "https://www.lbr.lu/mjrcs-web-front/consult-search-list?search=" + encodeURIComponent(term);
 const COMPANY = (rcs) => "https://www.lbr.lu/mjrcs-web-front/consult-company/" + encodeURIComponent(rcs) + "?tab=deposit";
 
 async function call(path, body) {
@@ -13,11 +16,18 @@ async function call(path, body) {
   return res.json();
 }
 
-/** Opens a company in the active tab if it is an LBR tab, otherwise in a new tab. */
-async function openCompany(rcs) {
+/** Opens a URL in the active tab if it is an LBR tab, otherwise in a new tab. */
+async function openLbr(url) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab && /^https:\/\/www\.lbr\.lu\//.test(tab.url || "")) await chrome.tabs.update(tab.id, { url: COMPANY(rcs) });
-  else await chrome.tabs.create({ url: COMPANY(rcs) });
+  if (tab && /^https:\/\/www\.lbr\.lu\//.test(tab.url || "")) await chrome.tabs.update(tab.id, { url });
+  else await chrome.tabs.create({ url });
+}
+const openCompany = (rcs) => openLbr(COMPANY(rcs));
+
+/** Opens the search of one sweep word (its results list). Remembered for the panel. */
+async function openSweepItem(item) {
+  await chrome.storage.local.set({ lastSweepOpen: { term: item.term, at: Date.now() } });
+  await openLbr(SEARCH(item.term));
 }
 
 /** Badge: documents saved in this browser session. */
@@ -64,6 +74,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
           return reply(await call("/round/close", {}));
         case "round-reset":
           return reply(await call("/round/reset-skipped", {}));
+        // LBR search sweep.
+        case "sweep":
+          return reply(await call("/sweep?n=" + (msg.n || 6)));
+        case "sweep-plan":
+          return reply(await call("/sweep/plan", {}));
+        case "sweep-skip":
+          return reply(await call("/sweep/skip", { term: msg.term }));
+        case "sweep-reset":
+          return reply(await call("/sweep/reset-skipped", {}));
+        case "open-sweep":
+          await openSweepItem(msg.item);
+          return reply({ ok: true });
         case "open":
           await openCompany(msg.rcs);
           return reply({ ok: true });
@@ -79,6 +101,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 
 // Alt+Shift+N: open the next company of the work list (respecting the popup's filter).
 chrome.commands.onCommand.addListener(async (command) => {
+  if (command === "open-next-search") {
+    // Alt+Shift+S: the next search of the sweep (one keypress = one search).
+    try {
+      const r = await call("/sweep?n=1");
+      if (r.next && r.next[0]) await openSweepItem(r.next[0]);
+    } catch (_) {}
+    return;
+  }
   if (command !== "open-next") return;
   try {
     const { filter } = await chrome.storage.local.get({ filter: "" });

@@ -10,7 +10,8 @@ const tags = (c) =>
   (c.status === "struck_off" ? '<span class="fh-tag off">struck off</span>' : "");
 
 // ---- switches (stored; content.js and the shortcut read them)
-chrome.storage.local.get({ enabled: true, autoDocs: false, keepLocalCopy: false, filter: "" }, (v) => {
+chrome.storage.local.get({ enabled: true, autoDocs: false, keepLocalCopy: false, filter: "", sweepMode: false }, (v) => {
+  $("sweepMode").checked = v.sweepMode;
   $("enabled").checked = v.enabled;
   $("autoDocs").checked = v.autoDocs;
   $("keepLocalCopy").checked = v.keepLocalCopy;
@@ -20,6 +21,7 @@ chrome.storage.local.get({ enabled: true, autoDocs: false, keepLocalCopy: false,
 });
 $("enabled").addEventListener("change", () => chrome.storage.local.set({ enabled: $("enabled").checked }));
 $("autoDocs").addEventListener("change", () => chrome.storage.local.set({ autoDocs: $("autoDocs").checked }));
+$("sweepMode").addEventListener("change", () => chrome.storage.local.set({ sweepMode: $("sweepMode").checked }));
 $("keepLocalCopy").addEventListener("change", () => chrome.storage.local.set({ keepLocalCopy: $("keepLocalCopy").checked }));
 
 // ---- filter of the no-round work list
@@ -80,6 +82,7 @@ async function load() {
     $("s-remaining").textContent = fmt(s.remaining);
   }
   renderRound(q.ok ? q.round : null, q.ok ? q.items : []);
+  renderSweep(await send({ type: "sweep", n: 1 }));
   renderQueue(q);
 }
 
@@ -157,4 +160,62 @@ function renderQueue(r) {
       load();
     }),
   );
+}
+
+// ---- search sweep
+const PHASE = { 1: "1 · common word", 2: "2 · letters", 3: "3 · related names" };
+function renderSweep(r) {
+  const actions = $("sw-actions");
+  if (!r.ok) {
+    $("sw-line").textContent =
+      r.error === "not found"
+        ? "The capture receiver is running old code: stop it (Ctrl+C) and start it again to use the sweep."
+        : "Engine not reachable.";
+    $("sw-next").innerHTML = "";
+    return;
+  }
+  const st = r.sweep;
+  if (!st.planned) {
+    $("sw-line").textContent = "No plan yet. The plan lists the words of the company names FundHub knows; every search adds the words of the new names it finds.";
+    $("sw-table").innerHTML = "";
+    $("sw-next").innerHTML = "";
+    actions.innerHTML = '<button class="fh-btn" id="sw-plan">Plan sweep</button>';
+    $("sw-plan").onclick = async () => {
+      $("sw-plan").disabled = true;
+      const p = await send({ type: "sweep-plan" });
+      if (!p.ok) alert(p.error || "Could not plan the sweep");
+      load();
+    };
+    return;
+  }
+  const w = st.words;
+  $("sw-line").textContent =
+    `${fmt(w.found)} new companies found (${fmt(w.found_today)} today, ${fmt(w.today)} searches) · ` +
+    (st.phases || []).map((p) => `${PHASE[p.phase] || p.phase}: ${fmt(p.done)}/${fmt(p.total)}`).join(" · ");
+  actions.innerHTML = '<button class="fh-btn ghost" id="sw-reset" title="Put skipped words back in the queue">Reset skipped</button>';
+  $("sw-reset").onclick = async () => {
+    await send({ type: "sweep-reset" });
+    load();
+  };
+  $("sw-table").innerHTML =
+    "<tr><th>RCS prefix</th><th>Known to FundHub</th><th>Highest number</th><th>Coverage</th></tr>" +
+    st.coverage
+      .slice(0, 6)
+      .map((c) => `<tr><td class="rcs">${esc(c.prefix)}</td><td>${fmt(c.known)}</td><td>${c.max ? fmt(c.max) : "–"}</td><td>${c.max ? Math.round((c.known / c.max) * 1000) / 10 + "%" : "–"}</td></tr>`)
+      .join("");
+  $("sw-warn").hidden = true;
+  const next = r.next[0];
+  $("sw-next").innerHTML = next
+    ? `<div class="lbl">Next search</div>
+       <div><span class="rcs">${esc(next.term)}</span> <span class="nm">${PHASE[next.phase] || ""} · in ${fmt(next.seen)} known names</span></div>
+       <div class="fh-row0"><button class="go" id="sw-go">Search →</button><button class="fh-btn ghost" id="sw-skip" title="Skip this word (Reset skipped brings it back)">Skip</button></div>`
+    : '<div class="lbl">No words left to search 🎉</div>';
+  $("sw-go")?.addEventListener("click", async () => {
+    await send({ type: "open-sweep", item: next });
+    window.close();
+  });
+  $("sw-skip")?.addEventListener("click", async () => {
+    await send({ type: "sweep-skip", term: next.term });
+    load();
+  });
 }

@@ -174,8 +174,8 @@ test("RCS search-results page: companies with struck-off flag, sole traders (Aâ€
   assert.equal(list.total, 199);
   assert.ok(list.items.length > 10);
   assert.ok(list.items.every((i) => !i.rcs.startsWith("A")));
-  assert.deepEqual(list.items[0], { rcs: "B145917", name: "Arendt Investor Services SA", struckOff: false });
-  assert.deepEqual(list.items.find((i) => i.rcs === "B171349"), { rcs: "B171349", name: "RBC Investor Services Limited", struckOff: true });
+  assert.deepEqual(list.items[0], { rcs: "B145917", name: "Arendt Investor Services SA", struckOff: false, status: null });
+  assert.deepEqual(list.items.find((i) => i.rcs === "B171349"), { rcs: "B171349", name: "RBC Investor Services Limited", struckOff: true, status: "struck_off" });
   assert.ok(list.items.some((i) => i.rcs === "E7998"));
   assert.equal(parseRcsSearchList(fixture("lbr-company-B100554.txt").toString("utf8")), null);
 });
