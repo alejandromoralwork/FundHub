@@ -10,7 +10,9 @@ All project documentation starts here. Component READMEs stay next to their code
 | [architecture.md](architecture.md) | Understand the parts, where each runs, the two databases, data flows, security, and known gaps |
 | [codebase.md](codebase.md) | Find your way in the repo: every folder, conventions, how to make common changes |
 | [development.md](development.md) | Set up a machine and run everything locally |
+| [services.md](services.md) | Look up any module or service: what it does, where it runs, how to start, stop and check it |
 | [operations.md](operations.md) | Deploy, run the Azure VM, the Drive, backups and secrets |
+| [access-and-recovery.md](access-and-recovery.md) | Add or remove people anywhere, and get back in when a password, phone, key or server is lost |
 
 ## Component guides
 

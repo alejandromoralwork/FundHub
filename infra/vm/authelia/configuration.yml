@@ -16,7 +16,13 @@ authentication_backend:
 access_control:
   default_policy: deny
   rules:
+    # The Drive: any VM user (2FA).
     - domain: '@DOMAIN@'
+      resources: ['^/drive([/?].*)?$']
+      policy: two_factor
+    # Everything else (code-server = a root shell on the VM): only the "admins" group (2FA).
+    - domain: '@DOMAIN@'
+      subject: 'group:admins'
       policy: two_factor
 session:
   expiration: 12h

@@ -36,4 +36,6 @@ Full setup, the engine and troubleshooting: [docs/development.md](docs/developme
 * [Architecture](docs/architecture.md) — parts, databases, data flows, security, known gaps
 * [Codebase](docs/codebase.md) — folder map, conventions, how to change things
 * [Development](docs/development.md) — setup and daily running
+* [Services](docs/services.md) — every module and service, how to operate it
 * [Operations](docs/operations.md) — deploy, Azure VM, Drive, backups, secrets
+* [Access and recovery](docs/access-and-recovery.md) — adding users, lost passwords, phones, keys, or the whole VM

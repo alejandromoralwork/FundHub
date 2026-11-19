@@ -42,8 +42,11 @@ Node.js install (nvm).
 
 ## 2FA (Authelia)
 
+Adding people, passwords, lost phones, blocks and lock-outs: **[docs/access-and-recovery.md](../../docs/access-and-recovery.md)**. Helpers in `bin/`: `authelia-useradd.sh` (add a user; `--admin` for code-server), `authelia-passwd.sh` (change a password), `authelia-cli.sh` (bans, TOTP reset, config check).
+
 Every browser request except `/engine/*` (the extension, which uses its token) and the portal itself needs an
-Authelia session (code-server and the Drive share it): password, then a 6-digit code from an authenticator app. 3 wrong tries in 5 min lock the user for
+Authelia session (code-server and the Drive share it). The Drive is open to every VM user; code-server only to group
+`admins`: password, then a 6-digit code from an authenticator app. 3 wrong tries in 5 min lock the user for
 30 min. Sessions last 12 h (2 h idle). SSH (key only, passwords disabled) is the emergency way in.
 
 * First password: `sudo cat /etc/authelia/initial-credentials`.
@@ -51,8 +54,7 @@ Authelia session (code-server and the Drive share it): password, then a 6-digit 
   `sudo cat /var/lib/authelia/notification.txt`.
 * Change the password: `sudo bash infra/vm/bin/authelia-passwd.sh` (asks twice, restarts Authelia,
   restores the old file if Authelia does not start).
-* Lost phone: `sudo -u authelia authelia storage user totp delete alejandro --config /etc/authelia/configuration.yml`,
-  then register again.
+* Lost phone: `sudo bash infra/vm/bin/authelia-cli.sh storage user totp delete alejandro`, then register again.
 * Locked out of the browser: SSH in, `sudo cp /etc/caddy/Caddyfile.bak-pre-authelia /etc/caddy/Caddyfile && sudo systemctl reload caddy`
   (removes the 2FA gate), fix, then `sudo bash infra/vm/install.sh` puts the gate back.
 * Logs: `journalctl -u authelia -f`.
