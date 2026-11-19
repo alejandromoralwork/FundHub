@@ -1,0 +1,19 @@
+[Unit]
+Description=FundHub Drive (FileBrowser, 127.0.0.1:8090, served at https://<vm>/drive/)
+After=network.target
+
+[Service]
+User=filebrowser
+Group=filebrowser
+ExecStart=/usr/local/bin/filebrowser -d /var/lib/filebrowser/filebrowser.db
+Restart=on-failure
+RestartSec=5
+# Hardening: it only needs its database and the drive folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/filebrowser /srv/fundhub-drive
+
+[Install]
+WantedBy=multi-user.target

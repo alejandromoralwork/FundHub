@@ -50,6 +50,7 @@ import {
   StarOutlined,
   TeamOutlined,
   ApartmentOutlined,
+  FolderOpenOutlined,
 } from "@ant-design/icons";
 // Next.js link component: changes page without a full reload.
 import Link from "next/link";
@@ -134,6 +135,7 @@ const RESOURCES = [
   { name: "engine-jobs", list: "/engine/jobs", meta: { label: "Jobs & schedules", parent: "engine" } },
   { name: "engine-matches", list: "/engine/matches", meta: { label: "Match review", parent: "engine" } },
   { name: "engine-rounds", list: "/engine/rounds", meta: { label: "Capture rounds", parent: "engine" } },
+  { name: "drive", list: "/drive", meta: { label: "Drive", icon: <FolderOpenOutlined /> } },
   { name: "reports-admin", list: "/reports", meta: { label: "Reports", icon: <FilePdfOutlined /> } },
   { name: "database", list: "/db", meta: { label: "Database", icon: <DatabaseOutlined /> } },
   { name: "gdpr", list: "/gdpr", meta: { label: "GDPR requests", icon: <LockOutlined /> } },

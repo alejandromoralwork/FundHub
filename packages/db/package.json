@@ -15,7 +15,6 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "db:roles": "tsx scripts/roles.ts",
-    "db:from-turso": "tsx scripts/migrate-from-turso.ts",
     "pipeline:import": "tsx scripts/pipelines/import-providers.ts",
     "pipeline:publish": "tsx scripts/pipelines/publish-staged.ts"
   },
@@ -27,7 +26,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@libsql/client": "^0.18.0",
     "@types/node": "^20.19.43",
     "@types/pg": "^8.15.6",
     "dotenv": "^18.0.5",

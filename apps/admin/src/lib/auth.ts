@@ -252,6 +252,8 @@ export const CAN = {
   engineEdit: ["owner", "operations"],
   /** Scraping Engine: start jobs, enable/disable schedules, RCS number space. */
   engineJobs: ["owner", "operations"],
+  /** Drive page (the drive tool has its own accounts and folder permissions on top). */
+  drive: ["owner", "operations", "analyst", "sales"],
 } as const satisfies Record<string, readonly StaffRole[]>;
 
 /**

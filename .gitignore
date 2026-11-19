@@ -33,3 +33,6 @@ __pycache__/
 
 # Scraping Engine local data (fs blobs, RCS browser profile with your LuxTrust session)
 .engine-data/
+
+# archives and private files kept out of git
+*.zip

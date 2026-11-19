@@ -8,6 +8,7 @@ Copies of the VM's config live here so the setup can be rebuilt on a new VM. The
 | PostgreSQL 18 (apt.postgresql.org, same major version as the embedded dev database) | Engine database `fundhub_engine`, role `fundhub_engine`, `127.0.0.1:5432` only | data: `/var/lib/postgresql/18/main`, tuning: `/etc/postgresql/18/main/conf.d/fundhub.conf` ← `postgresql-fundhub.conf` |
 | `fundhub-capture.service` | Receiver for the browser extension (`engine capture-server`, `127.0.0.1:4477`) | `/etc/systemd/system/` |
 | `Caddyfile` | HTTPS; `/engine/*` → receiver, everything else → code-server | `/etc/caddy/Caddyfile` |
+| `fundhub-drive.service` | Internal drive (file manager) on `127.0.0.1:8090`, files in `/srv/fundhub-drive`. **Not enabled yet**: see [docs/operations.md → Drive](../../../docs/operations.md#4-drive) | `/etc/systemd/system/` |
 | `fundhub-engine-backup.timer` + `.service` + `backup-engine-db.sh` | Nightly `pg_dump` at 03:30 UTC → `/var/backups/fundhub-engine/`, 14 days kept | symlinked |
 
 Secrets (git-ignored): `services/engine/.env` (`CAPTURE_TOKEN`, `ENGINE_DATABASE_URL`) and
