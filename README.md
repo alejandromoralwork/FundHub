@@ -9,7 +9,7 @@ Independent comparator of fund service providers in Luxembourg, with fund set-up
 | Public website | [`apps/web`](apps/web) | Vercel — fundhub.lu |
 | Staff console | [`apps/admin`](apps/admin) | Vercel — fundhub.lu/admin |
 | Scraping engine + LBR capture extension | [`services/engine`](services/engine/README.md) | Azure VM |
-| Data module (AI web extraction) | [`services/scraper`](services/scraper) | GitHub Actions |
+| Data module (AI web extraction) | [`services/scraper`](services/scraper) | Azure VM (systemd timers) |
 | Shared code: taxonomy, DB schemas, email | [`packages/`](packages) | — |
 | Self-hosted tools (Nextcloud, Twenty, Listmonk) | [`infra/`](infra/README.md) | Docker server |
 | Marketing pack | [`marketing/`](marketing/README.md) | LaTeX |

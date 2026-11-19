@@ -23,8 +23,8 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
         └───────────────▲────────────────────────────────────────────────┘           │
                         │ role fundhub_scraper (ingest_* only)                       │
         ┌───────────────┴───────────┐                                                │
-        │ services/scraper          │  GitHub Actions: weekly AI web extraction,     │
-        │ (GitHub Actions)          │  daily job sweep, "Run scrape" button          │
+        │ services/scraper          │  on the Azure VM (systemd timers): weekly AI   │
+        │ (data module)             │  web extraction, queued jobs every 5 min       │
         └───────────────────────────┘                                                │
                                                                                      ▼
 ┌──────────────────────────── Azure VM  (Ubuntu 24.04, Caddy HTTPS on :443) ─────────────────────────┐
@@ -32,7 +32,8 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
 │                (Bearer token)         ├─▶ ENGINE DB  PostgreSQL 18 :5432 (localhost only)          │
 │  services/engine CLI / worker ────────┘     registry, history, filings, rounds, sweep              │
 │  /drive/*   ─▶ internal drive (file manager)          /var/backups ◀─ nightly pg_dump              │
-│  /          ─▶ code-server (VS Code in the browser)                                                │
+│  /          ─▶ code-server (VS Code in the browser), behind Authelia 2FA (/authelia)              │
+│  timers     ─▶ services/scraper (data module) ──▶ website DB (ingest_* only)                       │
 └────────────────────────────────────────────────────────────────────────────────────────────────────┘
         ▲ HTTPS
         │
@@ -47,7 +48,7 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
 |---|---|---|---|
 | **Website** | `apps/web` | Vercel (`fund-hub` project) | Public comparator of Luxembourg fund service providers: search, compare, profiles, FundHub Score, reviews, claims, RFIs, Data Intelligence reports, advisory, legal/GDPR pages, AI advisor widget |
 | **Admin console** | `apps/admin` | Vercel (`fund-hub-admin`), mounted at `fundhub.lu/admin` | Everything staff do: moderation, inbox, email, content studio, billing (Stripe), finance, analytics, data pipeline review, scraping-engine pages, Drive, reports, DB browser, GDPR, staff, audit |
-| **Data module** | `services/scraper` | GitHub Actions (`.github/workflows/scrape.yml`) | AI extraction of provider websites into the review queue (`ingest_*`). Its RCS source is a mock |
+| **Data module** | `services/scraper` | Azure VM, systemd timers (weekly + every 5 min for queued jobs) | AI extraction of provider websites into the review queue (`ingest_*`). Its RCS source is a mock |
 | **Scraping engine** | `services/engine` | Azure VM (or Docker anywhere) | Builds one registry of every Luxembourg entity from CSSF, GLEIF and RCS/LBR, with full history |
 | **LBR capture extension** | `services/engine/browser-extension` | Staff Chrome | Saves the LBR pages and filing PDFs a person opens into the engine (LBR blocks automated browsing) |
 | **Shared code** | `packages/core`, `packages/db`, `packages/engine-db`, `packages/email` | Imported by the above | Taxonomy and rules, the two database schemas and clients, email templates |
@@ -131,8 +132,9 @@ The intended path is one-way: an engine job writes proposals into the website's 
 | Staff login | Separate `staff_users`, password + mandatory TOTP 2FA, roles `owner` / `operations` / `analyst` / `sales`; permissions in `CAN` (`apps/admin/src/lib/auth.ts`); every staff write goes to `audit_log` |
 | Visitor login | Own `users` / `sessions`, rate-limited (`rate_limits`) |
 | Admin exposure | `X-Frame-Options: DENY`, `noindex`; only reachable through login |
+| VM access | SSH by key only; every browser path except `/engine/*` requires an Authelia session (password + TOTP, lockout after 3 failures) |
 | Engine on the VM | Postgres and the receiver listen on `127.0.0.1` only; Caddy terminates HTTPS; the receiver requires `Authorization: Bearer <CAPTURE_TOKEN>` and refuses proxied requests without a configured token |
-| Secrets | `.env*` files are git-ignored; production values live in Vercel, GitHub Actions secrets and the VM's `.env` files (mode 600) |
+| Secrets | `.env*` files are git-ignored; production values live in Vercel and the VM's `.env` files (mode 600) |
 | Untrusted content | Scraped pages and LBR captures are data, never instructions; the AI extractor uses a strict schema |
 | Personal data | RCS filings name directors: record the GDPR basis and a retention period; GDPR export/erasure flows in the admin |
 

@@ -11,11 +11,11 @@
  *   command typed in the terminal and either (a) "run": runs one data source over some or all published
  *   providers, or (b) "jobs": picks up scrape requests queued from the Console's "Run scrape" button and runs
  *   them. Findings go to staging tables for staff review; nothing changes public profiles directly.
- * WHERE IT RUNS: on Node.js. GitHub Actions (.github/workflows/scrape.yml) runs it on a schedule — AI web
+ * WHERE IT RUNS: on Node.js. On the Azure VM, systemd timers (services/engine/deploy/fundhub-scraper-*.timer) run it on a schedule — AI web
  *   extraction every Monday, the job queue daily — and on demand; it can also be run on a laptop.
  * FRAMEWORK NOTES: `npm run scrape -- …` runs `tsx src/cli.ts …` (tsx runs TypeScript directly without a
  *   separate build step); the words after `--` arrive in `process.argv`. The program's "exit code" tells
- *   GitHub Actions whether it worked: 0 = success, anything else = failure.
+ *   systemd whether it worked: 0 = success, anything else = failure.
  * TYPESCRIPT YOU WILL SEE HERE: namespace imports (`import * as store`), rest destructuring (`[cmd, ...rest]`),
  *   `async`/`await`, `Promise<number>`, ternaries, `?? []`, `.filter/.some/.map`, `Set`, `for…of` loops,
  *   `let`, `try/catch`, non-null `!`, `as never`, template strings, Promise `.then/.catch`.

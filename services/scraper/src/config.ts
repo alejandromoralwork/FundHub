@@ -4,7 +4,7 @@
  * WHAT IT DOES: Reads the scraper's settings from environment variables (server settings, or a local .env
  *   file) and fills in sensible defaults: which Claude model to use and how hard it should think, how many
  *   pages and characters to read per website, how the crawler identifies itself, and where RCS data comes from.
- * WHERE IT RUNS: on Node.js — in GitHub Actions (scheduled runs) or on a developer's computer.
+ * WHERE IT RUNS: on Node.js — on the Azure VM (systemd timers) or on a developer's computer.
  * FRAMEWORK NOTES: "environment variables" are named text values given to a program when it starts
  *   (e.g. ANTHROPIC_MODEL=…). In Node.js they are read with `process.env.NAME`, which is undefined if unset.
  * TYPESCRIPT YOU WILL SEE HERE: side-effect import, type aliases with a union of string literals,

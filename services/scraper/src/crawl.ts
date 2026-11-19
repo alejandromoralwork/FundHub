@@ -9,7 +9,7 @@
  *   text for the AI extractor. It reads the homepage, scores its links by how likely they describe the
  *   company (an "about" link scores high, a "clients" link low), then visits the best ones. It obeys the
  *   site's robots.txt rules, waits between requests, and stops at a page limit and a character limit.
- * WHERE IT RUNS: on Node.js (GitHub Actions or a laptop), making web requests to provider websites.
+ * WHERE IT RUNS: on Node.js (the Azure VM or a laptop), making web requests to provider websites.
  * FRAMEWORK NOTES: "cheerio" (npm) reads HTML and lets us pick elements with CSS selectors, jQuery-style
  *   (`$("title")`). "robots-parser" (npm) reads a site's robots.txt, the file where websites say which pages
  *   crawlers may visit. `fetch` is the built-in function for downloading a URL.

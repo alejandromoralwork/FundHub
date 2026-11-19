@@ -9,7 +9,7 @@ Where production runs, how to deploy it, and how to look after it. For the movin
 | Website `fundhub.lu` | Vercel project `fund-hub`, root `apps/web` | Vercel env vars |
 | Admin `fundhub.lu/admin` | Vercel project `fund-hub-admin`, root `apps/admin`, build `npm run vercel-build` (applies migrations) | Vercel env vars |
 | Website DB | Neon Postgres (Vercel Marketplace) | `DATABASE_URL*` per role |
-| Data module | GitHub Actions `.github/workflows/scrape.yml` | Repo secrets |
+| Data module | Azure VM: `fundhub-scraper-weekly.timer`, `fundhub-scraper-jobs.timer` | VM `services/scraper/.env` |
 | Engine, engine DB, Drive, code-server | Azure VM `alejandro-code.centralindia.cloudapp.azure.com` | [services/engine/deploy/](../services/engine/deploy/README.md) |
 | Nextcloud, Twenty, Listmonk (optional) | Separate Docker server | [infra/README.md](../infra/README.md) |
 
@@ -20,8 +20,8 @@ Every variable is listed with a comment in [`.env.example`](../.env.example) (we
 1. **Database.** Add Neon from the Vercel Marketplace and connect it to both projects. Run `npm run db:migrate`, then create the per-part roles:
    `DATABASE_URL=<owner url> WEB_DB_PASSWORD=… ADMIN_DB_PASSWORD=… SCRAPER_DB_PASSWORD=… ANALYST_DB_PASSWORD=… npm run db:roles -w @fundhub/db`. Re-run it after migrations that add tables.
 2. **Website** (`fund-hub`): `DATABASE_URL` (fundhub_web role), `ADMIN_ORIGIN` (admin deployment URL), optional `RESEND_API_KEY`, `EMAIL_FROM`, `LISTMONK_URL`, `LISTMONK_LIST_UUID`.
-3. **Admin** (`fund-hub-admin`): `DATABASE_URL` (fundhub_admin), `DATABASE_URL_UNPOOLED`, `ANALYST_DATABASE_URL`, `PUBLIC_SITE_URL`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, Stripe keys, price ids and `STRIPE_WEBHOOK_SECRET`, optional `GITHUB_DISPATCH_TOKEN` + `GITHUB_REPO`, `POSTHOG_URL`, `ENGINE_DATABASE_URL` (engine pages), and the sidebar tools `DRIVE_URL`, `CODE_SERVER_URL`, `NEXTCLOUD_URL`, `TWENTY_URL`, `LISTMONK_URL`, `POSTIZ_URL`.
-4. **Data module:** GitHub secrets `SCRAPER_DATABASE_URL` (fundhub_scraper) and `ANTHROPIC_API_KEY`; optional variable `RCS_SOURCE`.
+3. **Admin** (`fund-hub-admin`): `DATABASE_URL` (fundhub_admin), `DATABASE_URL_UNPOOLED`, `ANALYST_DATABASE_URL`, `PUBLIC_SITE_URL`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, Stripe keys, price ids and `STRIPE_WEBHOOK_SECRET`, `POSTHOG_URL`, `ENGINE_DATABASE_URL` (engine pages), and the sidebar tools `DRIVE_URL`, `CODE_SERVER_URL`, `NEXTCLOUD_URL`, `TWENTY_URL`, `LISTMONK_URL`, `POSTIZ_URL`.
+4. **Data module (VM):** `services/scraper/.env` with `DATABASE_URL` (fundhub_scraper role) and `ANTHROPIC_API_KEY`, then enable the timers ([deploy/README.md](../services/engine/deploy/README.md#data-module)).
 5. **First staff owner:** `npm run staff -w @fundhub/admin -- create <email> "<name>" owner` against the production database.
 
 Deploys happen on push to `main` (Vercel). Migrations run in the admin build.
@@ -32,11 +32,13 @@ Ubuntu 24.04, Standard B2als v2 (2 vCPU, 4 GB RAM), public DNS `alejandro-code.c
 
 | URL path | Service | systemd unit |
 |---|---|---|
-| `/` | code-server (VS Code in the browser, own password) | code-server |
+| `/authelia` | 2FA login portal (password + authenticator code) | `authelia` |
+| `/` | code-server (VS Code in the browser), behind Authelia 2FA | code-server |
 | `/engine/*` | Capture receiver for the extension (Bearer token) | `fundhub-capture` |
 | `/drive/*` | Internal drive (see 4) | `fundhub-drive` |
 | — | PostgreSQL 18, `fundhub_engine` | `postgresql` |
 | — | Nightly engine DB backup, 03:30 UTC | `fundhub-engine-backup.timer` |
+| — | Data module: queued jobs every 5 min, AI extraction Mon 03:00 UTC | `fundhub-scraper-jobs.timer`, `fundhub-scraper-weekly.timer` |
 
 Day-to-day commands, restore, importing a database and moving to a data disk: [services/engine/deploy/README.md](../services/engine/deploy/README.md). Extension setup (URL + token): [browser-extension/README.md](../services/engine/browser-extension/README.md).
 
@@ -85,4 +87,5 @@ Backups on the same disk as the data are not enough: configure the off-VM copy.
 | `CAPTURE_TOKEN` | VM `services/engine/.env` | Edit, `sudo systemctl restart fundhub-capture`, paste in the extension popup |
 | Engine DB password | VM `services/engine/.env`, `packages/engine-db/.env` | `ALTER ROLE fundhub_engine PASSWORD …`, update both files, restart |
 | Stripe, Resend, Anthropic, GitHub tokens | Vercel / GitHub | Provider dashboard, then env |
+| Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash), first password in `/etc/authelia/initial-credentials` | [deploy/README.md → 2FA](../services/engine/deploy/README.md#2fa-authelia) |
 | Drive admin password | VM `/etc/filebrowser/admin-credentials` (root only) | In the drive's settings |

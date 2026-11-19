@@ -5,7 +5,7 @@
  *   finds, keeps only the facts that differ from the live profile, and saves those as a record for staff to
  *   review. It counts what happened (saved, unchanged, empty, failed) and logs the run in the database.
  *   One provider failing never stops the run.
- * WHERE IT RUNS: on Node.js (GitHub Actions or a laptop), called from cli.ts.
+ * WHERE IT RUNS: on Node.js (the Azure VM or a laptop), called from cli.ts.
  * FRAMEWORK NOTES: the `saveImpl` and `log` options let tests swap in fake storage and logging, so the
  *   runner can be tested without a database ("dependency injection").
  * TYPESCRIPT YOU WILL SEE HERE: `import type`, `class` instances with `new`, type aliases, function types

@@ -191,7 +191,7 @@ export function PipelineView({ records, runs, jobs, providers }: { records: Reco
           <Button type="primary" icon={<CloudDownloadOutlined />} loading={pending} onClick={() => run(() => queueScrape(source, providerId))}>Run scrape</Button>
         </Space>
         <Alert style={{ marginTop: 12 }} type="info" showIcon
-          message="The data module runs separately on GitHub Actions: weekly for all websites, immediately when you click Run scrape (if configured), and a daily sweep. The RCS source uses mock data until a register provider is chosen." />
+          message="The data module runs separately on the Azure VM: weekly for all websites (Monday 03:00 UTC), and within 5 minutes when you click Run scrape. The RCS source uses mock data until a register provider is chosen." />
       </Card>
       {/* Tabs. "Review queue" shows a count bubble and one RecordCard per record (each with a unique `key`).
           "Runs": status as a coloured dot (green succeeded, blue pulsing running, red otherwise; hover shows the

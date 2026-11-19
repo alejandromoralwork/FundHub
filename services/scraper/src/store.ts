@@ -8,7 +8,7 @@
  *   open and close a "run" log entry, work out which scraped facts differ from the live profile, save a
  *   pending record for staff review (replacing an older unreviewed one), and claim/finish jobs queued from
  *   the Console.
- * WHERE IT RUNS: on Node.js (GitHub Actions or a laptop), talking to Postgres.
+ * WHERE IT RUNS: on Node.js (the Azure VM or a laptop), talking to Postgres.
  * FRAMEWORK NOTES: Drizzle ORM builds SQL from TypeScript: `db.select().from(t).where(...)`, `db.insert(t)
  *   .values(...)`, `db.update(t).set(...)`. The `sql` tag writes raw SQL where Drizzle has no shortcut; values
  *   put into ${…} are sent safely as parameters, and ${table} / ${column} insert their quoted names.

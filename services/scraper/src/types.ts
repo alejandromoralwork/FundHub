@@ -5,7 +5,7 @@
  *   provider to look up, the result of looking one up (an "extraction"), and the contract every data source
  *   (the AI website reader, the RCS business register) must follow. It contains no running code.
  * WHERE IT RUNS: nowhere on its own — types exist only while TypeScript checks the code and vanish when it
- *   runs (on Node.js, in GitHub Actions or on a laptop).
+ *   runs (on Node.js, on the Azure VM or on a laptop).
  * FRAMEWORK NOTES: none; this is plain TypeScript.
  * TYPESCRIPT YOU WILL SEE HERE: type aliases (`type X = { … }`), union with null (`string | null` = "text or
  *   nothing"), `Record<K, V>` (an object with keys K and values V), `unknown`, `interface`, method signatures,

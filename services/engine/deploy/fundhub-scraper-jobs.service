@@ -1,0 +1,16 @@
+[Unit]
+Description=FundHub data module: process jobs queued from the admin (Run scrape)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/alejandro/projects/FundHub/services/scraper/.env
+
+[Service]
+Type=oneshot
+User=alejandro
+WorkingDirectory=/home/alejandro/projects/FundHub/services/scraper
+# DATABASE_URL (fundhub_scraper role) and ANTHROPIC_API_KEY; template: services/scraper/.env.example
+EnvironmentFile=/home/alejandro/projects/FundHub/services/scraper/.env
+Environment=PATH=/home/alejandro/.nvm/versions/node/v26.13.1/bin:/usr/bin:/bin
+ExecStart=/home/alejandro/.nvm/versions/node/v26.13.1/bin/node --import tsx src/cli.ts jobs
+TimeoutStartSec=30min
+Nice=10

@@ -32,10 +32,9 @@ import { ALL_SERVICES } from "@fundhub/core/taxonomy";
 // Database connection; tables: scrape jobs, scraped records, providers.
 import { db } from "@fundhub/db/client";
 import { ingestJobs, ingestRecords, providers } from "@fundhub/db/schema";
-// Audit log, permission checks, and the helper that starts the scraper on GitHub Actions.
+// Audit log and permission checks.
 import { audit } from "./audit";
 import { CAN, requireStaff } from "./auth";
-import { dispatchScrapeWorkflow } from "./github";
 
 /**
  * Kind: type alias (exported). Result of an action: `ok` or `error` message, both optional.
@@ -78,10 +77,11 @@ const ACCEPTABLE: Record<string, z.ZodType> = {
 
 /**
  * Kind: server action.
- * Adds a scrape job to the queue and tries to start the scraper straight away.
+ * Adds a scrape job to the queue. The data module on the VM checks the queue every 5 minutes
+ * (fundhub-scraper-jobs.timer, see services/engine/deploy/README.md).
  * @param source      `string` — which source to scrape (must be one of `INGEST_SOURCES`).
  * @param providerId  `number | null` — one provider to scrape, or `null` for a general run.
- * @returns           `Promise<ActionResult>` — tells staff whether it started now or waits for the daily run.
+ * @returns           `Promise<ActionResult>` — confirms the job is queued.
  */
 export async function queueScrape(source: string, providerId: number | null): Promise<ActionResult> {
   // `CAN.pipeline` = owner, operations and analyst.
@@ -90,15 +90,8 @@ export async function queueScrape(source: string, providerId: number | null): Pr
   // Record the job; the scraper picks up queued jobs when it runs.
   const [job] = await db.insert(ingestJobs).values({ source: s, providerId, requestedBy: staff.id }).returning({ id: ingestJobs.id });
   await audit(staff, "queue", "ingest_jobs", job.id, { source: s, providerId });
-  // Ask GitHub to run the scraper now; `false` if that is not configured.
-  const started = await dispatchScrapeWorkflow();
   revalidatePath("/pipeline");
-  return {
-    // Ternary: choose the message depending on whether the run was started.
-    ok: started
-      ? "Queued and the data module was started. Results appear in the review queue in a few minutes."
-      : "Queued. It runs in the daily sweep (set GITHUB_DISPATCH_TOKEN to start runs immediately).",
-  };
+  return { ok: "Queued. The data module picks it up within 5 minutes; results then appear in the review queue." };
 }
 
 /**

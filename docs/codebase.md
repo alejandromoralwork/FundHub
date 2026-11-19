@@ -17,7 +17,7 @@ FundHub/
 │   │   ├── deploy/                            Azure VM config: systemd units, Caddyfile, backups
 │   │   ├── docs/                              LBR findings, data-reuse request
 │   │   └── snippets/                          legacy DevTools snippet (replaced by the extension)
-│   └── scraper/             @fundhub/scraper  data module: AI web extraction (GitHub Actions)
+│   └── scraper/             @fundhub/scraper  data module: AI web extraction (VM timers)
 ├── packages/
 │   ├── core/                @fundhub/core       taxonomy, enums, filters, score, formatting, passwords
 │   ├── db/                  @fundhub/db         website DB: schema, migrations, client, queries, roles
@@ -26,8 +26,7 @@ FundHub/
 ├── infra/                   self-hosted tools server (Docker): Nextcloud, Twenty, Listmonk
 ├── marketing/               LaTeX presentation, brochures, diagrams (Python), screenshots
 ├── scripts/                 repo tools (check-comments-only.mjs)
-├── docs/                    this documentation
-└── .github/workflows/       scrape.yml (data module schedule)
+└── docs/                    this documentation
 ```
 
 Dependency direction: `apps/*` and `services/*` import `packages/*`; packages never import apps or services; apps and services never import each other.

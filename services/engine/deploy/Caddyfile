@@ -1,13 +1,21 @@
 alejandro-code.centralindia.cloudapp.azure.com {
-	# FundHub capture receiver (browser extension). Token-protected by the receiver itself.
+	# Authelia login portal (password + authenticator code). Public: it is the login page.
+	handle /authelia* {
+		reverse_proxy 127.0.0.1:9091
+	}
+	# FundHub capture receiver (browser extension). Machine client: protected by its Bearer token, not 2FA.
 	handle_path /engine/* {
 		request_body {
 			max_size 25MB
 		}
 		reverse_proxy 127.0.0.1:4477
 	}
-	# code-server
+	# Everything else (code-server) requires an Authelia 2FA session.
 	handle {
+		forward_auth 127.0.0.1:9091 {
+			uri /authelia/api/authz/forward-auth
+			copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
+		}
 		reverse_proxy 127.0.0.1:8080
 	}
 }
