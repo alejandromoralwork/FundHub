@@ -13,6 +13,26 @@
       </div>
     </header>
 
+    <!-- Where the engine runs (Azure VM through HTTPS, or a local receiver) and its token. -->
+    <section class="fh-card" id="conn">
+      <div class="fh-row0">
+        <div class="fh-h2">Connection</div>
+        <button class="fh-btn ghost" id="c-toggle">Edit</button>
+      </div>
+      <div class="fh-muted0" id="c-line"></div>
+      <div id="c-form" hidden>
+        <div class="fh-grid">
+          <label>Engine URL <input id="c-url" class="fh-input0" placeholder="https://alejandro-code.centralindia.cloudapp.azure.com/engine" /></label>
+          <label>Token <input id="c-token" type="password" class="fh-input0" placeholder="CAPTURE_TOKEN from the VM" autocomplete="off" /></label>
+          <label>Admin console <input id="c-admin" class="fh-input0" placeholder="http://localhost:3001/admin" /></label>
+        </div>
+        <div class="fh-row0" style="margin-top:6px">
+          <button class="fh-btn" id="c-save">Save &amp; test</button>
+          <button class="fh-btn ghost" id="c-local" title="A receiver running on this computer">Use local receiver</button>
+        </div>
+      </div>
+    </section>
+
     <!-- The current capture round and the NEXT company to open. -->
     <section class="fh-round" id="round">
       <div class="fh-row0">
@@ -96,8 +116,8 @@
     </section>
 
     <footer class="fh-foot">
-      <a href="http://localhost:3001/admin/engine/rounds" target="_blank">Round register</a>
-      <a href="http://localhost:3001/admin/engine/registry" target="_blank">Registry</a>
+      <a id="l-rounds" href="http://localhost:3001/admin/engine/rounds" target="_blank">Round register</a>
+      <a id="l-registry" href="http://localhost:3001/admin/engine/registry" target="_blank">Registry</a>
       <span class="fh-muted">Only pages you open are saved.</span>
     </footer>
     <script src="popup.js"></script>

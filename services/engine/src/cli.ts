@@ -31,6 +31,8 @@
  * TYPESCRIPT YOU WILL SEE HERE: `switch`, `readline/promises`, dynamic flag parsing, `Promise<number>`.
  */
 
+// First: load .env before any module reads process.env at import time (the engine DB pool does).
+import "dotenv/config";
 import { existsSync } from "node:fs";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";

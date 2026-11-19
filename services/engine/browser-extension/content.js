@@ -250,7 +250,7 @@
       rcs && lastSweepOpen && Date.now() - lastSweepOpen.at < 30_000
         ? `LBR opened a company page for the search "${lastSweepOpen.term}" (one exact match): it is saved; carry on with the next search.`
         : "";
-    if (!q.ok) ui.note = "FundHub engine not reachable — start: node --import tsx src/cli.ts capture-server";
+    if (!q.ok) ui.note = "FundHub engine not reachable" + (q.error ? " — " + q.error : "") + ". Check the popup's Connection card (VM URL + token) or that the receiver runs on the VM.";
     else if (ui.note.startsWith("FundHub engine")) ui.note = "";
     ui.next = q.items || [];
     ui.round = q.round || null;

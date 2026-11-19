@@ -10,11 +10,15 @@
  *   Every capture is also kept as a file (.engine-data/captures/), so pages the parser does not recognise yet
  *   are not lost: fix the parser, then `engine rcs:import-captures`.
  *   Security: listens on 127.0.0.1 only and accepts requests only from https://www.lbr.lu (CORS + Origin check).
- * WHERE IT RUNS: on the computer where you browse LBR.
+ *   Remote use (engine on a VM, Chrome on your PC): a reverse proxy (Caddy, HTTPS) forwards /engine/* to it, and
+ *   every request must carry `Authorization: Bearer <CAPTURE_TOKEN>`. A proxied request (X-Forwarded-For) is
+ *   refused when no CAPTURE_TOKEN is set, so the database is never writable from the internet without the token.
+ * WHERE IT RUNS: on the computer where you browse LBR, or on the VM behind the proxy.
  * TYPESCRIPT YOU WILL SEE HERE: node:http server, JSON bodies, CORS / Private Network Access headers.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { eq, sql } from "drizzle-orm";
@@ -37,6 +41,23 @@ const ALLOWED_ORIGIN = "https://www.lbr.lu";
 const allowedOrigin = (o: string | undefined) => !o || o === ALLOWED_ORIGIN || o.startsWith("chrome-extension://");
 /** Kind: constant. Default port (the snippet uses the same). */
 export const CAPTURE_PORT = Number(process.env.CAPTURE_PORT ?? 4477);
+/** Kind: constant. Interface to listen on. Keep 127.0.0.1 behind a reverse proxy. */
+const CAPTURE_HOST = process.env.CAPTURE_HOST ?? "127.0.0.1";
+/** Kind: constant. Shared secret the extension sends as a Bearer token (required for remote use). */
+const CAPTURE_TOKEN = process.env.CAPTURE_TOKEN?.trim() || "";
+
+/**
+ * Kind: function. Whether the request may proceed. With CAPTURE_TOKEN set, every request needs the token.
+ * Without it, only direct local requests pass (a request that came through a proxy is refused).
+ */
+function authorized(req: IncomingMessage): boolean {
+  if (!CAPTURE_TOKEN) return !req.headers["x-forwarded-for"] && CAPTURE_HOST === "127.0.0.1";
+  const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "");
+  if (!m) return false;
+  const a = Buffer.from(m[1].trim());
+  const b = Buffer.from(CAPTURE_TOKEN);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /** Kind: constant. The RCS adapter for pages sent by a person (nothing to fetch: the page comes in). */
 const personRcs: SourceAdapter = { source: "rcs", parserVersion: RCS_PARSER_VERSION, fetch: async () => null, parse: parseRcs };
@@ -65,7 +86,7 @@ function send(res: ServerResponse, status: number, body: unknown, origin?: strin
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     // Chrome's Private Network Access: a public site (lbr.lu) may call localhost only if localhost agrees.
     "Access-Control-Allow-Private-Network": "true",
   });
@@ -367,6 +388,7 @@ export async function startCaptureServer() {
       if (!allowedOrigin(origin)) return send(res, 403, { ok: false, error: "origin not allowed" });
       const reply = (status: number, body: unknown) => send(res, status, body, origin);
       if (req.method === "OPTIONS") return reply(204, {});
+      if (!authorized(req)) return reply(401, { ok: false, error: "unauthorized: set the engine token in the extension popup (Connection)" });
       const url = new URL(req.url ?? "/", `http://127.0.0.1:${CAPTURE_PORT}`);
       // The work list: the active round's pending companies, or (no round) the not-yet-captured companies.
       const queue = async (n: number, filter = "") => ((await activeRound()) ? await nextItems(n) : await nextCompanies(skip, n, filter));
@@ -464,8 +486,9 @@ export async function startCaptureServer() {
       return send(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) }, req.headers.origin);
     }
   });
-  server.listen(CAPTURE_PORT, "127.0.0.1", () => {
-    console.log(`📥 FundHub capture server on http://127.0.0.1:${CAPTURE_PORT} — accepting LBR pages and documents (snippet / FundHub extension) only.`);
+  server.listen(CAPTURE_PORT, CAPTURE_HOST, () => {
+    console.log(`📥 FundHub capture server on http://${CAPTURE_HOST}:${CAPTURE_PORT} — accepting LBR pages and documents (snippet / FundHub extension) only.`);
+    console.log(CAPTURE_TOKEN ? "   Token required (CAPTURE_TOKEN set): remote access through the proxy is enabled." : "   No CAPTURE_TOKEN: local requests only (proxied requests are refused).");
     console.log(`   Captures are also saved in ${dir}`);
     console.log("   Browse LBR in your Chrome, open a company page, run the snippet. Ctrl+C to stop.");
   });

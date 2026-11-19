@@ -74,3 +74,4 @@ select, .fh-input { font: inherit; border: 1px solid var(--line); border-radius:
 .fh-muted0.warn { color: #b45309; margin-top: 4px; }
 .fh-next .fh-row0 .go { flex: 1; }
 .fh-next .fh-row0 .fh-btn { margin-top: 6px; }
+.fh-grid label .fh-input0 { flex: 1; min-width: 0; }

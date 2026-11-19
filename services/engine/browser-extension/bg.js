@@ -1,18 +1,34 @@
 /*
  * FILE: services/engine/browser-extension/bg.js   (extension background service worker)
- * WHAT IT DOES: relays what content.js / the popup need to and from the FundHub engine on this computer
- *   (`engine capture-server`, http://127.0.0.1:4477): page captures, documents, the work list ("queue"),
+ * WHAT IT DOES: relays what content.js / the popup need to and from the FundHub engine
+ *   (`engine capture-server`): page captures, documents, the work list ("queue"),
  *   progress numbers, a company's status. It also handles the "open next company" shortcut (Alt+Shift+N):
- *   one keypress = you ask for the next company, it opens in the current LBR tab. Talks ONLY to 127.0.0.1.
+ *   one keypress = you ask for the next company, it opens in the current LBR tab.
+ *   Engine address and token come from the popup's Connection card (chrome.storage.local `engineUrl`,
+ *   `engineToken`): the Azure VM (https://…/engine, token required) or a local receiver (http://127.0.0.1:4477).
  *   Search sweep: "open next search" (button or Alt+Shift+S) opens the next planned LBR search in the current tab,
  *   ONE search per click — exactly what typing it in LBR's search box does. Nothing runs on a timer.
  */
-const ENGINE = "http://127.0.0.1:4477";
+const DEFAULT_ENGINE = "https://alejandro-code.centralindia.cloudapp.azure.com/engine";
 const SEARCH = (term) => "https://www.lbr.lu/mjrcs-web-front/consult-search-list?search=" + encodeURIComponent(term);
 const COMPANY = (rcs) => "https://www.lbr.lu/mjrcs-web-front/consult-company/" + encodeURIComponent(rcs) + "?tab=deposit";
 
+/** The engine address (no trailing slash) and its token, from the popup's Connection card. */
+async function engine() {
+  const { engineUrl, engineToken } = await chrome.storage.local.get({ engineUrl: DEFAULT_ENGINE, engineToken: "" });
+  return { base: String(engineUrl || DEFAULT_ENGINE).replace(/\/+$/, ""), token: String(engineToken || "").trim() };
+}
+
 async function call(path, body) {
-  const res = await fetch(ENGINE + path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  const { base, token } = await engine();
+  const headers = {};
+  if (token) headers.Authorization = "Bearer " + token;
+  if (body) headers["Content-Type"] = "application/json";
+  const res = await fetch(base + path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
+  if (res.status === 401) return { ok: false, error: "Engine token missing or wrong — set it in the popup (Connection)" };
+  if (res.status === 413) return { ok: false, error: "Too large for the engine proxy (" + res.status + ")" };
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) return { ok: false, error: "Not a FundHub engine at " + base + " (HTTP " + res.status + ")" };
   return res.json();
 }
 
@@ -59,6 +75,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
           return reply(await call(`/queue?n=${msg.n || 10}&filter=${encodeURIComponent(msg.filter || "")}`));
         case "stats":
           return reply(await call("/stats"));
+        case "engine-info": {
+          const { base, token } = await engine();
+          return reply({ ok: true, base, hasToken: !!token });
+        }
         case "company":
           return reply(await call("/company?rcs=" + encodeURIComponent(msg.rcs)));
         case "skip":

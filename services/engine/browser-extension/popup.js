@@ -24,6 +24,34 @@ $("autoDocs").addEventListener("change", () => chrome.storage.local.set({ autoDo
 $("sweepMode").addEventListener("change", () => chrome.storage.local.set({ sweepMode: $("sweepMode").checked }));
 $("keepLocalCopy").addEventListener("change", () => chrome.storage.local.set({ keepLocalCopy: $("keepLocalCopy").checked }));
 
+// ---- connection: engine URL (VM or local), token, admin console address
+const DEFAULT_ENGINE = "https://alejandro-code.centralindia.cloudapp.azure.com/engine";
+const DEFAULT_ADMIN = "http://localhost:3001/admin";
+function syncConnection() {
+  chrome.storage.local.get({ engineUrl: DEFAULT_ENGINE, engineToken: "", adminUrl: DEFAULT_ADMIN }, (v) => {
+    $("c-url").value = v.engineUrl;
+    $("c-token").value = v.engineToken;
+    $("c-admin").value = v.adminUrl;
+    $("c-line").textContent = `${v.engineUrl}${v.engineToken ? " · token set" : " · no token"}`;
+    const admin = String(v.adminUrl || DEFAULT_ADMIN).replace(/\/+$/, "");
+    $("l-rounds").href = admin + "/engine/rounds";
+    $("l-registry").href = admin + "/engine/registry";
+    if (!v.engineToken && /^https:/.test(v.engineUrl)) $("c-form").hidden = false;
+  });
+}
+syncConnection();
+$("c-toggle").addEventListener("click", () => ($("c-form").hidden = !$("c-form").hidden));
+$("c-local").addEventListener("click", () => ($("c-url").value = "http://127.0.0.1:4477"));
+$("c-save").addEventListener("click", async () => {
+  const engineUrl = $("c-url").value.trim().replace(/\/+$/, "") || DEFAULT_ENGINE;
+  const adminUrl = $("c-admin").value.trim().replace(/\/+$/, "") || DEFAULT_ADMIN;
+  await chrome.storage.local.set({ engineUrl, engineToken: $("c-token").value.trim(), adminUrl });
+  syncConnection();
+  const st = await send({ type: "stats" });
+  if (st.ok) $("c-form").hidden = true;
+  load();
+});
+
 // ---- filter of the no-round work list
 const currentFilter = () => $("search").value.trim() || $("filter").value;
 let t = null;
@@ -71,7 +99,7 @@ async function load() {
   const [st, q] = await Promise.all([send({ type: "stats" }), send({ type: "queue", n: 15, filter: currentFilter() })]);
   if (!st.ok) {
     $("engine").className = "fh-sub bad";
-    $("engine").textContent = "Engine not running — start capture-server";
+    $("engine").textContent = st.error || "Engine not reachable — check Connection";
   } else {
     const s = st.stats;
     $("engine").className = "fh-sub ok";

@@ -54,6 +54,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     base(process.env.TWENTY_URL) && { label: "CRM (Twenty)", href: base(process.env.TWENTY_URL)! },
     base(process.env.LISTMONK_URL) && { label: "Newsletter (Listmonk)", href: `${base(process.env.LISTMONK_URL)}/admin/` },
     base(process.env.POSTIZ_URL) && { label: "Social scheduler (Postiz)", href: base(process.env.POSTIZ_URL)! },
+    // The code editor on the Azure VM (code-server, its own password). Owners only: it is a full shell on the server.
+    staff.role === "owner" && { label: "Code editor (VM)", href: base(process.env.CODE_SERVER_URL) ?? "https://alejandro-code.centralindia.cloudapp.azure.com" },
   ].filter((t): t is ShellTool => !!t);
   // Render the shell with only the staff fields it needs, the links, and the current page inside it.
   // `{children}` inside the tags places the page's content there.

@@ -1,0 +1,13 @@
+alejandro-code.centralindia.cloudapp.azure.com {
+	# FundHub capture receiver (browser extension). Token-protected by the receiver itself.
+	handle_path /engine/* {
+		request_body {
+			max_size 25MB
+		}
+		reverse_proxy 127.0.0.1:4477
+	}
+	# code-server
+	handle {
+		reverse_proxy 127.0.0.1:8080
+	}
+}

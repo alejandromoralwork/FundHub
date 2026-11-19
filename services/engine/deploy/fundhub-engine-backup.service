@@ -1,0 +1,8 @@
+[Unit]
+Description=FundHub engine database backup
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/alejandro/projects/FundHub/services/engine/deploy/backup-engine-db.sh
