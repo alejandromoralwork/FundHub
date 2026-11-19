@@ -11,6 +11,15 @@ server:
   sources:
     - path: /srv/fundhub-drive
       name: FundHub
+      config:
+        # What every new account gets on this folder. Delete is off: grant it per person in Settings → Users.
+        defaultPermissions:
+          view: true
+          download: true
+          create: true
+          modify: true
+          delete: false
+          configured: true
   logging:
     - levels: "info|error|warning"
 auth:

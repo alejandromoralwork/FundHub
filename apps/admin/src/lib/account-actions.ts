@@ -139,6 +139,35 @@ async function checkCurrentPassword(staffUserId: number, password: string): Prom
 // ---------------------------------------------------------------- signed in: account security
 
 /**
+ * Kind: server action.
+ * The forced first password: after someone else set this account's password (new account or reset), the
+ * person must choose their own before using the Console. They have just proved the temporary password and
+ * their two-factor code, so the current password is not asked again.
+ * @param _prev     type `AccountState` — previous form state (unused).
+ * @param formData  type `FormData` — fields `password` and `confirm`.
+ * @returns `Promise<AccountState>`: `{ error }` to show, or a redirect to the dashboard when done.
+ */
+export async function setOwnFirstPassword(_prev: AccountState, formData: FormData): Promise<AccountState> {
+  // Not requireStaff: it is what sends people here, so it would loop.
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!session.mfaPassed) redirect("/login/mfa");
+  if (!session.staff.mustChangePassword) redirect("/");
+  if (!(await rateLimit(`staff-account:${session.staff.id}`, 10, 15 * 60))) return { error: "Too many attempts. Wait 15 minutes." };
+
+  const password = String(formData.get("password") ?? "");
+  const problem = newPasswordError(password, String(formData.get("confirm") ?? ""));
+  if (problem) return { error: problem };
+  // The temporary password must not simply be kept.
+  if (await checkCurrentPassword(session.staff.id, password)) return { error: "Choose a password different from the temporary one." };
+
+  await db.update(staffUsers).set({ passwordHash: await hashPassword(password), mustChangePassword: false }).where(eq(staffUsers.id, session.staff.id));
+  await endOtherSessions(session.staff.id);
+  await audit(session.staff, "set-own-password", "staff_users", session.staff.id);
+  redirect("/");
+}
+
+/**
  * Kind: server action (exported async function in a "use server" file).
  * Lets a signed-in staff member change their own password.
  * @param _prev     type `AccountState` — the previous form state (required by useActionState; unused here,
@@ -166,7 +195,7 @@ export async function changeOwnPassword(_prev: AccountState, formData: FormData)
   if (current === password) return { error: "Choose a password different from the current one." };
 
   // SQL "UPDATE staff_users SET password_hash = … WHERE id = …". We store only a hash, never the password.
-  await db.update(staffUsers).set({ passwordHash: await hashPassword(password) }).where(eq(staffUsers.id, staff.id));
+  await db.update(staffUsers).set({ passwordHash: await hashPassword(password), mustChangePassword: false }).where(eq(staffUsers.id, staff.id));
   // Kick out other browsers that may have been signed in with the old password.
   await endOtherSessions(staff.id);
   // Record the change in the audit log (who, what action, which table, which row).
@@ -273,14 +302,14 @@ export async function resetStaffPassword(_prev: AccountState, formData: FormData
   if (!reset) return { error: "This reset link is invalid or has expired. Request a new one." };
 
   // Save the new password hash.
-  await db.update(staffUsers).set({ passwordHash: await hashPassword(password) }).where(eq(staffUsers.id, reset.staffUserId));
+  await db.update(staffUsers).set({ passwordHash: await hashPassword(password), mustChangePassword: false }).where(eq(staffUsers.id, reset.staffUserId));
   // Mark the link as used, so it can only work once.
   await db.update(staffPasswordResets).set({ usedAt: new Date() }).where(eq(staffPasswordResets.id, reset.id));
   // Sign out everywhere; the next login still asks for the two-factor code.
   await db.delete(staffSessions).where(eq(staffSessions.staffUserId, reset.staffUserId));
   // Load the fields the audit log needs to describe the person who did this.
   const [user] = await db
-    .select({ id: staffUsers.id, email: staffUsers.email, name: staffUsers.name, role: staffUsers.role, totpEnabled: staffUsers.totpEnabled })
+    .select({ id: staffUsers.id, email: staffUsers.email, name: staffUsers.name, role: staffUsers.role, totpEnabled: staffUsers.totpEnabled, mustChangePassword: staffUsers.mustChangePassword })
     .from(staffUsers)
     .where(eq(staffUsers.id, reset.staffUserId));
   if (user) await audit(user, "reset-password-by-email", "staff_users", user.id);

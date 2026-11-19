@@ -25,9 +25,9 @@ Roles: **owner** (everything, incl. Staff and Finance), **operations** (moderati
 
 | Task | How |
 |---|---|
-| Add a person | Owner: **Staff** → add (email, name, role). A temporary password is shown once: send it privately. At first login they must set up their authenticator |
+| Add a person | Owner: **Staff** → add (email, name, role). A temporary password is shown once: send it privately. At first login they set up their authenticator, then **must choose their own password** before anything else |
 | Change role / deactivate | **Staff** → the person's row. Deactivated people cannot log in; their history stays in the audit log |
-| They forgot their password | Login page → *Forgot password* (email link), or owner: **Staff** → reset password |
+| They forgot their password | Login page → *Forgot password* (email link; without an email service the link is in the admin's Vercel logs, search `email:console`), or owner: **Staff** → reset password. A reset gives a temporary password; at the next login (after the authenticator code) they are made to choose their own |
 | They lost their phone | Owner: **Staff** → reset 2FA; at next login they register a new authenticator |
 | Change your own password / authenticator | **Account** page |
 
@@ -38,13 +38,13 @@ Roles: **owner** (everything, incl. Staff and Finance), **operations** (moderati
 # or `vercel env pull`). Never commit it.
 export DATABASE_URL='postgres://…'
 npm run staff -w @fundhub/admin -- list
-npm run staff -w @fundhub/admin -- reset-password you@fundhub.lu     # prints a new temporary password once
+npm run staff -w @fundhub/admin -- reset-password you@fundhub.lu     # prints a temporary password once; the next login asks for your own
 npm run staff -w @fundhub/admin -- reset-mfa you@fundhub.lu          # lost phone: set up 2FA again at next login
 npm run staff -w @fundhub/admin -- create you@fundhub.lu "Your Name" owner   # a new owner, if needed
 unset DATABASE_URL
 ```
 
-Both resets sign the person out everywhere. Keep at least **two owners** so one can always reset the other.
+Both resets sign the person out everywhere. The `DATABASE_URL` must be the **admin** or owner connection string (`fundhub_admin` / `neondb_owner`): the website's `fundhub_web` role is not allowed to read staff accounts, and the script then says *permission denied*. Its first output line shows which database and role it is using; `localhost:5433` means `DATABASE_URL` was not set in that terminal. Paste the string only at the hidden prompt (`read -rsp`), never into chats or files. Keep at least **two owners** so one can always reset the other.
 
 ## 2. Website visitor and provider accounts
 
@@ -87,7 +87,8 @@ The Drive uses the VM login (§3): there is no separate Drive password. A Drive 
 
 | Task | How |
 |---|---|
-| Give someone the Drive | Add them to the VM login (§3, without `--admin`); after their first visit set their folder access in Drive *Settings → Users* |
+| Give someone the Drive | Add them to the VM login (§3, without `--admin`). At their first visit they get view, download, upload and edit, but not delete; adjust in Drive *Settings → Users* |
+| No upload / delete buttons | Folder rights, not admin status, control these: Drive *Settings → Users* → the user → the `FundHub` source → tick create / modify / delete |
 | Restrict folders | Drive *Settings → Users* → the user → access rules per folder (e.g. only `Clients` and `Marketing`) |
 | Remove someone | Remove their VM login (§3), then delete their account in Drive *Settings → Users* |
 | Drive admin | The VM user named in `adminUsername` (`infra/vm/drive/config.yaml`) |

@@ -37,6 +37,8 @@ import { STAFF_ROLES, type StaffRole } from "@fundhub/core/enums";
 import { hashPassword } from "@fundhub/core/password";
 // `db` = the database (Drizzle); `pool` = the underlying set of connections, closed at the end.
 import { db, pool } from "@fundhub/db/client";
+// The connection string the client uses, to say which database this run talks to.
+import { databaseUrl } from "@fundhub/db/env";
 // Tables: staff accounts and their login sessions.
 import { staffSessions, staffUsers } from "@fundhub/db/schema";
 
@@ -57,6 +59,10 @@ async function main() {
   const [cmd, rawEmail, name, role = "operations"] = process.argv.slice(2);
   // Normalise the email: remove spaces around it and make it lower case. `?.` = only if it was given.
   const email = rawEmail?.trim().toLowerCase();
+  // Say which database this run uses (host and role only, never the password), so a missing DATABASE_URL
+  // (falls back to the local development database) is obvious.
+  const target = new URL(databaseUrl());
+  console.error(`Database: ${target.hostname}:${target.port || 5432} as ${decodeURIComponent(target.username)}${process.env.DATABASE_URL || process.env.FUNDHUB_DATABASE_URL ? "" : "  (DATABASE_URL not set: local development database)"}`);
 
   // "list": print a table of all staff in the terminal (`console.table` formats rows as a grid).
   if (cmd === "list") {
@@ -85,9 +91,9 @@ async function main() {
     if (!STAFF_ROLES.includes(role as StaffRole)) throw new Error(`Role must be one of ${STAFF_ROLES.join(", ")}`);
     const password = genPassword();
     // INSERT the account. `name || email`: if no name was given, use the email as the name.
-    await db.insert(staffUsers).values({ email, name: name || email, role: role as StaffRole, passwordHash: await hashPassword(password) });
+    await db.insert(staffUsers).values({ email, name: name || email, role: role as StaffRole, passwordHash: await hashPassword(password), mustChangePassword: true });
     // Show the temporary password once. `\n` starts a new line inside the text.
-    console.log(`✔ Staff created: ${email} (${role})\n  Temporary password: ${password}\n  Log in at /admin/login and set up two-factor authentication.`);
+    console.log(`✔ Staff created: ${email} (${role})\n  Temporary password: ${password}\n  Log in at /admin/login, set up two-factor authentication, then choose your own password (asked automatically).`);
     return;
   }
 
@@ -101,8 +107,8 @@ async function main() {
   } else {
     // "reset-password": store the hash of a new random password and print the password once.
     const password = genPassword();
-    await db.update(staffUsers).set({ passwordHash: await hashPassword(password) }).where(eq(staffUsers.id, user.id));
-    console.log(`✔ Password reset for ${email}\n  Temporary password: ${password}`);
+    await db.update(staffUsers).set({ passwordHash: await hashPassword(password), mustChangePassword: true }).where(eq(staffUsers.id, user.id));
+    console.log(`✔ Password reset for ${email}\n  Temporary password: ${password}\n  At the next login (after the two-factor code) they must choose their own password.`);
   }
   // In both reset cases, log the person out everywhere by deleting their sessions.
   await db.delete(staffSessions).where(eq(staffSessions.staffUserId, user.id));
@@ -118,6 +124,11 @@ main()
     () => process.exit(0),
     (err) => {
       console.error(err instanceof Error ? err.message : err);
+      // Drizzle wraps the driver error: show the real reason (connection refused, permission denied, …).
+      const cause = err instanceof Error ? (err.cause as Error | undefined) : undefined;
+      if (cause?.message) console.error(`Reason: ${cause.message}`);
+      if (cause && /permission denied/i.test(cause.message)) console.error("Use the admin connection string (fundhub_admin or neondb_owner), not the website's fundhub_web.");
+      if (cause && /ECONNREFUSED/.test(cause.message)) console.error("Nothing answers at that address. Set DATABASE_URL in this same terminal (export) before running.");
       process.exit(1);
     },
   );

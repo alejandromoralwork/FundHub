@@ -172,6 +172,10 @@ if [ ! -f /var/lib/fundhub-drive/filebrowser.sqlite ]; then
   systemctl restart fundhub-drive
   for _ in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:8090/drive/ 2>/dev/null && break; sleep 1; done
   curl -sS -o /dev/null -H "Remote-User: $APP_USER" "http://127.0.0.1:8090/drive/api/resources?source=FundHub&path=/" || true
+  # New accounts get the folder defaults (no delete); the drive admin gets everything.
+  curl -sS -o /dev/null -X PATCH -H "Remote-User: $APP_USER" -H "Content-Type: application/json" \
+    "http://127.0.0.1:8090/drive/api/users?username=$APP_USER" \
+    -d '{"which":["scopes"],"data":{"scopes":[{"name":"FundHub","scope":"/","permissions":{"view":true,"download":true,"modify":true,"delete":true,"create":true,"configured":true}}]}}' || true
   D=1
 fi
 install_file "$HERE/drive/config.yaml" /etc/fundhub-drive/config.yaml 644 && D=1 || true

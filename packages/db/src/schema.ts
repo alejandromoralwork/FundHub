@@ -462,6 +462,8 @@ export const staffUsers = pgTable("staff_users", {
   totpSecret: text("totp_secret"),
   totpEnabled: boolean("totp_enabled").notNull().default(false),
   active: boolean("active").notNull().default(true),
+  /** True after someone else set this password (new account or reset): the next login must choose a new one. */
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   lastLoginAt: ts("last_login_at"),
   ...timestamps,
 });

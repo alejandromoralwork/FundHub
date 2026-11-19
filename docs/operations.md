@@ -59,7 +59,7 @@ The admin's **Drive** page (`/admin/drive`, all staff roles) has an **Open Drive
 
 **Login.** The drive sits behind the same Authelia 2FA as code-server: one VM login (password + authenticator code) for both. Caddy strips any `Remote-User` header a visitor sends, Authelia sets the real one, and the drive trusts it (FileBrowser Quantum *proxy* login). The drive has **no password of its own**, and it listens on `127.0.0.1` only. It is not embedded in the admin because browsers block the 2FA cookie inside another site's frame.
 
-**Accounts.** Every Authelia user who opens the drive gets a drive account automatically; set their folder access rules in *Settings → Users*. The user named in `adminUsername` (the VM user, `alejandro`) is the drive admin. To add a person: add them to `/etc/authelia/users.yml` (password hash), they register their authenticator, then open the drive.
+**Accounts.** Every Authelia user who opens the drive gets a drive account automatically, with the folder defaults from `drive/config.yaml`: view, download, upload/create and edit; **no delete**. Grant delete, or narrow access to some folders, in *Settings → Users*. Being drive admin does not by itself allow uploads: the per-folder rights above decide that. The user named in `adminUsername` (the VM user, `alejandro`) is the drive admin. To add a person: add them to `/etc/authelia/users.yml` (password hash), they register their authenticator, then open the drive.
 
 **Never change** `FILEBROWSER_JWT_TOKEN_SECRET` in `secrets.env` after the first start: the drive refuses to boot when it differs from the key stored in its database. (`FILEBROWSER_ADMIN_PASSWORD` there is only used for the first-start bootstrap and is not a login.)
 

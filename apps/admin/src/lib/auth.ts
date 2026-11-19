@@ -59,7 +59,7 @@ const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
  * What the rest of the Console knows about a signed-in staff member: `Pick` keeps only these five fields
  * of the full database row, so secrets like the password hash or TOTP secret are never passed around.
  */
-export type Staff = Pick<StaffUser, "id" | "email" | "name" | "role" | "totpEnabled">;
+export type Staff = Pick<StaffUser, "id" | "email" | "name" | "role" | "totpEnabled" | "mustChangePassword">;
 /**
  * Kind: type alias (private).
  * The current session: who it is, the session id (the token hash), and whether two-factor was passed.
@@ -132,6 +132,7 @@ export const getSession = cache(async (): Promise<SessionInfo | null> => {
       name: staffUsers.name,
       role: staffUsers.role,
       totpEnabled: staffUsers.totpEnabled,
+      mustChangePassword: staffUsers.mustChangePassword,
       active: staffUsers.active,
     })
     .from(staffSessions)
@@ -159,6 +160,8 @@ export async function requireStaff(roles?: readonly StaffRole[]): Promise<Staff>
   const s = await getSession();
   if (!s) redirect("/login");
   if (!s.mfaPassed) redirect("/login/mfa");
+  // A password someone else set (new account, reset) must be replaced before anything else.
+  if (s.staff.mustChangePassword) redirect("/login/new-password");
   // `.includes(x)` returns true if x is in the list.
   if (roles && !roles.includes(s.staff.role)) redirect("/?denied=1");
   return s.staff;

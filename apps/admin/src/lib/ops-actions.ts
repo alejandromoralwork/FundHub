@@ -159,7 +159,7 @@ export async function createStaff(input: Record<string, unknown>): Promise<Actio
   const password = randomBytes(12).toString("base64url");
   // Security: only the HASH of the password is stored. A hash is a one-way scramble: it can check a typed
   // password but cannot be turned back into it, so a leaked database does not reveal passwords.
-  const [row] = await db.insert(staffUsers).values({ ...parsed.data, passwordHash: await hashPassword(password) }).returning({ id: staffUsers.id });
+  const [row] = await db.insert(staffUsers).values({ ...parsed.data, passwordHash: await hashPassword(password), mustChangePassword: true }).returning({ id: staffUsers.id });
   // The password itself is never written to the audit log.
   await audit(staff, "create", "staff_users", row.id, { email: parsed.data.email, role: parsed.data.role });
   revalidatePath("/staff");
@@ -194,6 +194,8 @@ export async function updateStaff(id: number, changes: { role?: string; active?:
     // New random password, stored only as a hash (as in `createStaff`).
     password = randomBytes(12).toString("base64url");
     set.passwordHash = await hashPassword(password);
+    // They must choose their own password at the next login.
+    set.mustChangePassword = true;
   }
   await db.update(staffUsers).set(set).where(eq(staffUsers.id, id));
   // Any security-relevant change signs the member out everywhere.

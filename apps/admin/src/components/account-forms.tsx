@@ -39,6 +39,7 @@ import { Alert, Button, Card, Col, Form, Input, Row, Typography } from "antd";
 // (an object that may contain an `error` message or an `ok` message).
 import {
   changeOwnPassword,
+  setOwnFirstPassword,
   changeOwnTotp,
   requestStaffPasswordReset,
   resetStaffPassword,
@@ -156,6 +157,37 @@ export function ResetForm({ token }: { token: string }) {
       <Typography.Paragraph type="secondary" style={{ marginTop: 16, fontSize: 12 }}>
         You&apos;ll still need your two-factor code to log in.
       </Typography.Paragraph>
+    </Frame>
+  );
+}
+
+/**
+ * Kind: React component.
+ * The forced "Choose your password" page after a new account or a password reset (the temporary password
+ * someone else set must be replaced before using the Console).
+ * @returns JSX for the new-password form.
+ */
+export function FirstPasswordForm() {
+  const [state, action, pending] = useActionState<AccountState, FormData>(setOwnFirstPassword, {});
+  return (
+    <Frame title="Choose your password">
+      <Typography.Paragraph type="secondary">
+        You signed in with a temporary password. Choose your own to continue; only you will know it.
+      </Typography.Paragraph>
+      <Result state={state} />
+      <form action={action}>
+        <Form layout="vertical" component="div">
+          <Form.Item label="New password" required extra="At least 10 characters, different from the temporary one.">
+            <Input.Password name="password" autoComplete="new-password" required autoFocus />
+          </Form.Item>
+          <Form.Item label="Repeat the new password" required>
+            <Input.Password name="confirm" autoComplete="new-password" required />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={pending} block>
+            Save and continue
+          </Button>
+        </Form>
+      </form>
     </Frame>
   );
 }
