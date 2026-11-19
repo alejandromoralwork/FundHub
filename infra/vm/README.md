@@ -33,7 +33,7 @@ Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are f
 |---|---|
 | Extension token, engine DB URL | `services/engine/.env` (`CAPTURE_TOKEN`, `ENGINE_DATABASE_URL`), `packages/engine-db/.env` |
 | Data module | `services/scraper/.env` (you create it from `.env.example`) |
-| Authelia | `/etc/authelia/secrets/*`, `/etc/authelia/users.yml`, first password in `/etc/authelia/initial-credentials` |
+| Authelia | `/etc/authelia/secrets/*`, `/etc/authelia/users.yml`; after a new install the first password is in `/etc/authelia/initial-credentials` (deleted by the first password change) |
 | code-server password | `~/.config/code-server/config.yaml` |
 | Drive | `/etc/fundhub-drive/secrets.env` (JWT key — never change it, TOTP key, bootstrap password); logins go through Authelia |
 
@@ -49,7 +49,7 @@ Authelia session (code-server and the Drive share it). The Drive is open to ever
 `admins`: password, then a 6-digit code from an authenticator app. 3 wrong tries in 5 min lock the user for
 30 min. Sessions last 12 h (2 h idle). SSH (key only, passwords disabled) is the emergency way in.
 
-* First password: `sudo cat /etc/authelia/initial-credentials`.
+* First password (new install only, until it is changed): `sudo cat /etc/authelia/initial-credentials`.
 * Registering the authenticator sends a one-time code to a file (no email server):
   `sudo cat /var/lib/authelia/notification.txt`.
 * Change the password: `sudo bash infra/vm/bin/authelia-passwd.sh` (asks twice, restarts Authelia,

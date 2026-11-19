@@ -29,6 +29,7 @@
 // React hooks: `useRef` (handle to the upload form) and `useState` (local values).
 import { useRef, useState } from "react";
 // Ant Design UI components.
+import Link from "next/link";
 import { Alert, Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography } from "antd";
 // Icons: PDF file, plus sign, upload arrow.
 import { FilePdfOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
@@ -193,7 +194,7 @@ export function StaffView({ staff, meId }: { staff: StaffRow[]; meId: number }) 
       {secret && (
         <Alert closable onClose={() => setSecret(null)} type="success" showIcon style={{ marginBottom: 16 }}
           message={<>Temporary password for {secret.email}: <Typography.Text code copyable>{secret.password}</Typography.Text></>}
-          description="Shown once. Share it through a secure channel; they set up two-factor at first login." />
+          description="Shown once: copy it before closing this message. Share it through a secure channel. At their next login (after two-factor) they must choose their own password; they were signed out everywhere." />
       )}
       <Typography.Paragraph type="secondary">
         Roles: <b>owner</b> everything · <b>operations</b> moderation, data, email, pipeline · <b>analyst</b> read data, SQL, pipeline · <b>sales</b> email, billing.
@@ -212,7 +213,11 @@ export function StaffView({ staff, meId }: { staff: StaffRow[]; meId: number }) 
           { title: "Last login", dataIndex: "lastLoginAt", render: fmt },
           {
             title: "",
-            render: (_, s) => (
+            render: (_, s) =>
+              // Your own row: resetting here would sign you out instantly; your account is changed on Account.
+              s.id === meId ? (
+                <Link href="/account">Change my password / authenticator</Link>
+              ) : (
               <Space>
                 <Popconfirm title="Reset password and sign them out?" onConfirm={() => withSecret(s.email, () => updateStaff(s.id, { resetPassword: true }))}>
                   <Button size="small">Reset password</Button>
@@ -221,7 +226,7 @@ export function StaffView({ staff, meId }: { staff: StaffRow[]; meId: number }) 
                   <Button size="small">Reset 2FA</Button>
                 </Popconfirm>
               </Space>
-            ),
+              ),
           },
         ]}
       />

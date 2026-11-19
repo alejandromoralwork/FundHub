@@ -70,7 +70,7 @@ Sidebar links: Code editor (owners), Nextcloud, CRM, newsletter, social schedule
 |---|---|
 | Runs on | Vercel project `fund-hub-admin` (root `apps/admin`, build `npm run vercel-build`, which applies migrations); mounted at `fundhub.lu/admin` through the website |
 | Local | `npm run dev:admin` → http://localhost:3001/admin |
-| Login | Staff accounts only: password + mandatory authenticator code; roles in `apps/admin/src/lib/auth.ts` (`CAN`) |
+| Login | Staff accounts only: password + mandatory authenticator code; after a new account or a password reset the person must choose their own password (`/admin/login/new-password`); roles in `apps/admin/src/lib/auth.ts` (`CAN`); terminal recovery: [access-and-recovery.md §1.1](access-and-recovery.md#11-reset-an-admin-password-from-the-terminal-locked-out-no-email) |
 | Settings | DB URLs, Stripe, Resend, `ENGINE_DATABASE_URL`, `DRIVE_URL`, `CODE_SERVER_URL`, tool URLs (see `.env.example`) |
 | Logs | Vercel → project → *Logs*; staff actions in the **Audit log** module |
 
@@ -156,7 +156,7 @@ Config: `infra/vm/caddy/Caddyfile` → `/etc/caddy/Caddyfile`. Check: `caddy val
 
 ## 10. Authelia (VM 2FA login)
 
-One login (password + authenticator code) for everything a browser opens on the VM: code-server and the Drive. Blocks a user for 30 min after 3 wrong tries in 5 min. Sessions last 12 h (2 h idle).
+One login (password + authenticator code) for everything a browser opens on the VM: the Drive (any VM user) and code-server (group `admins` only). Blocks a user for 30 min after 3 wrong tries in 5 min. Sessions last 12 h (2 h idle).
 
 | | |
 |---|---|
@@ -166,7 +166,7 @@ One login (password + authenticator code) for everything a browser opens on the 
 
 ## 11. code-server
 
-VS Code in the browser, running as the VM user, with a terminal on the VM. Behind Authelia 2FA, plus its own password as a second lock.
+VS Code in the browser, running as the VM user, with a terminal on the VM (effectively root: the user has sudo). Behind Authelia 2FA **for the `admins` group only**, plus its own password as a second lock.
 
 | | |
 |---|---|

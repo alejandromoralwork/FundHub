@@ -17,7 +17,7 @@ No extra port is opened: only 443 (already used by code-server). Port 4477 and 5
 
 | Service | What | Commands |
 |---|---|---|
-| `postgresql` | Engine database (PostgreSQL 16, `fundhub_engine`), backed up nightly | see [../deploy/README.md](../deploy/README.md) |
+| `postgresql@18-main` | Engine database (PostgreSQL 18, `fundhub_engine`), backed up nightly | see [infra/vm/README.md](../../../infra/vm/README.md) |
 | `fundhub-capture` | The receiver (`engine capture-server`) | `sudo systemctl restart fundhub-capture` · logs: `journalctl -u fundhub-capture -f` |
 | Caddy | HTTPS; `handle_path /engine/*` → `127.0.0.1:4477` | `/etc/caddy/Caddyfile`, `sudo systemctl reload caddy` |
 

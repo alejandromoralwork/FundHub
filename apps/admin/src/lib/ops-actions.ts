@@ -181,6 +181,11 @@ export async function updateStaff(id: number, changes: { role?: string; active?:
   if (id === staff.id && (changes.active === false || (changes.role && changes.role !== "owner"))) {
     return { error: "You can't deactivate or demote yourself." };
   }
+  // Resetting your own password or 2FA here would sign you out at once (the reset ends all of that account's
+  // sessions) and the temporary password would vanish with the page. Your own account is changed on Account.
+  if (id === staff.id && (changes.resetPassword || changes.resetMfa)) {
+    return { error: "To change your own password or authenticator, use the Account page." };
+  }
   // The columns to update. `typeof staffUsers.$inferInsert` is the row type Drizzle derives from the table;
   // `Partial<…>` makes every column optional, so we can start empty (`{}`) and add only what changed.
   const set: Partial<typeof staffUsers.$inferInsert> = {};

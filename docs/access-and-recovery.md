@@ -6,7 +6,7 @@ How to give people access to each part of FundHub, take it away, and get back in
 
 | Login | Protects | Who has one | Add / reset with |
 |---|---|---|---|
-| **Staff account** (password + authenticator) | Admin console `fundhub.lu/admin` | FundHub staff | Admin **Staff** page, or `npm run staff` ([§1](#1-admin-console-staff-accounts)) |
+| **Staff account** (password + authenticator) | Admin console `fundhub.lu/admin` | FundHub staff | Admin **Staff** page, or from a terminal when locked out ([§1.1](#11-reset-an-admin-password-from-the-terminal-locked-out-no-email)) |
 | **VM login** (Authelia: password + authenticator) | code-server (group `admins` only) and the Drive | People who need the Drive; admins | `infra/vm/bin/authelia-*.sh` ([§3](#3-vm-login-authelia-2fa)) |
 | Drive account | Folder permissions in the Drive | Created automatically at first Drive visit | Drive *Settings → Users* ([§4](#4-drive)) |
 | code-server password | Second lock behind Authelia | VM owner | `~/.config/code-server/config.yaml` ([§5](#5-code-server)) |
@@ -29,22 +29,70 @@ Roles: **owner** (everything, incl. Staff and Finance), **operations** (moderati
 | Change role / deactivate | **Staff** → the person's row. Deactivated people cannot log in; their history stays in the audit log |
 | They forgot their password | Login page → *Forgot password* (email link; without an email service the link is in the admin's Vercel logs, search `email:console`), or owner: **Staff** → reset password. A reset gives a temporary password; at the next login (after the authenticator code) they are made to choose their own |
 | They lost their phone | Owner: **Staff** → reset 2FA; at next login they register a new authenticator |
-| Change your own password / authenticator | **Account** page |
+| Change your own password / authenticator | **Account** page (you stay signed in; other browsers are signed out). The **Staff** page has no reset buttons on your own row: a reset there would sign you out instantly |
+| Locked out, no email, no other owner | From a terminal: [§1.1](#11-reset-an-admin-password-from-the-terminal-locked-out-no-email) |
 
-**The owner is locked out** (lost phone, forgotten password, no other owner): use the command line with the production database.
+### 1.1 Reset an admin password from the terminal (locked out, no email)
+
+Use this when you cannot get in through the website: forgotten password, no reset email (email service not set up), lost phone, or no other owner to reset you. It works from **any terminal that has the repo**: the VM (code-server terminal, or SSH if the browser login is broken) or your own PC after `npm install`.
+
+**Step 1 — Get the connection string that is allowed to change staff accounts.** It must use the role `neondb_owner` or `fundhub_admin`. Either:
+
+* **Neon** (most reliable): https://console.neon.tech → the project → **Dashboard → Connect** → Database `neondb`, Role **`neondb_owner`**, and in the snippet menu choose **Connection string** (not *psql*, which wraps it as `psql '…'`) → **Copy** (copies the password even while it shows `****`); or
+* **Vercel**: project **`fund-hub-admin`** (not `fund-hub`) → *Settings → Environment Variables* → `DATABASE_URL` → reveal → copy. Check it starts with `postgresql://fundhub_admin:` or `postgresql://neondb_owner:`.
+
+> Do **not** use the website's string (`postgresql://fundhub_web:…`): that role is not allowed to read staff accounts.
+> Never paste the string into a chat, email, document or file. If that happens, change that role's password (see [§8](#8-databases)).
+
+**Step 2 — Open a terminal in the repo** and load the string without showing it:
 
 ```bash
-# Production database URL with the owner/admin role (Vercel → fund-hub-admin → Settings → Environment Variables,
-# or `vercel env pull`). Never commit it.
-export DATABASE_URL='postgres://…'
+cd ~/projects/FundHub                                  # on your PC: the folder where you cloned FundHub
+read -rsp "Production DATABASE_URL: " DATABASE_URL; echo; export DATABASE_URL
+```
+
+Paste the string at the prompt and press **Enter**. Nothing appears while you paste: that is normal. Everything below must run **in this same terminal**.
+
+**Step 3 — Find your exact staff email:**
+
+```bash
 npm run staff -w @fundhub/admin -- list
-npm run staff -w @fundhub/admin -- reset-password you@fundhub.lu     # prints a temporary password once; the next login asks for your own
-npm run staff -w @fundhub/admin -- reset-mfa you@fundhub.lu          # lost phone: set up 2FA again at next login
-npm run staff -w @fundhub/admin -- create you@fundhub.lu "Your Name" owner   # a new owner, if needed
+```
+
+The first line must read `Database: ep-…neon.tech:5432 as neondb_owner` (or `fundhub_admin`). Then a table of staff accounts.
+
+**Step 4 — Reset what you lost:**
+
+```bash
+npm run staff -w @fundhub/admin -- reset-password YOUR-STAFF-EMAIL     # forgotten password
+npm run staff -w @fundhub/admin -- reset-mfa YOUR-STAFF-EMAIL          # lost phone / authenticator
+```
+
+`reset-password` prints a **temporary password once**: copy it immediately. Both sign the account out everywhere.
+Nobody left who can log in at all? Create a new owner: `npm run staff -w @fundhub/admin -- create you@fundhub.lu "Your Name" owner`.
+
+**Step 5 — Clear the string from the terminal:**
+
+```bash
 unset DATABASE_URL
 ```
 
-Both resets sign the person out everywhere. The `DATABASE_URL` must be the **admin** or owner connection string (`fundhub_admin` / `neondb_owner`): the website's `fundhub_web` role is not allowed to read staff accounts, and the script then says *permission denied*. Its first output line shows which database and role it is using; `localhost:5433` means `DATABASE_URL` was not set in that terminal. Paste the string only at the hidden prompt (`read -rsp`), never into chats or files. Keep at least **two owners** so one can always reset the other.
+**Step 6 — Log in:** https://fundhub.lu/admin/login with your email and the temporary password, then your authenticator code (after `reset-mfa`: scan the new QR code). The admin then shows **Choose your password**: set your own; you cannot use the console until you do.
+
+**If it fails**
+
+| The script says | Meaning | Fix |
+|---|---|---|
+| `Database: localhost:5433 …` and `ECONNREFUSED 127.0.0.1:5433` | `DATABASE_URL` is not set in this terminal (ran `unset` too early, or another terminal) | Redo step 2, then step 4, in the same terminal |
+| `as fundhub_web` and `permission denied for table staff_users` | You used the website's connection string | Get the `neondb_owner` / `fundhub_admin` one (step 1) |
+| `DATABASE_URL is not a valid connection string: …` (older versions: `Invalid URL`) | You pasted something other than the bare string, usually Neon's `psql '…'` snippet or a value with quotes/spaces | Copy only the part that starts with `postgresql://`, then redo step 2 |
+| `password authentication failed` | The password in the string is wrong or was changed | Copy it again from Neon **Connect** |
+| `No staff account for …` | Typo, or the account has another email | Run `list` (step 3) and use the exact email |
+| `SECURITY WARNING: The SSL modes …` | Harmless notice from the database driver | Ignore |
+
+**Locally** (your own development admin at `localhost:3001`), skip steps 1, 2 and 5: start the local database (`npm run db:local`) and run the same `npm run staff …` commands; they use the local database when `DATABASE_URL` is not set.
+
+Keep at least **two owners**, so one can always reset the other from the **Staff** page without any of this.
 
 ## 2. Website visitor and provider accounts
 

@@ -61,7 +61,22 @@ async function main() {
   const email = rawEmail?.trim().toLowerCase();
   // Say which database this run uses (host and role only, never the password), so a missing DATABASE_URL
   // (falls back to the local development database) is obvious.
-  const target = new URL(databaseUrl());
+  let target: URL;
+  try {
+    target = new URL(databaseUrl());
+    if (!/^postgres(ql)?:$/.test(target.protocol)) throw new Error("not postgres");
+  } catch {
+    // Describe the problem without ever printing the value (it contains a password).
+    const v = databaseUrl();
+    const hints = [
+      /^\s*psql\b/.test(v) && "it starts with `psql` (copy only the postgresql://… part, without psql and the quotes)",
+      /^\s*['"]|['"]\s*$/.test(v) && "it has quote marks at the start or end (remove them)",
+      /^\s|\s$/.test(v) && "it has spaces at the start or end",
+      !/postgres(ql)?:\/\//.test(v) && "it does not contain postgresql://",
+      v.length < 20 && `it is very short (${v.length} characters), maybe the paste did not arrive`,
+    ].filter(Boolean);
+    throw new Error(`DATABASE_URL is not a valid connection string${hints.length ? ": " + hints.join("; ") : ""}. It must look like postgresql://neondb_owner:PASSWORD@ep-….neon.tech/neondb?sslmode=require`);
+  }
   console.error(`Database: ${target.hostname}:${target.port || 5432} as ${decodeURIComponent(target.username)}${process.env.DATABASE_URL || process.env.FUNDHUB_DATABASE_URL ? "" : "  (DATABASE_URL not set: local development database)"}`);
 
   // "list": print a table of all staff in the terminal (`console.table` formats rows as a grid).

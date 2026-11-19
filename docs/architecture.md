@@ -130,10 +130,10 @@ The intended path is one-way: an engine job writes proposals into the website's 
 | Concern | How it is handled |
 |---|---|
 | Database least privilege | One Postgres role per part (`packages/db/scripts/roles.ts`). `fundhub_web` cannot read staff, audit, email, billing, finance or ingest tables; `fundhub_scraper` writes only `ingest_*` |
-| Staff login | Separate `staff_users`, password + mandatory TOTP 2FA, roles `owner` / `operations` / `analyst` / `sales`; permissions in `CAN` (`apps/admin/src/lib/auth.ts`); every staff write goes to `audit_log` |
+| Staff login | Separate `staff_users`, password + mandatory TOTP 2FA, forced own password after any reset or new account (`must_change_password`), roles `owner` / `operations` / `analyst` / `sales`; permissions in `CAN` (`apps/admin/src/lib/auth.ts`); every staff write goes to `audit_log` |
 | Visitor login | Own `users` / `sessions`, rate-limited (`rate_limits`) |
 | Admin exposure | `X-Frame-Options: DENY`, `noindex`; only reachable through login |
-| VM access | SSH by key only; every browser path except `/engine/*` requires an Authelia session (password + TOTP, lockout after 3 failures) |
+| VM access | SSH by key only; every browser path except `/engine/*` requires an Authelia session (password + TOTP, lockout after 3 failures); the Drive is open to any VM user, code-server (a root shell) only to group `admins` |
 | Engine on the VM | Postgres and the receiver listen on `127.0.0.1` only; Caddy terminates HTTPS; the receiver requires `Authorization: Bearer <CAPTURE_TOKEN>` and refuses proxied requests without a configured token |
 | Secrets | `.env*` files are git-ignored; production values live in Vercel and the VM's `.env` files (mode 600) |
 | Untrusted content | Scraped pages and LBR captures are data, never instructions; the AI extractor uses a strict schema |

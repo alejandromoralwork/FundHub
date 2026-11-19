@@ -85,5 +85,5 @@ Backups on the same disk as the data are not enough: configure the off-VM copy.
 | `CAPTURE_TOKEN` | VM `services/engine/.env` | Edit, `sudo systemctl restart fundhub-capture`, paste in the extension popup |
 | Engine DB password | VM `services/engine/.env`, `packages/engine-db/.env` | `ALTER ROLE fundhub_engine PASSWORD …`, update both files, restart |
 | Stripe, Resend, Anthropic, GitHub tokens | Vercel / GitHub | Provider dashboard, then env |
-| Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash), first password in `/etc/authelia/initial-credentials` | [deploy/README.md → 2FA](../infra/vm/README.md#2fa-authelia) |
+| Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash only). On a new install the first password is in `/etc/authelia/initial-credentials`, deleted by the first password change | `sudo bash infra/vm/bin/authelia-passwd.sh` ([access-and-recovery.md §3](access-and-recovery.md#3-vm-login-authelia-2fa)) |
 | Drive keys | VM `/etc/fundhub-drive/secrets.env` (root only) | Do not rotate the JWT key (the drive would refuse to start); logins use Authelia |

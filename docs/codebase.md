@@ -49,11 +49,11 @@ Dependency direction: `apps/*` and `services/*` import `packages/*`; packages ne
 | Path | What |
 |---|---|
 | `src/app/(console)/` | One folder per page: `claims`, `reviews`, `edits`, `requests` (inbox), `email`, `content`, `billing`, `finance`, `analytics`, `pipeline`, `engine/*` (overview, registry, jobs, matches, rounds), `drive`, `reports`, `db/*` (+ SQL console), `gdpr`, `staff`, `audit`, `account` |
-| `src/app/login/` | Password, 2FA (TOTP), forgot / reset |
+| `src/app/login/` | Password, 2FA (TOTP), forgot / reset by email, forced new password after a reset (`new-password`) |
 | `src/app/api/` | Generic resource API for Refine (`resources/[resource]`), webhooks (`stripe`, `resend`) |
 | `src/components/` | Screens (`*-view(s).tsx`), `console-shell.tsx` (sidebar menu, tool links) |
 | `src/lib/` | `auth.ts` (sessions, 2FA, **`CAN` permission table**), server actions per area (`*-actions.ts`), `audit.ts`, Stripe, CRM (Twenty), GitHub dispatch, metrics, engine data access (`engine-*.ts`) |
-| `scripts/staff.ts` | CLI: create staff, reset password / 2FA, list |
+| `scripts/staff.ts` | CLI: create staff, reset password / 2FA, list; prints which database and role it uses ([access-and-recovery.md §1.1](access-and-recovery.md#11-reset-an-admin-password-from-the-terminal-locked-out-no-email)) |
 
 ### `services/engine` — scraping engine
 

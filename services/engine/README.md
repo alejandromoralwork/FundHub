@@ -116,10 +116,12 @@ The **FundHub LBR Capture** extension ([browser-extension/](browser-extension/RE
 
 #### The snippet
 
+> **Legacy, local only.** The snippet cannot send the receiver's token, so it works only with a receiver running on your own computer (`127.0.0.1:4477`, no `CAPTURE_TOKEN`). With the engine on the Azure VM, use the extension.
+
 You browse LBR in your own Chrome, where LBR's check passes normally, and a snippet sends the page you are viewing to the engine on your machine. The engine never browses LBR and never calls LBR's internal API.
 
 1. Start the receiver: `cd services/engine && node --import tsx src/cli.ts capture-server`.
-   * It listens on `127.0.0.1:4477` and accepts requests from `https://www.lbr.lu` only.
+   * It listens on `127.0.0.1:4477` and accepts requests from `https://www.lbr.lu` and the extension only. With `CAPTURE_TOKEN` set (the VM), every request also needs `Authorization: Bearer <token>`.
 2. Add the snippet once: Chrome → lbr.lu → F12 → **Sources → Snippets → + New snippet** → paste [snippets/lbr-save-to-fundhub.js](snippets/lbr-save-to-fundhub.js) → Ctrl+S.
 3. For each company: open it on LBR (search, then company page and its list of filings), then run the snippet with Ctrl+Enter in the snippet or Ctrl+P → `!FundHub save`.
    * A panel shows what was stored: status, name and number of filings.
