@@ -16,7 +16,7 @@ cannot change what runs as root until `install.sh` is run with sudo.
 | Folder / file | Installed to | What |
 |---|---|---|
 | `caddy/Caddyfile` | `/etc/caddy/Caddyfile` | HTTPS; `/authelia*` → login portal, `/engine/*` → receiver (token), everything else → code-server behind 2FA |
-| `authelia/configuration.yml`, `authelia/override.conf` | `/etc/authelia/`, `/etc/systemd/system/authelia.service.d/` | 2FA portal (apt.authelia.com). Secrets in `/etc/authelia/secrets/*`, users in `/etc/authelia/users.yml` |
+| `authelia/configuration.yml`, `authelia/override.conf` | `/etc/authelia/`, `/etc/systemd/system/authelia.service.d/` | 2FA portal (apt.authelia.com). Secrets in `/etc/authelia-secrets/*` (outside `/etc/authelia`: the package resets that folder to 0640 at every boot), users in `/etc/authelia/users.yml` |
 | `postgres/fundhub.conf` | `/etc/postgresql/18/main/conf.d/` | PostgreSQL 18 (apt.postgresql.org) tuning; database and role `fundhub_engine`, `127.0.0.1:5432` |
 | `code-server/config.yaml.example` | `~/.config/code-server/config.yaml` (first install only) | code-server on `127.0.0.1:8080` |
 | `systemd/fundhub-capture.service` | `/etc/systemd/system/` | Receiver for the browser extension (`engine capture-server`, `127.0.0.1:4477`) |
@@ -33,7 +33,7 @@ Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are f
 |---|---|
 | Extension token, engine DB URL | `services/engine/.env` (`CAPTURE_TOKEN`, `ENGINE_DATABASE_URL`), `packages/engine-db/.env` |
 | Data module | `services/scraper/.env` (you create it from `.env.example`) |
-| Authelia | `/etc/authelia/secrets/*`, `/etc/authelia/users.yml`; after a new install the first password is in `/etc/authelia/initial-credentials` (deleted by the first password change) |
+| Authelia | `/etc/authelia-secrets/*`, `/etc/authelia/users.yml`; after a new install the first password is in `/etc/authelia/initial-credentials` (deleted by the first password change) |
 | code-server password | `~/.config/code-server/config.yaml` |
 | Drive | `/etc/fundhub-drive/secrets.env` (JWT key — never change it, TOTP key, bootstrap password); logins go through Authelia |
 
@@ -42,7 +42,7 @@ Node.js install (nvm).
 
 ## 2FA (Authelia)
 
-Adding people, passwords, lost phones, blocks and lock-outs: **[docs/access-and-recovery.md](../../docs/access-and-recovery.md)**. Helpers in `bin/`: `authelia-useradd.sh` (add a user; `--admin` for code-server), `authelia-passwd.sh` (change a password), `authelia-cli.sh` (bans, TOTP reset, config check).
+Adding people, passwords, lost phones, blocks and lock-outs: **[docs/access-and-recovery.md](../../docs/access-and-recovery.md)**. Something down: **[docs/troubleshooting.md](../../docs/troubleshooting.md)**. Helpers in `bin/`: `health.sh` (what is broken and how to fix it), `authelia-useradd.sh` (add a user; `--admin` for code-server), `authelia-passwd.sh` (change a password), `authelia-cli.sh` (bans, TOTP reset, config check), `export-secrets.sh` (encrypted backup of the VM-only secrets, see [docs/secrets.md](../../docs/secrets.md)).
 
 Every browser request except `/engine/*` (the extension, which uses its token) and the portal itself needs an
 Authelia session (code-server and the Drive share it). The Drive is open to every VM user; code-server only to group

@@ -46,7 +46,7 @@ Day-to-day commands, restore, importing a database and moving to a data disk: [i
 
 ## 4. Drive
 
-The admin's **Drive** page (`/admin/drive`, all staff roles) has an **Open Drive** button that opens FundHub's internal file drive in a new tab (`DRIVE_URL`); without it the page shows setup help.
+The admin's **Drive** page (`/admin/drive`, all staff roles) has an **Open Drive** button, and the sidebar a **Drive** link; both open the drive's shared `FundHub` folder in a new tab (`…/drive/files/FundHub/`). The address is `DRIVE_URL`, or the VM's drive when it is not set (`apps/admin/src/lib/drive.ts`).
 
 | | |
 |---|---|
@@ -55,7 +55,7 @@ The admin's **Drive** page (`/admin/drive`, all staff roles) has an **Open Drive
 | Files | `/srv/fundhub-drive`: `Finance/Receipts`, `Clients`, `Providers`, `Legal`, `Marketing`, `Engine` |
 | Config | `infra/vm/drive/config.yaml` → `/etc/fundhub-drive/config.yaml` |
 | Secrets | `/etc/fundhub-drive/secrets.env` (root only): JWT key, TOTP key, bootstrap admin password |
-| Admin setting | `DRIVE_URL=https://<vm>/drive` on the admin project |
+| Admin setting | Optional: `DRIVE_URL=https://<vm>/drive` on the admin project (defaults to the VM) |
 
 **Login.** The drive sits behind the same Authelia 2FA as code-server: one VM login (password + authenticator code) for both. Caddy strips any `Remote-User` header a visitor sends, Authelia sets the real one, and the drive trusts it (FileBrowser Quantum *proxy* login). The drive has **no password of its own**, and it listens on `127.0.0.1` only. It is not embedded in the admin because browsers block the 2FA cookie inside another site's frame.
 

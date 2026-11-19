@@ -15,6 +15,8 @@ How to give people access to each part of FundHub, take it away, and get back in
 | Visitor / provider account | Website `/account` | The public | Self-service reset by email ([§2](#2-website-visitor-and-provider-accounts)) |
 | Cloud accounts | Vercel, Neon, Azure, GitHub, Stripe, Resend, Anthropic, domain | Owner | Each provider ([§10](#10-cloud-and-third-party-accounts)) |
 
+**What to keep where:** [secrets.md](secrets.md). **Something down / getting in over SSH:** [troubleshooting.md](troubleshooting.md).
+
 **Keep in a password manager:** your staff password, VM (Authelia) password, the authenticator backup/recovery codes of every service, the SSH private key, the extension token, and the recovery codes of each cloud account. Use an authenticator app that backs up or syncs its codes, or register a second device.
 
 ---
@@ -141,7 +143,7 @@ The Drive uses the VM login (§3): there is no separate Drive password. A Drive 
 | Remove someone | Remove their VM login (§3), then delete their account in Drive *Settings → Users* |
 | Drive admin | The VM user named in `adminUsername` (`infra/vm/drive/config.yaml`) |
 | Drive won't start | `journalctl -u fundhub-drive -n 50`. "auth signing key … differs": `FILEBROWSER_JWT_TOKEN_SECRET` in `/etc/fundhub-drive/secrets.env` was changed — put the old value back (never rotate it) |
-| Admin page says "Drive not configured" | Set `DRIVE_URL=https://<vm>/drive` on the admin project and redeploy |
+| Admin changes (Drive link, new pages) do not show on fundhub.lu | The admin deployment failed or is old: Vercel → `fund-hub-admin` → **Deployments** (last one *Error*? open its build log); and `ADMIN_ORIGIN` on `fund-hub` must be `https://fund-hub-admin.vercel.app`, not a single deployment's URL. Env var changes need a redeploy |
 
 Files are plain folders in `/srv/fundhub-drive`: even if the Drive app breaks, they are reachable over SSH.
 

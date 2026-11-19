@@ -10,7 +10,7 @@
 #   NODE_DIR=<dir with node>                                 default: newest nvm Node of APP_USER, else /usr/bin
 #
 # Secrets are generated on first install and never overwritten or printed:
-#   /etc/authelia/secrets/*, /etc/authelia/users.yml (+ initial-credentials), ~/.config/code-server/config.yaml,
+#   /etc/authelia-secrets/*, /etc/authelia/users.yml (+ initial-credentials), ~/.config/code-server/config.yaml,
 #   services/engine/.env (CAPTURE_TOKEN, ENGINE_DATABASE_URL), packages/engine-db/.env.
 set -euo pipefail
 
@@ -99,13 +99,22 @@ say "Node dependencies and engine schema"
 [ "$NEW_DB" = 1 ] && ( cd "$REPO" && as_app npm run -s engine:db:seed )
 
 say "Authelia (2FA portal)"
-install -d -m 700 -o authelia -g authelia /etc/authelia /etc/authelia/secrets /var/lib/authelia
+# Secrets live OUTSIDE /etc/authelia: the authelia package's boot rule (/usr/lib/tmpfiles.d/authelia.conf,
+# "Z /etc/authelia/* 0640") resets everything under /etc/authelia to 0640 at every boot, which makes a
+# subfolder unreadable and stopped Authelia (and with it code-server and the Drive) after a reboot.
+install -d -m 755 -o authelia -g authelia /etc/authelia
+install -d -m 700 -o authelia -g authelia /etc/authelia-secrets /var/lib/authelia
 for s in jwt_secret session_secret storage_encryption_key; do
-  f="/etc/authelia/secrets/$s"
+  f="/etc/authelia-secrets/$s"
   [ -s "$f" ] && continue
-  # Migration from a config that still holds the secret inline (the storage key must not change).
-  key=$([ "$s" = jwt_secret ] && echo jwt_secret || { [ "$s" = session_secret ] && echo secret || echo encryption_key; })
-  old="$(grep -E "^\s*$key:" /etc/authelia/configuration.yml 2>/dev/null | head -1 | sed -E "s/^\s*$key:\s*'?([^']*)'?\s*$/\1/" || true)"
+  # Keep existing values (the storage key must never change: it encrypts the registered authenticators):
+  # from the old /etc/authelia/secrets/ folder, or from a config that still holds the secret inline.
+  old=""
+  [ -s "/etc/authelia/secrets/$s" ] && old="$(cat "/etc/authelia/secrets/$s")"
+  if [ -z "$old" ]; then
+    key=$([ "$s" = jwt_secret ] && echo jwt_secret || { [ "$s" = session_secret ] && echo secret || echo encryption_key; })
+    old="$(grep -E "^\s*$key:" /etc/authelia/configuration.yml 2>/dev/null | head -1 | sed -E "s/^\s*$key:\s*'?([^']*)'?\s*$/\1/" || true)"
+  fi
   printf '%s' "${old:-$(rand)}" >"$f"; chown authelia:authelia "$f"; chmod 600 "$f"
 done
 if [ ! -s /etc/authelia/users.yml ]; then
@@ -120,9 +129,7 @@ A=0
 install_file "$HERE/authelia/override.conf" /etc/systemd/system/authelia.service.d/override.conf 644 && A=1 || true
 install_file "$HERE/authelia/configuration.yml" /etc/authelia/configuration.yml 600 authelia:authelia && A=1 || true
 systemctl daemon-reload
-sudo -u authelia env AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=/etc/authelia/secrets/jwt_secret \
-  AUTHELIA_SESSION_SECRET_FILE=/etc/authelia/secrets/session_secret AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/etc/authelia/secrets/storage_encryption_key \
-  authelia validate-config --config /etc/authelia/configuration.yml
+bash "$HERE/bin/authelia-cli.sh" validate-config
 systemctl enable authelia >/dev/null
 [ "$A" = 1 ] && systemctl restart authelia || systemctl start authelia
 

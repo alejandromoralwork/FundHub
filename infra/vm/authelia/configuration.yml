@@ -1,4 +1,4 @@
-# FundHub VM login portal (2FA). Secrets are NOT here: /etc/authelia/secrets/* via authelia/override.conf.
+# FundHub VM login portal (2FA). Secrets are NOT here: /etc/authelia-secrets/* (outside /etc/authelia, see install.sh) via authelia/override.conf.
 theme: auto
 server:
   address: 'tcp://127.0.0.1:9091/authelia'

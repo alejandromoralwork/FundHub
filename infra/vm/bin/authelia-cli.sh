@@ -6,7 +6,7 @@
 #   sudo bash infra/vm/bin/authelia-cli.sh storage user totp delete <user>      (lost phone)
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "Run with sudo." >&2; exit 1; }
-S=/etc/authelia/secrets
+S=/etc/authelia-secrets
 exec sudo -u authelia env \
   AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=$S/jwt_secret \
   AUTHELIA_SESSION_SECRET_FILE=$S/session_secret \

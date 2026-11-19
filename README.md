@@ -38,4 +38,6 @@ Full setup, the engine and troubleshooting: [docs/development.md](docs/developme
 * [Development](docs/development.md) — setup and daily running
 * [Services](docs/services.md) — every module and service, how to operate it
 * [Operations](docs/operations.md) — deploy, Azure VM, Drive, backups, secrets
+* [Troubleshooting](docs/troubleshooting.md) — SSH into the VM, health check, fixing services
+* [Secrets](docs/secrets.md) — what to keep in your password manager, encrypted secrets backup
 * [Access and recovery](docs/access-and-recovery.md) — adding users, lost passwords, phones, keys, or the whole VM

@@ -56,7 +56,7 @@ Where staff run the business. Modules (left menu):
 | Analytics | Traffic and conversion figures | all |
 | Data pipeline | Data module runs and jobs, **Run scrape**, field-by-field review of scraped changes | owner, operations, analyst |
 | Scraping engine | Overview, Registry, Jobs & schedules, Match review, Capture rounds | view: owner, operations, analyst; edit: owner, operations |
-| Drive | **Open Drive** button (module 12) | all |
+| Drive | **Open Drive** button; also a sidebar link (module 12) | all |
 | Reports | Upload Data Intelligence PDFs, visibility | owner, operations |
 | Database | Browse and edit every table; read-only SQL console | browse: all; edit: owner, operations; SQL: owner, analyst |
 | GDPR requests | Data export and erasure, deadlines | owner, operations |
@@ -160,7 +160,7 @@ One login (password + authenticator code) for everything a browser opens on the 
 
 | | |
 |---|---|
-| Config | `infra/vm/authelia/configuration.yml` → `/etc/authelia/`; secrets in `/etc/authelia/secrets/`; users in `/etc/authelia/users.yml` |
+| Config | `infra/vm/authelia/configuration.yml` → `/etc/authelia/`; secrets in `/etc/authelia-secrets/`; users in `/etc/authelia/users.yml` |
 | Operate | `sudo systemctl restart authelia`; `journalctl -u authelia -f` |
 | Users, passwords, lost phone, bans | [access-and-recovery.md → Authelia](access-and-recovery.md#3-vm-login-authelia-2fa) |
 
