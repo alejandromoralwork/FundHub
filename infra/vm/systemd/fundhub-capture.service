@@ -1,0 +1,15 @@
+[Unit]
+Description=FundHub capture receiver (browser extension, 127.0.0.1:4477)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@/services/engine
+Environment=PATH=@NODE_DIR@:/usr/bin:/bin
+ExecStart=@NODE_DIR@/node --import tsx src/cli.ts capture-server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

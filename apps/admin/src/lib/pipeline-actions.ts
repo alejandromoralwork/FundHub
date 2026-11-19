@@ -78,7 +78,7 @@ const ACCEPTABLE: Record<string, z.ZodType> = {
 /**
  * Kind: server action.
  * Adds a scrape job to the queue. The data module on the VM checks the queue every 5 minutes
- * (fundhub-scraper-jobs.timer, see services/engine/deploy/README.md).
+ * (fundhub-scraper-jobs.timer, see infra/vm/README.md).
  * @param source      `string` — which source to scrape (must be one of `INGEST_SOURCES`).
  * @param providerId  `number | null` — one provider to scrape, or `null` for a general run.
  * @returns           `Promise<ActionResult>` — confirms the job is queued.

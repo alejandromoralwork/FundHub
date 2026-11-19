@@ -1,20 +1,43 @@
-# Engine on the Azure VM
+# Azure VM
 
-Copies of the VM's config live here so the setup can be rebuilt on a new VM. The backup units are symlinked into
-`/etc/systemd/system/`; the others are copies (after editing one, copy it back to its system path).
+Everything the FundHub VM runs **outside the repo checkout** is defined in this folder, and `install.sh` puts it in
+place. A new VM (Ubuntu 24.04) is: clone the repo, `sudo bash infra/vm/install.sh`, done. On this VM, re-run it after
+changing anything here.
 
-| Piece | What | System path |
+```bash
+sudo bash infra/vm/install.sh --diff     # what would change (nothing is touched)
+sudo bash infra/vm/install.sh            # apply; idempotent, safe to repeat
+```
+
+The repo is the source of truth: edit the file here, then run `install.sh`, never edit `/etc/...` by hand (the next run
+would show it in `--diff` and overwrite it). Files are **copied** to the system, not linked, so editing the repo
+cannot change what runs as root until `install.sh` is run with sudo.
+
+| Folder / file | Installed to | What |
 |---|---|---|
-| PostgreSQL 18 (apt.postgresql.org, same major version as the embedded dev database) | Engine database `fundhub_engine`, role `fundhub_engine`, `127.0.0.1:5432` only | data: `/var/lib/postgresql/18/main`, tuning: `/etc/postgresql/18/main/conf.d/fundhub.conf` ← `postgresql-fundhub.conf` |
-| `fundhub-capture.service` | Receiver for the browser extension (`engine capture-server`, `127.0.0.1:4477`) | `/etc/systemd/system/` |
-| `Caddyfile` | HTTPS; `/authelia*` → login portal, `/engine/*` → receiver (token), everything else → code-server behind 2FA | `/etc/caddy/Caddyfile` |
-| Authelia (apt.authelia.com) | 2FA login portal: password + authenticator code, lockout after 3 failures | `/etc/authelia/configuration.yml` ← `authelia-configuration.example.yml` (secrets removed), users in `/etc/authelia/users.yml` |
-| `fundhub-scraper-jobs.timer` / `-weekly.timer` + `.service` | Data module: queued "Run scrape" jobs every 5 min; AI web extraction Mondays 03:00 UTC. Skipped until `services/scraper/.env` exists | symlinked |
-| `fundhub-drive.service` | Internal drive (file manager) on `127.0.0.1:8090`, files in `/srv/fundhub-drive`. **Not enabled yet**: see [docs/operations.md → Drive](../../../docs/operations.md#4-drive) | `/etc/systemd/system/` |
-| `fundhub-engine-backup.timer` + `.service` + `backup-engine-db.sh` | Nightly `pg_dump` at 03:30 UTC → `/var/backups/fundhub-engine/`, 14 days kept | symlinked |
+| `caddy/Caddyfile` | `/etc/caddy/Caddyfile` | HTTPS; `/authelia*` → login portal, `/engine/*` → receiver (token), everything else → code-server behind 2FA |
+| `authelia/configuration.yml`, `authelia/override.conf` | `/etc/authelia/`, `/etc/systemd/system/authelia.service.d/` | 2FA portal (apt.authelia.com). Secrets in `/etc/authelia/secrets/*`, users in `/etc/authelia/users.yml` |
+| `postgres/fundhub.conf` | `/etc/postgresql/18/main/conf.d/` | PostgreSQL 18 (apt.postgresql.org) tuning; database and role `fundhub_engine`, `127.0.0.1:5432` |
+| `code-server/config.yaml.example` | `~/.config/code-server/config.yaml` (first install only) | code-server on `127.0.0.1:8080` |
+| `systemd/fundhub-capture.service` | `/etc/systemd/system/` | Receiver for the browser extension (`engine capture-server`, `127.0.0.1:4477`) |
+| `systemd/fundhub-engine-backup.{service,timer}`, `bin/backup-engine-db.sh` | `/etc/systemd/system/`, `/usr/local/lib/fundhub/` | Nightly `pg_dump` 03:30 UTC → `/var/backups/fundhub-engine/`, 14 days |
+| `systemd/fundhub-scraper-{jobs,weekly}.{service,timer}` | `/etc/systemd/system/` | Data module: queued "Run scrape" jobs every 5 min; AI extraction Mondays 03:00 UTC. Skipped until `services/scraper/.env` exists |
+| `systemd/fundhub-drive.service` | `/etc/systemd/system/` (not enabled) | Internal drive on `127.0.0.1:8090`, see [docs/operations.md → Drive](../../docs/operations.md#4-drive) |
 
-Secrets (git-ignored): `services/engine/.env` (`CAPTURE_TOKEN`, `ENGINE_DATABASE_URL`) and
-`packages/engine-db/.env` (`ENGINE_DATABASE_URL`, for `npm run engine:db:migrate`).
+Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are filled in by `install.sh`; override with
+`DOMAIN=… APP_USER=… NODE_DIR=… sudo -E bash infra/vm/install.sh`.
+
+**Secrets are never in git.** `install.sh` creates them once and never overwrites them:
+
+| Secret | File |
+|---|---|
+| Extension token, engine DB URL | `services/engine/.env` (`CAPTURE_TOKEN`, `ENGINE_DATABASE_URL`), `packages/engine-db/.env` |
+| Data module | `services/scraper/.env` (you create it from `.env.example`) |
+| Authelia | `/etc/authelia/secrets/*`, `/etc/authelia/users.yml`, first password in `/etc/authelia/initial-credentials` |
+| code-server password | `~/.config/code-server/config.yaml` |
+
+Not managed here: Azure itself (VM size, disks, network security group: ports 22/80/443 only), SSH keys, and the
+Node.js install (nvm).
 
 ## 2FA (Authelia)
 
@@ -25,12 +48,12 @@ Authelia session: password, then a 6-digit code from an authenticator app. 3 wro
 * First password: `sudo cat /etc/authelia/initial-credentials`.
 * Registering the authenticator sends a one-time code to a file (no email server):
   `sudo cat /var/lib/authelia/notification.txt`.
-* Change the password: `authelia crypto hash generate argon2` → put the digest in `/etc/authelia/users.yml` →
-  `sudo systemctl restart authelia`.
+* Change the password: `sudo bash infra/vm/bin/authelia-passwd.sh` (asks twice, restarts Authelia,
+  restores the old file if Authelia does not start).
 * Lost phone: `sudo -u authelia authelia storage user totp delete alejandro --config /etc/authelia/configuration.yml`,
   then register again.
 * Locked out of the browser: SSH in, `sudo cp /etc/caddy/Caddyfile.bak-pre-authelia /etc/caddy/Caddyfile && sudo systemctl reload caddy`
-  (removes the 2FA gate), fix, and put `Caddyfile` from this folder back.
+  (removes the 2FA gate), fix, then `sudo bash infra/vm/install.sh` puts the gate back.
 * Logs: `journalctl -u authelia -f`.
 
 ## Data module

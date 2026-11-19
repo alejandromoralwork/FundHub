@@ -18,9 +18,9 @@ All project documentation starts here. Component READMEs stay next to their code
 |---|---|
 | Scraping engine (sources, pipeline, jobs, schedules, Docker) | [services/engine/README.md](../services/engine/README.md) |
 | LBR capture extension (install, rounds, search sweep) | [services/engine/browser-extension/README.md](../services/engine/browser-extension/README.md) |
-| Engine on the VM (services, restore, data disk) | [services/engine/deploy/README.md](../services/engine/deploy/README.md) |
+| Azure VM: install script, every config outside the repo, 2FA, restore, data disk | [infra/vm/README.md](../infra/vm/README.md) |
 | LBR access findings · data-reuse request | [lbr-findings.md](../services/engine/docs/lbr-findings.md) · [lbr-data-reuse-request.md](../services/engine/docs/lbr-data-reuse-request.md) |
-| Self-hosted tools: Nextcloud, Twenty, Listmonk | [infra/README.md](../infra/README.md) |
+| Self-hosted tools: Nextcloud, Twenty, Listmonk | [infra/tools/README.md](../infra/tools/README.md) |
 | Marketing pack (LaTeX, diagrams) | [marketing/README.md](../marketing/README.md) |
 
 ## Reference

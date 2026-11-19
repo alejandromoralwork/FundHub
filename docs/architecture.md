@@ -39,7 +39,7 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
         │
   Staff Chrome + "FundHub LBR Capture" extension, browsing lbr.lu with their own login
 
-  Optional, separate server (infra/): Nextcloud · Twenty CRM · Listmonk newsletter (linked from the admin sidebar)
+  Optional, separate server (infra/tools/): Nextcloud · Twenty CRM · Listmonk newsletter (linked from the admin sidebar)
 ```
 
 ## 2. The parts
@@ -52,7 +52,8 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
 | **Scraping engine** | `services/engine` | Azure VM (or Docker anywhere) | Builds one registry of every Luxembourg entity from CSSF, GLEIF and RCS/LBR, with full history |
 | **LBR capture extension** | `services/engine/browser-extension` | Staff Chrome | Saves the LBR pages and filing PDFs a person opens into the engine (LBR blocks automated browsing) |
 | **Shared code** | `packages/core`, `packages/db`, `packages/engine-db`, `packages/email` | Imported by the above | Taxonomy and rules, the two database schemas and clients, email templates |
-| **Self-hosted tools** | `infra/` | Separate Docker server (planned) | Nextcloud, Twenty CRM, Listmonk |
+| **VM setup** | `infra/vm` | Azure VM (`install.sh`) | Every config the VM runs outside the repo: Caddy, Authelia 2FA, PostgreSQL, systemd units, backups |
+| **Self-hosted tools** | `infra/tools` | Separate Docker server (planned) | Nextcloud, Twenty CRM, Listmonk |
 | **Marketing pack** | `marketing/` | LaTeX, locally | Presentation, brochures, diagrams |
 
 Each part deploys and fails on its own. They share only code (`packages/*`) and databases, never call each other's internals.
@@ -67,7 +68,7 @@ FundHub keeps **two databases on purpose**:
 | Engine | Neon Postgres (serverless) | PostgreSQL 18 on the Azure VM (`fundhub_engine`) |
 | Schema | `packages/db/src/schema.ts` (Drizzle) | `packages/engine-db/src/schema.ts` (Drizzle) |
 | Who connects | website (`fundhub_web`), admin (`fundhub_admin`), scraper (`fundhub_scraper`), SQL console (`fundhub_analyst_ro`) | engine processes, capture receiver, admin engine pages |
-| Backups | Neon point-in-time restore | nightly `pg_dump` on the VM (`services/engine/deploy/`) |
+| Backups | Neon point-in-time restore | nightly `pg_dump` on the VM (`infra/vm/`) |
 | Size driver | small | grows with the LBR scrape; PDFs live outside it |
 
 **Website DB tables, by area** (31 tables):
@@ -144,7 +145,7 @@ In order of importance:
 
 1. **Data location.** The website DB is in Neon `us-east-1` and the VM in Azure Central India. FundHub handles EU personal data (directors, accounts): move both to an EU region (Frankfurt / West Europe).
 2. **Engine → website promoter** (4.3) is missing; engine data reaches the site only by hand.
-3. **Engine files** are on the VM disk. Move them to S3-compatible storage (`STORAGE_DRIVER=s3`) and put the database on a separate Azure data disk ([services/engine/deploy/README.md](../services/engine/deploy/README.md)).
+3. **Engine files** are on the VM disk. Move them to S3-compatible storage (`STORAGE_DRIVER=s3`) and put the database on a separate Azure data disk ([infra/vm/README.md](../infra/vm/README.md)).
 4. **Two scrapers.** Fold `services/scraper`'s AI extraction into the engine's planned web agent and retire the mock RCS source.
 5. **Internal data separation.** Finance, CRM, staff and audit tables share the website DB, separated by roles. Next step: move them to an `internal` schema the `fundhub_web` role cannot reach; a separate database later if needed.
 6. **Dev and prod on one VM.** The engine runs from the development checkout. Later, run it from a fixed release (the existing `services/engine/Dockerfile`).

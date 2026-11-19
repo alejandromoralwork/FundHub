@@ -14,7 +14,6 @@ FundHub/
 ├── services/
 │   ├── engine/              @fundhub/engine   scraping engine: CLI, workers, capture receiver
 │   │   ├── browser-extension/                 Chrome extension "FundHub LBR Capture"
-│   │   ├── deploy/                            Azure VM config: systemd units, Caddyfile, backups
 │   │   ├── docs/                              LBR findings, data-reuse request
 │   │   └── snippets/                          legacy DevTools snippet (replaced by the extension)
 │   └── scraper/             @fundhub/scraper  data module: AI web extraction (VM timers)
@@ -23,7 +22,9 @@ FundHub/
 │   ├── db/                  @fundhub/db         website DB: schema, migrations, client, queries, roles
 │   ├── engine-db/           @fundhub/engine-db  engine DB: schema, migrations, client, shared engine logic
 │   └── email/               @fundhub/email      React Email templates + Resend sender
-├── infra/                   self-hosted tools server (Docker): Nextcloud, Twenty, Listmonk
+├── infra/
+│   ├── vm/                  Azure VM: every config outside the repo + install.sh (Caddy, Authelia, Postgres, systemd)
+│   └── tools/               optional Docker server: Nextcloud, Twenty, Listmonk
 ├── marketing/               LaTeX presentation, brochures, diagrams (Python), screenshots
 ├── scripts/                 repo tools (check-comments-only.mjs)
 └── docs/                    this documentation

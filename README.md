@@ -11,7 +11,7 @@ Independent comparator of fund service providers in Luxembourg, with fund set-up
 | Scraping engine + LBR capture extension | [`services/engine`](services/engine/README.md) | Azure VM |
 | Data module (AI web extraction) | [`services/scraper`](services/scraper) | Azure VM (systemd timers) |
 | Shared code: taxonomy, DB schemas, email | [`packages/`](packages) | — |
-| Self-hosted tools (Nextcloud, Twenty, Listmonk) | [`infra/`](infra/README.md) | Docker server |
+| Self-hosted tools (Nextcloud, Twenty, Listmonk) | [`infra/tools/`](infra/tools/README.md) | Docker server |
 | Marketing pack | [`marketing/`](marketing/README.md) | LaTeX |
 
 Two databases: the **website DB** (Neon) serves the site and the business; the **engine DB** (PostgreSQL on the VM) is the staging area of the data pipeline. See [docs/architecture.md](docs/architecture.md).

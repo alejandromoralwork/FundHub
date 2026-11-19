@@ -5,4 +5,4 @@ Requires=postgresql.service
 
 [Service]
 Type=oneshot
-ExecStart=/home/alejandro/projects/FundHub/services/engine/deploy/backup-engine-db.sh
+ExecStart=/usr/local/lib/fundhub/backup-engine-db.sh

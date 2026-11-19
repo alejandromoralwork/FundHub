@@ -1,0 +1,6 @@
+# ~/.config/code-server/config.yaml (install.sh writes it once with a random password; it is never overwritten).
+# Public access goes through Caddy + Authelia 2FA; code-server's own password is a second lock.
+bind-addr: 127.0.0.1:8080
+auth: password
+password: <generated>
+cert: false

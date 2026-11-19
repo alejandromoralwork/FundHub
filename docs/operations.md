@@ -10,8 +10,8 @@ Where production runs, how to deploy it, and how to look after it. For the movin
 | Admin `fundhub.lu/admin` | Vercel project `fund-hub-admin`, root `apps/admin`, build `npm run vercel-build` (applies migrations) | Vercel env vars |
 | Website DB | Neon Postgres (Vercel Marketplace) | `DATABASE_URL*` per role |
 | Data module | Azure VM: `fundhub-scraper-weekly.timer`, `fundhub-scraper-jobs.timer` | VM `services/scraper/.env` |
-| Engine, engine DB, Drive, code-server | Azure VM `alejandro-code.centralindia.cloudapp.azure.com` | [services/engine/deploy/](../services/engine/deploy/README.md) |
-| Nextcloud, Twenty, Listmonk (optional) | Separate Docker server | [infra/README.md](../infra/README.md) |
+| Engine, engine DB, Drive, code-server | Azure VM `alejandro-code.centralindia.cloudapp.azure.com` | [infra/vm/](../infra/vm/README.md) |
+| Nextcloud, Twenty, Listmonk (optional) | Separate Docker server | [infra/tools/README.md](../infra/tools/README.md) |
 
 Every variable is listed with a comment in [`.env.example`](../.env.example) (website / admin) and [`services/engine/.env.example`](../services/engine/.env.example) (engine).
 
@@ -21,7 +21,7 @@ Every variable is listed with a comment in [`.env.example`](../.env.example) (we
    `DATABASE_URL=<owner url> WEB_DB_PASSWORD=… ADMIN_DB_PASSWORD=… SCRAPER_DB_PASSWORD=… ANALYST_DB_PASSWORD=… npm run db:roles -w @fundhub/db`. Re-run it after migrations that add tables.
 2. **Website** (`fund-hub`): `DATABASE_URL` (fundhub_web role), `ADMIN_ORIGIN` (admin deployment URL), optional `RESEND_API_KEY`, `EMAIL_FROM`, `LISTMONK_URL`, `LISTMONK_LIST_UUID`.
 3. **Admin** (`fund-hub-admin`): `DATABASE_URL` (fundhub_admin), `DATABASE_URL_UNPOOLED`, `ANALYST_DATABASE_URL`, `PUBLIC_SITE_URL`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, Stripe keys, price ids and `STRIPE_WEBHOOK_SECRET`, `POSTHOG_URL`, `ENGINE_DATABASE_URL` (engine pages), and the sidebar tools `DRIVE_URL`, `CODE_SERVER_URL`, `NEXTCLOUD_URL`, `TWENTY_URL`, `LISTMONK_URL`, `POSTIZ_URL`.
-4. **Data module (VM):** `services/scraper/.env` with `DATABASE_URL` (fundhub_scraper role) and `ANTHROPIC_API_KEY`, then enable the timers ([deploy/README.md](../services/engine/deploy/README.md#data-module)).
+4. **Data module (VM):** `services/scraper/.env` with `DATABASE_URL` (fundhub_scraper role) and `ANTHROPIC_API_KEY`, then enable the timers ([deploy/README.md](../infra/vm/README.md#data-module)).
 5. **First staff owner:** `npm run staff -w @fundhub/admin -- create <email> "<name>" owner` against the production database.
 
 Deploys happen on push to `main` (Vercel). Migrations run in the admin build.
@@ -40,7 +40,7 @@ Ubuntu 24.04, Standard B2als v2 (2 vCPU, 4 GB RAM), public DNS `alejandro-code.c
 | — | Nightly engine DB backup, 03:30 UTC | `fundhub-engine-backup.timer` |
 | — | Data module: queued jobs every 5 min, AI extraction Mon 03:00 UTC | `fundhub-scraper-jobs.timer`, `fundhub-scraper-weekly.timer` |
 
-Day-to-day commands, restore, importing a database and moving to a data disk: [services/engine/deploy/README.md](../services/engine/deploy/README.md). Extension setup (URL + token): [browser-extension/README.md](../services/engine/browser-extension/README.md).
+Day-to-day commands, restore, importing a database and moving to a data disk: [infra/vm/README.md](../infra/vm/README.md). Extension setup (URL + token): [browser-extension/README.md](../services/engine/browser-extension/README.md).
 
 **After pulling new code on the VM:** `npm install`, `npm run engine:db:migrate` if the engine schema changed, `sudo systemctl restart fundhub-capture`.
 
@@ -53,7 +53,7 @@ The drive itself is a self-hosted open-source file manager on the VM, served at 
 **Status:** the original FileBrowser project was archived on 2026-09-01 (no more security fixes), so it is installed but **not enabled or exposed**. The maintained successor, FileBrowser Quantum (`gtsteffaniak/filebrowser`), is the planned replacement. To finish:
 
 1. Install the chosen drive binary as `/usr/local/bin/filebrowser`, listening on `127.0.0.1:8090` with base URL `/drive` and root `/srv/fundhub-drive`.
-2. `sudo systemctl enable --now fundhub-drive` (unit in `services/engine/deploy/fundhub-drive.service`).
+2. `sudo systemctl enable --now fundhub-drive` (unit in `infra/vm/systemd/fundhub-drive.service`).
 3. Add to `/etc/caddy/Caddyfile`, inside the site block, and `sudo systemctl reload caddy`:
 
    ```caddy
@@ -72,10 +72,10 @@ Inside a frame some browsers block the drive's sign-in cookie; *Open in new tab*
 | Data | Backup | Restore |
 |---|---|---|
 | Website DB | Neon point-in-time restore | Neon console |
-| Engine DB | `pg_dump` nightly → `/var/backups/fundhub-engine`, 14 days, verified with `pg_restore --list`; optional off-VM copy with rclone (`RCLONE_REMOTE`) | [deploy/README.md](../services/engine/deploy/README.md#restore-a-backup) |
+| Engine DB | `pg_dump` nightly → `/var/backups/fundhub-engine`, 14 days, verified with `pg_restore --list`; optional off-VM copy with rclone (`RCLONE_REMOTE`) | [deploy/README.md](../infra/vm/README.md#restore-a-backup) |
 | Engine files (captures, PDFs) | none yet — move to object storage | — |
 | Drive files | none yet — add before real use | — |
-| Self-hosted tools | `infra/backup.sh` nightly | [infra/README.md](../infra/README.md) |
+| Self-hosted tools | `infra/tools/backup.sh` nightly | [infra/tools/README.md](../infra/tools/README.md) |
 
 Backups on the same disk as the data are not enough: configure the off-VM copy.
 
@@ -87,5 +87,5 @@ Backups on the same disk as the data are not enough: configure the off-VM copy.
 | `CAPTURE_TOKEN` | VM `services/engine/.env` | Edit, `sudo systemctl restart fundhub-capture`, paste in the extension popup |
 | Engine DB password | VM `services/engine/.env`, `packages/engine-db/.env` | `ALTER ROLE fundhub_engine PASSWORD …`, update both files, restart |
 | Stripe, Resend, Anthropic, GitHub tokens | Vercel / GitHub | Provider dashboard, then env |
-| Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash), first password in `/etc/authelia/initial-credentials` | [deploy/README.md → 2FA](../services/engine/deploy/README.md#2fa-authelia) |
+| Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash), first password in `/etc/authelia/initial-credentials` | [deploy/README.md → 2FA](../infra/vm/README.md#2fa-authelia) |
 | Drive admin password | VM `/etc/filebrowser/admin-credentials` (root only) | In the drive's settings |

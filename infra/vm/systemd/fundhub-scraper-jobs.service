@@ -1,0 +1,16 @@
+[Unit]
+Description=FundHub data module: process jobs queued from the admin (Run scrape)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=@REPO@/services/scraper/.env
+
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@REPO@/services/scraper
+# DATABASE_URL (fundhub_scraper role) and ANTHROPIC_API_KEY; template: services/scraper/.env.example
+EnvironmentFile=@REPO@/services/scraper/.env
+Environment=PATH=@NODE_DIR@:/usr/bin:/bin
+ExecStart=@NODE_DIR@/node --import tsx src/cli.ts jobs
+TimeoutStartSec=30min
+Nice=10

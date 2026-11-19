@@ -34,9 +34,9 @@ Provider search and filters by service category, provider profiles, side-by-side
 | Finance | Admin **Finance** | P&L from paid Stripe invoices + expenses, VAT, budgets, quarterly VAT position, CSV exports. Bigcapital later |
 | Legal and GDPR | Website `/legal/*`, `/privacy-request`; admin **GDPR requests** | Cookie consent; export (JSON) and erasure with one-month deadlines. **Fill in `packages/core/src/company.ts` and have the legal texts reviewed by a Luxembourg lawyer** |
 | Internal files | Admin **Drive** | Self-hosted file drive on the VM ([operations.md](operations.md#4-drive)) |
-| Drive, calendar, team tasks | **Nextcloud** (`infra/`) | Optional; linked from the admin sidebar |
-| CRM and pipelines | **Twenty** (`infra/`) | Inbox "Send to CRM" |
-| Newsletter | **Listmonk** (`infra/`) | Website footer form and sign-up opt-in, double opt-in |
+| Drive, calendar, team tasks | **Nextcloud** (`infra/tools/`) | Optional; linked from the admin sidebar |
+| CRM and pipelines | **Twenty** (`infra/tools/`) | Inbox "Send to CRM" |
+| Newsletter | **Listmonk** (`infra/tools/`) | Website footer form and sign-up opt-in, double opt-in |
 | Code | **code-server** on the VM | Sidebar link for owners |
 
 > Provider data in `packages/db/data/providers.json` is illustrative sample data (fictional names, `example.com` sites).

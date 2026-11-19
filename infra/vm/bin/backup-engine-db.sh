@@ -2,7 +2,7 @@
 # Nightly backup of the engine database (run as root by fundhub-engine-backup.timer).
 #   Dumps fundhub_engine (pg_dump custom format, compressed) to $BACKUP_DIR, keeps $KEEP_DAYS days.
 #   Optional off-VM copy: set RCLONE_REMOTE (e.g. "r2:fundhub-backups/engine") in /etc/default/fundhub-backup
-#   and install/configure rclone. Restore: see services/engine/deploy/README.md.
+#   and install/configure rclone. Restore: see infra/vm/README.md.
 set -euo pipefail
 [ -f /etc/default/fundhub-backup ] && . /etc/default/fundhub-backup
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/fundhub-engine}"

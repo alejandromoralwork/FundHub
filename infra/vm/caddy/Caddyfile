@@ -1,4 +1,4 @@
-alejandro-code.centralindia.cloudapp.azure.com {
+@DOMAIN@ {
 	# Authelia login portal (password + authenticator code). Public: it is the login page.
 	handle /authelia* {
 		reverse_proxy 127.0.0.1:9091
