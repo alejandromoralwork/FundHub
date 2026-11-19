@@ -1,8 +1,8 @@
 /**
  * FILE: apps/admin/src/app/(console)/drive/page.tsx
  * PART: console (apps/admin)
- * WHAT IT DOES: The "Drive" page: FundHub's internal file drive (a self-hosted open-source file manager on the
- *   Azure VM, see docs/operations.md) shown inside the console, with a button to open it in its own tab.
+ * WHAT IT DOES: The "Drive" page: a button that opens FundHub's internal file drive (FileBrowser Quantum on the
+ *   Azure VM, behind the VM 2FA login; see docs/operations.md → Drive).
  *   The address comes from DRIVE_URL; without it the page explains how to set it up.
  * WHERE IT RUNS: on the server (reads the env and checks the role); DriveView runs in the browser.
  * FRAMEWORK NOTES: page.tsx in app/(console)/drive = the URL /admin/drive.

@@ -2,13 +2,14 @@
 /**
  * FILE: apps/admin/src/components/drive-view.tsx
  * PART: console (apps/admin)
- * WHAT IT DOES: Shows the internal drive in a frame that fills the page, with "Open in new tab" (some
- *   browsers block sign-in cookies inside frames; the new tab always works). Without a URL: setup help.
+ * WHAT IT DOES: The Drive page's content: a button that opens FundHub's internal drive in a new tab. The drive
+ *   lives on the Azure VM behind the VM's 2FA login (Authelia), which browsers do not allow inside another site's
+ *   frame, so it is opened rather than embedded. Without a URL: setup help.
  * WHERE IT RUNS: in the browser.
  */
 
-import { ExportOutlined } from "@ant-design/icons";
-import { Alert, Button, Space, Typography } from "antd";
+import { ExportOutlined, FolderOpenOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Space, Typography } from "antd";
 
 /**
  * Kind: React component.
@@ -21,25 +22,26 @@ export function DriveView({ url }: { url: string | null }) {
         type="info"
         showIcon
         message="Drive not configured"
-        description="Set DRIVE_URL on the admin project (e.g. https://<vm-domain>/drive) after installing the drive on the VM. See docs/operations.md → Drive."
+        description="Set DRIVE_URL on the admin project (e.g. https://<vm-domain>/drive). See docs/operations.md → Drive."
       />
     );
   return (
-    <Space direction="vertical" size={8} style={{ width: "100%" }}>
-      <Space style={{ width: "100%", justifyContent: "space-between" }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          Drive
-        </Typography.Title>
-        <Button icon={<ExportOutlined />} href={url} target="_blank" rel="noreferrer">
-          Open in new tab
+    <Card style={{ maxWidth: 640 }}>
+      <Space direction="vertical" size={12}>
+        <Space size={12} align="center">
+          <FolderOpenOutlined style={{ fontSize: 28 }} />
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            FundHub Drive
+          </Typography.Title>
+        </Space>
+        <Typography.Paragraph style={{ margin: 0 }}>
+          Internal files: finance and receipts, clients, providers, legal, marketing. Opens in a new tab and uses the
+          VM login (password + authenticator code), the same as the code editor.
+        </Typography.Paragraph>
+        <Button type="primary" size="large" icon={<ExportOutlined />} href={url} target="_blank" rel="noreferrer">
+          Open Drive
         </Button>
       </Space>
-      <iframe
-        src={url}
-        title="FundHub Drive"
-        style={{ width: "100%", height: "calc(100vh - 170px)", minHeight: 480, border: "1px solid rgba(128,128,128,.25)", borderRadius: 8 }}
-        allow="clipboard-read; clipboard-write; fullscreen"
-      />
-    </Space>
+    </Card>
   );
 }

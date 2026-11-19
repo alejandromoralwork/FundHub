@@ -2,7 +2,7 @@
 # Secrets are NOT here: /etc/fundhub-drive/secrets.env (FILEBROWSER_ADMIN_PASSWORD, FILEBROWSER_JWT_TOKEN_SECRET,
 # FILEBROWSER_TOTP_SECRET). At https://@DOMAIN@/drive/, opened from the admin console's Drive page.
 # Login: the VM's Authelia 2FA (Caddy forward_auth) passes the user in Remote-User; the drive has no password of
-# its own. A drive account must exist with the same username as the Authelia user (Settings → Users).
+# its own. Every Authelia user who opens it gets a drive account automatically (then set their folder rules).
 server:
   disableUpdateCheck: true
   cacheDir: /var/lib/fundhub-drive/cache
@@ -15,6 +15,8 @@ server:
     - levels: "info|error|warning"
 auth:
   tokenExpirationHours: 8
+  # In proxy mode the user named here is the drive admin. It must first log in through Authelia (so its account is
+  # created as a proxy account) before this name is set; see infra/vm/README.md → Drive.
   adminUsername: "@USER@"
   methods:
     proxy:

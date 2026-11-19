@@ -162,9 +162,18 @@ if [ ! -s /etc/fundhub-drive/secrets.env ]; then
   { echo "FILEBROWSER_ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
     echo "FILEBROWSER_JWT_TOKEN_SECRET=$(rand)"
     echo "FILEBROWSER_TOTP_SECRET=$(openssl rand -hex 16)"; } >/etc/fundhub-drive/secrets.env
-  echo "   admin login: user $APP_USER, password: sudo grep ADMIN_PASSWORD /etc/fundhub-drive/secrets.env"
 fi
 chown root:filebrowser /etc/fundhub-drive/secrets.env; chmod 640 /etc/fundhub-drive/secrets.env
+if [ ! -f /var/lib/fundhub-drive/filebrowser.sqlite ]; then
+  # First start. In proxy mode the admin is the user named in adminUsername, but on an empty database the drive
+  # creates that user as a *password* account, which proxy logins then refuse. So: start once with a placeholder
+  # admin, create $APP_USER through a local proxy login (as Caddy would after Authelia), then switch to the real file.
+  render "$HERE/drive/config.yaml" | sed -E 's/^(\s*adminUsername:).*/\1 "drive-admin"/' >/etc/fundhub-drive/config.yaml
+  systemctl restart fundhub-drive
+  for _ in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:8090/drive/ 2>/dev/null && break; sleep 1; done
+  curl -sS -o /dev/null -H "Remote-User: $APP_USER" "http://127.0.0.1:8090/drive/api/resources?source=FundHub&path=/" || true
+  D=1
+fi
 install_file "$HERE/drive/config.yaml" /etc/fundhub-drive/config.yaml 644 && D=1 || true
 # The archived original FileBrowser (no security fixes) is removed if still present.
 rm -rf /usr/local/bin/filebrowser /var/lib/filebrowser /etc/filebrowser

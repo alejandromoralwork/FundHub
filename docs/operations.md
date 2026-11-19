@@ -35,7 +35,7 @@ Ubuntu 24.04, Standard B2als v2 (2 vCPU, 4 GB RAM), public DNS `alejandro-code.c
 | `/authelia` | 2FA login portal (password + authenticator code) | `authelia` |
 | `/` | code-server (VS Code in the browser), behind Authelia 2FA | code-server |
 | `/engine/*` | Capture receiver for the extension (Bearer token) | `fundhub-capture` |
-| `/drive/*` | Internal drive, FileBrowser Quantum (own login, see 4) | `fundhub-drive` |
+| `/drive/*` | Internal drive, FileBrowser Quantum, behind Authelia 2FA (see 4) | `fundhub-drive` |
 | — | PostgreSQL 18, `fundhub_engine` | `postgresql` |
 | — | Nightly engine DB backup, 03:30 UTC | `fundhub-engine-backup.timer` |
 | — | Data module: queued jobs every 5 min, AI extraction Mon 03:00 UTC | `fundhub-scraper-jobs.timer`, `fundhub-scraper-weekly.timer` |
@@ -46,7 +46,7 @@ Day-to-day commands, restore, importing a database and moving to a data disk: [i
 
 ## 4. Drive
 
-The admin's **Drive** page (`/admin/drive`, all staff roles) shows FundHub's internal file drive inside the console, with an *Open in new tab* button. It embeds whatever `DRIVE_URL` points to; without it the page shows setup help.
+The admin's **Drive** page (`/admin/drive`, all staff roles) has an **Open Drive** button that opens FundHub's internal file drive in a new tab (`DRIVE_URL`); without it the page shows setup help.
 
 | | |
 |---|---|
@@ -54,14 +54,14 @@ The admin's **Drive** page (`/admin/drive`, all staff roles) shows FundHub's int
 | Address | `https://<vm>/drive/` (service `fundhub-drive`, `127.0.0.1:8090`) |
 | Files | `/srv/fundhub-drive`: `Finance/Receipts`, `Clients`, `Providers`, `Legal`, `Marketing`, `Engine` |
 | Config | `infra/vm/drive/config.yaml` → `/etc/fundhub-drive/config.yaml` |
-| Secrets | `/etc/fundhub-drive/secrets.env` (root only): admin password, JWT key, TOTP key |
+| Secrets | `/etc/fundhub-drive/secrets.env` (root only): JWT key, TOTP key, bootstrap admin password |
 | Admin setting | `DRIVE_URL=https://<vm>/drive` on the admin project |
 
-**Access.** The drive is *not* behind the VM's Authelia 2FA, because browsers block that cookie inside the admin's frame. It is protected by its own login (rate-limited, lockout after failed attempts; enable two-factor per user in the drive's *Settings → Account*). Only the admin's addresses may frame it (`frame-ancestors` in the Caddyfile). Caddy rewrites the drive's login cookie to `SameSite=None; Partitioned` so it works inside the frame; *Open in new tab* has its own login.
+**Login.** The drive sits behind the same Authelia 2FA as code-server: one VM login (password + authenticator code) for both. Caddy strips any `Remote-User` header a visitor sends, Authelia sets the real one, and the drive trusts it (FileBrowser Quantum *proxy* login). The drive has **no password of its own**, and it listens on `127.0.0.1` only. It is not embedded in the admin because browsers block the 2FA cookie inside another site's frame.
 
-**Accounts.** The admin user is the VM user (`alejandro`). Its password is `FILEBROWSER_ADMIN_PASSWORD` in `secrets.env` and is **reset to that value on every start**: to change it, edit the file and `sudo systemctl restart fundhub-drive`. Read it with `sudo grep ADMIN_PASSWORD /etc/fundhub-drive/secrets.env`. Create one account per team member in the drive (*Settings → Users*), with per-folder access rules.
+**Accounts.** Every Authelia user who opens the drive gets a drive account automatically; set their folder access rules in *Settings → Users*. The user named in `adminUsername` (the VM user, `alejandro`) is the drive admin. To add a person: add them to `/etc/authelia/users.yml` (password hash), they register their authenticator, then open the drive.
 
-**Never change** `FILEBROWSER_JWT_TOKEN_SECRET` after the first start: the drive refuses to boot when it differs from the key stored in its database.
+**Never change** `FILEBROWSER_JWT_TOKEN_SECRET` in `secrets.env` after the first start: the drive refuses to boot when it differs from the key stored in its database. (`FILEBROWSER_ADMIN_PASSWORD` there is only used for the first-start bootstrap and is not a login.)
 
 It cannot run on Vercel: a drive needs a server with a permanent disk.
 
@@ -86,4 +86,4 @@ Backups on the same disk as the data are not enough: configure the off-VM copy.
 | Engine DB password | VM `services/engine/.env`, `packages/engine-db/.env` | `ALTER ROLE fundhub_engine PASSWORD …`, update both files, restart |
 | Stripe, Resend, Anthropic, GitHub tokens | Vercel / GitHub | Provider dashboard, then env |
 | Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash), first password in `/etc/authelia/initial-credentials` | [deploy/README.md → 2FA](../infra/vm/README.md#2fa-authelia) |
-| Drive admin password | VM `/etc/fundhub-drive/secrets.env` (root only) | Edit `FILEBROWSER_ADMIN_PASSWORD`, `sudo systemctl restart fundhub-drive` |
+| Drive keys | VM `/etc/fundhub-drive/secrets.env` (root only) | Do not rotate the JWT key (the drive would refuse to start); logins use Authelia |

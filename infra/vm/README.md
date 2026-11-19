@@ -35,7 +35,7 @@ Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are f
 | Data module | `services/scraper/.env` (you create it from `.env.example`) |
 | Authelia | `/etc/authelia/secrets/*`, `/etc/authelia/users.yml`, first password in `/etc/authelia/initial-credentials` |
 | code-server password | `~/.config/code-server/config.yaml` |
-| Drive | `/etc/fundhub-drive/secrets.env` (admin password, JWT key — never change it, TOTP key) |
+| Drive | `/etc/fundhub-drive/secrets.env` (JWT key — never change it, TOTP key, bootstrap password); logins go through Authelia |
 
 Not managed here: Azure itself (VM size, disks, network security group: ports 22/80/443 only), SSH keys, and the
 Node.js install (nvm).
@@ -43,7 +43,7 @@ Node.js install (nvm).
 ## 2FA (Authelia)
 
 Every browser request except `/engine/*` (the extension, which uses its token) and the portal itself needs an
-Authelia session: password, then a 6-digit code from an authenticator app. 3 wrong tries in 5 min lock the user for
+Authelia session (code-server and the Drive share it): password, then a 6-digit code from an authenticator app. 3 wrong tries in 5 min lock the user for
 30 min. Sessions last 12 h (2 h idle). SSH (key only, passwords disabled) is the emergency way in.
 
 * First password: `sudo cat /etc/authelia/initial-credentials`.
