@@ -53,6 +53,7 @@ if [ "$DIFF_ONLY" = 1 ]; then
   install_file "$HERE/authelia/override.conf" /etc/systemd/system/authelia.service.d/override.conf 644 || true
   install_file "$HERE/postgres/fundhub.conf" /etc/postgresql/18/main/conf.d/fundhub.conf 644 || true
   install_file "$HERE/bin/backup-engine-db.sh" /usr/local/lib/fundhub/backup-engine-db.sh 755 || true
+  install_file "$HERE/drive/config.yaml" /etc/fundhub-drive/config.yaml 644 || true
   for u in "$HERE"/systemd/*; do install_file "$u" "/etc/systemd/system/$(basename "$u")" 644 || true; done
   exit 0
 fi
@@ -141,7 +142,34 @@ systemctl daemon-reload
 systemctl enable fundhub-capture fundhub-engine-backup.timer fundhub-scraper-jobs.timer fundhub-scraper-weekly.timer >/dev/null 2>&1
 systemctl restart fundhub-capture
 systemctl start fundhub-engine-backup.timer fundhub-scraper-jobs.timer fundhub-scraper-weekly.timer
-# fundhub-drive is installed but left disabled until a maintained drive binary is chosen (docs/operations.md → Drive).
+
+say "Drive (FileBrowser Quantum)"
+DRIVE_VERSION="v2.0.2-stable"
+DRIVE_SHA256="5710dc6f51d77f1db884eace44f6952286c49f2ce40b6a59af37e0dc7c4a8bbd"   # linux-amd64, from the GitHub release
+D=0
+if ! echo "$DRIVE_SHA256  /usr/local/bin/fundhub-drive" | sha256sum -c - >/dev/null 2>&1; then
+  tmp="$(mktemp)"
+  curl -fsSL -o "$tmp" "https://github.com/gtsteffaniak/filebrowser/releases/download/$DRIVE_VERSION/linux-amd64-filebrowser"
+  echo "$DRIVE_SHA256  $tmp" | sha256sum -c - >/dev/null || { echo "Drive download checksum mismatch, not installed." >&2; rm -f "$tmp"; exit 1; }
+  install -m 755 "$tmp" /usr/local/bin/fundhub-drive; rm -f "$tmp"; D=1
+fi
+id filebrowser >/dev/null 2>&1 || useradd --system --home /var/lib/fundhub-drive --shell /usr/sbin/nologin filebrowser
+install -d -o filebrowser -g filebrowser -m 750 /var/lib/fundhub-drive /srv/fundhub-drive
+for d in Finance/Receipts Clients Providers Legal Marketing Engine; do install -d -o filebrowser -g filebrowser -m 750 "/srv/fundhub-drive/$d"; done
+install -d -m 755 /etc/fundhub-drive
+if [ ! -s /etc/fundhub-drive/secrets.env ]; then
+  # The JWT secret must never change once the drive has started (it refuses to boot otherwise).
+  { echo "FILEBROWSER_ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
+    echo "FILEBROWSER_JWT_TOKEN_SECRET=$(rand)"
+    echo "FILEBROWSER_TOTP_SECRET=$(openssl rand -hex 16)"; } >/etc/fundhub-drive/secrets.env
+  echo "   admin login: user $APP_USER, password: sudo grep ADMIN_PASSWORD /etc/fundhub-drive/secrets.env"
+fi
+chown root:filebrowser /etc/fundhub-drive/secrets.env; chmod 640 /etc/fundhub-drive/secrets.env
+install_file "$HERE/drive/config.yaml" /etc/fundhub-drive/config.yaml 644 && D=1 || true
+# The archived original FileBrowser (no security fixes) is removed if still present.
+rm -rf /usr/local/bin/filebrowser /var/lib/filebrowser /etc/filebrowser
+systemctl enable fundhub-drive >/dev/null 2>&1
+[ "$D" = 1 ] && systemctl restart fundhub-drive || systemctl start fundhub-drive
 
 say "Caddy (HTTPS, 2FA gate)"
 install_file "$HERE/caddy/Caddyfile" /etc/caddy/Caddyfile 644 && { caddy validate --config /etc/caddy/Caddyfile >/dev/null && systemctl reload caddy; } || true
@@ -149,4 +177,4 @@ systemctl enable --now caddy >/dev/null
 
 say "Done"
 printf '%s\n' "${CHANGED[@]:-(no config files changed)}"
-systemctl --no-pager --plain is-active postgresql@18-main authelia caddy fundhub-capture | paste -sd' '
+systemctl --no-pager --plain is-active postgresql@18-main authelia caddy fundhub-capture fundhub-drive | paste -sd' '

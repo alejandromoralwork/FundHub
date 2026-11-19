@@ -22,7 +22,7 @@ cannot change what runs as root until `install.sh` is run with sudo.
 | `systemd/fundhub-capture.service` | `/etc/systemd/system/` | Receiver for the browser extension (`engine capture-server`, `127.0.0.1:4477`) |
 | `systemd/fundhub-engine-backup.{service,timer}`, `bin/backup-engine-db.sh` | `/etc/systemd/system/`, `/usr/local/lib/fundhub/` | Nightly `pg_dump` 03:30 UTC → `/var/backups/fundhub-engine/`, 14 days |
 | `systemd/fundhub-scraper-{jobs,weekly}.{service,timer}` | `/etc/systemd/system/` | Data module: queued "Run scrape" jobs every 5 min; AI extraction Mondays 03:00 UTC. Skipped until `services/scraper/.env` exists |
-| `systemd/fundhub-drive.service` | `/etc/systemd/system/` (not enabled) | Internal drive on `127.0.0.1:8090`, see [docs/operations.md → Drive](../../docs/operations.md#4-drive) |
+| `drive/config.yaml`, `systemd/fundhub-drive.service` | `/etc/fundhub-drive/`, `/etc/systemd/system/` | Drive (FileBrowser Quantum, pinned + checksum) on `127.0.0.1:8090`, files in `/srv/fundhub-drive`; see [docs/operations.md → Drive](../../docs/operations.md#4-drive) |
 
 Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are filled in by `install.sh`; override with
 `DOMAIN=… APP_USER=… NODE_DIR=… sudo -E bash infra/vm/install.sh`.
@@ -35,6 +35,7 @@ Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are f
 | Data module | `services/scraper/.env` (you create it from `.env.example`) |
 | Authelia | `/etc/authelia/secrets/*`, `/etc/authelia/users.yml`, first password in `/etc/authelia/initial-credentials` |
 | code-server password | `~/.config/code-server/config.yaml` |
+| Drive | `/etc/fundhub-drive/secrets.env` (admin password, JWT key — never change it, TOTP key) |
 
 Not managed here: Azure itself (VM size, disks, network security group: ports 22/80/443 only), SSH keys, and the
 Node.js install (nvm).

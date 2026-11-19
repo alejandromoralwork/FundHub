@@ -35,7 +35,7 @@ Ubuntu 24.04, Standard B2als v2 (2 vCPU, 4 GB RAM), public DNS `alejandro-code.c
 | `/authelia` | 2FA login portal (password + authenticator code) | `authelia` |
 | `/` | code-server (VS Code in the browser), behind Authelia 2FA | code-server |
 | `/engine/*` | Capture receiver for the extension (Bearer token) | `fundhub-capture` |
-| `/drive/*` | Internal drive (see 4) | `fundhub-drive` |
+| `/drive/*` | Internal drive, FileBrowser Quantum (own login, see 4) | `fundhub-drive` |
 | — | PostgreSQL 18, `fundhub_engine` | `postgresql` |
 | — | Nightly engine DB backup, 03:30 UTC | `fundhub-engine-backup.timer` |
 | — | Data module: queued jobs every 5 min, AI extraction Mon 03:00 UTC | `fundhub-scraper-jobs.timer`, `fundhub-scraper-weekly.timer` |
@@ -48,24 +48,22 @@ Day-to-day commands, restore, importing a database and moving to a data disk: [i
 
 The admin's **Drive** page (`/admin/drive`, all staff roles) shows FundHub's internal file drive inside the console, with an *Open in new tab* button. It embeds whatever `DRIVE_URL` points to; without it the page shows setup help.
 
-The drive itself is a self-hosted open-source file manager on the VM, served at `https://<vm>/drive/`, files in `/srv/fundhub-drive` (folders `Finance/Receipts`, `Clients`, `Providers`, `Legal`, `Marketing`, `Engine`), its own user accounts and per-folder permissions. It cannot run on Vercel: a drive needs a server with a permanent disk.
+| | |
+|---|---|
+| Software | [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser) (Apache-2.0), version and SHA-256 pinned in `infra/vm/install.sh` → `/usr/local/bin/fundhub-drive` |
+| Address | `https://<vm>/drive/` (service `fundhub-drive`, `127.0.0.1:8090`) |
+| Files | `/srv/fundhub-drive`: `Finance/Receipts`, `Clients`, `Providers`, `Legal`, `Marketing`, `Engine` |
+| Config | `infra/vm/drive/config.yaml` → `/etc/fundhub-drive/config.yaml` |
+| Secrets | `/etc/fundhub-drive/secrets.env` (root only): admin password, JWT key, TOTP key |
+| Admin setting | `DRIVE_URL=https://<vm>/drive` on the admin project |
 
-**Status:** the original FileBrowser project was archived on 2026-09-01 (no more security fixes), so it is installed but **not enabled or exposed**. The maintained successor, FileBrowser Quantum (`gtsteffaniak/filebrowser`), is the planned replacement. To finish:
+**Access.** The drive is *not* behind the VM's Authelia 2FA, because browsers block that cookie inside the admin's frame. It is protected by its own login (rate-limited, lockout after failed attempts; enable two-factor per user in the drive's *Settings → Account*). Only the admin's addresses may frame it (`frame-ancestors` in the Caddyfile). Caddy rewrites the drive's login cookie to `SameSite=None; Partitioned` so it works inside the frame; *Open in new tab* has its own login.
 
-1. Install the chosen drive binary as `/usr/local/bin/filebrowser`, listening on `127.0.0.1:8090` with base URL `/drive` and root `/srv/fundhub-drive`.
-2. `sudo systemctl enable --now fundhub-drive` (unit in `infra/vm/systemd/fundhub-drive.service`).
-3. Add to `/etc/caddy/Caddyfile`, inside the site block, and `sudo systemctl reload caddy`:
+**Accounts.** The admin user is the VM user (`alejandro`). Its password is `FILEBROWSER_ADMIN_PASSWORD` in `secrets.env` and is **reset to that value on every start**: to change it, edit the file and `sudo systemctl restart fundhub-drive`. Read it with `sudo grep ADMIN_PASSWORD /etc/fundhub-drive/secrets.env`. Create one account per team member in the drive (*Settings → Users*), with per-folder access rules.
 
-   ```caddy
-   handle /drive/* {
-       header Content-Security-Policy "frame-ancestors 'self' https://fundhub.lu https://*.vercel.app http://localhost:3001"
-       header -X-Frame-Options
-       reverse_proxy 127.0.0.1:8090
-   }
-   ```
-4. Set `DRIVE_URL=https://<vm>/drive` on the admin project.
+**Never change** `FILEBROWSER_JWT_TOKEN_SECRET` after the first start: the drive refuses to boot when it differs from the key stored in its database.
 
-Inside a frame some browsers block the drive's sign-in cookie; *Open in new tab* always works.
+It cannot run on Vercel: a drive needs a server with a permanent disk.
 
 ## 5. Backups
 
@@ -74,7 +72,7 @@ Inside a frame some browsers block the drive's sign-in cookie; *Open in new tab*
 | Website DB | Neon point-in-time restore | Neon console |
 | Engine DB | `pg_dump` nightly → `/var/backups/fundhub-engine`, 14 days, verified with `pg_restore --list`; optional off-VM copy with rclone (`RCLONE_REMOTE`) | [deploy/README.md](../infra/vm/README.md#restore-a-backup) |
 | Engine files (captures, PDFs) | none yet — move to object storage | — |
-| Drive files | none yet — add before real use | — |
+| Drive files (`/srv/fundhub-drive`) | none yet — add an off-VM copy before storing real documents | — |
 | Self-hosted tools | `infra/tools/backup.sh` nightly | [infra/tools/README.md](../infra/tools/README.md) |
 
 Backups on the same disk as the data are not enough: configure the off-VM copy.
@@ -88,4 +86,4 @@ Backups on the same disk as the data are not enough: configure the off-VM copy.
 | Engine DB password | VM `services/engine/.env`, `packages/engine-db/.env` | `ALTER ROLE fundhub_engine PASSWORD …`, update both files, restart |
 | Stripe, Resend, Anthropic, GitHub tokens | Vercel / GitHub | Provider dashboard, then env |
 | Authelia login (VM 2FA) | `/etc/authelia/users.yml` (hash), first password in `/etc/authelia/initial-credentials` | [deploy/README.md → 2FA](../infra/vm/README.md#2fa-authelia) |
-| Drive admin password | VM `/etc/filebrowser/admin-credentials` (root only) | In the drive's settings |
+| Drive admin password | VM `/etc/fundhub-drive/secrets.env` (root only) | Edit `FILEBROWSER_ADMIN_PASSWORD`, `sudo systemctl restart fundhub-drive` |

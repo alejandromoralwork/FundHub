@@ -10,8 +10,19 @@
 		}
 		reverse_proxy 127.0.0.1:4477
 	}
+	# FundHub Drive (FileBrowser Quantum): same Authelia 2FA as code-server; the drive trusts Remote-User.
+	handle /drive* {
+		# Never let a visitor supply the identity header themselves.
+		request_header -Remote-User
+		forward_auth 127.0.0.1:9091 {
+			uri /authelia/api/authz/forward-auth
+			copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
+		}
+		reverse_proxy 127.0.0.1:8090
+	}
 	# Everything else (code-server) requires an Authelia 2FA session.
 	handle {
+		request_header -Remote-User
 		forward_auth 127.0.0.1:9091 {
 			uri /authelia/api/authz/forward-auth
 			copy_headers Remote-User Remote-Groups Remote-Email Remote-Name

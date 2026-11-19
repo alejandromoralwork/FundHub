@@ -1,0 +1,35 @@
+# FundHub Drive — FileBrowser Quantum (github.com/gtsteffaniak/filebrowser), installed by infra/vm/install.sh.
+# Secrets are NOT here: /etc/fundhub-drive/secrets.env (FILEBROWSER_ADMIN_PASSWORD, FILEBROWSER_JWT_TOKEN_SECRET,
+# FILEBROWSER_TOTP_SECRET). At https://@DOMAIN@/drive/, opened from the admin console's Drive page.
+# Login: the VM's Authelia 2FA (Caddy forward_auth) passes the user in Remote-User; the drive has no password of
+# its own. A drive account must exist with the same username as the Authelia user (Settings → Users).
+server:
+  disableUpdateCheck: true
+  cacheDir: /var/lib/fundhub-drive/cache
+  database:
+    path: /var/lib/fundhub-drive/filebrowser.sqlite
+  sources:
+    - path: /srv/fundhub-drive
+      name: FundHub
+  logging:
+    - levels: "info|error|warning"
+auth:
+  tokenExpirationHours: 8
+  adminUsername: "@USER@"
+  methods:
+    proxy:
+      enabled: true
+      header: "Remote-User"
+      logoutRedirectUrl: "https://@DOMAIN@/authelia/logout"
+    password:
+      enabled: false
+      signup: false
+frontend:
+  name: "FundHub Drive"
+  disableDefaultLinks: true
+http:
+  listen: "127.0.0.1"
+  port: 8090
+  baseURL: "/drive/"
+  externalUrl: "https://@DOMAIN@"
+  trustProxyHeaders: true

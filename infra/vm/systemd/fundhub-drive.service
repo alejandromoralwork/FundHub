@@ -1,19 +1,22 @@
 [Unit]
-Description=FundHub Drive (FileBrowser, 127.0.0.1:8090, served at https://<vm>/drive/)
+Description=FundHub Drive (FileBrowser Quantum, 127.0.0.1:8090, served at https://<vm>/drive/)
 After=network.target
 
 [Service]
 User=filebrowser
 Group=filebrowser
-ExecStart=/usr/local/bin/filebrowser -d /var/lib/filebrowser/filebrowser.db
+# FILEBROWSER_ADMIN_PASSWORD, FILEBROWSER_JWT_TOKEN_SECRET, FILEBROWSER_TOTP_SECRET (created by install.sh)
+EnvironmentFile=/etc/fundhub-drive/secrets.env
+WorkingDirectory=/var/lib/fundhub-drive
+ExecStart=/usr/local/bin/fundhub-drive -c /etc/fundhub-drive/config.yaml
 Restart=on-failure
 RestartSec=5
-# Hardening: it only needs its database and the drive folder.
+# Hardening: it only needs its state folder and the drive folder.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/filebrowser /srv/fundhub-drive
+ReadWritePaths=/var/lib/fundhub-drive /srv/fundhub-drive
 
 [Install]
 WantedBy=multi-user.target
