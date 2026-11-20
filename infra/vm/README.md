@@ -73,6 +73,10 @@ journalctl -u fundhub-scraper-jobs -u fundhub-scraper-weekly -n 50
 
 ## Everyday
 
+**Capture server (for the browser extension):** it starts at boot. To start/restart it by hand in code-server use
+*Terminal → Run Task → Capture server: start* (or *restart / stop / status / logs*), or the ▶ next to `capture:start`
+in the Explorer's **NPM Scripts** view. Same thing from a terminal: `npm run capture:start` (`bin/capture.sh`).
+
 ```bash
 sudo systemctl restart fundhub-capture          # after pulling engine code
 journalctl -u fundhub-capture -f                # receiver log

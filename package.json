@@ -28,7 +28,11 @@
     "engine:db:generate": "npm run db:generate -w @fundhub/engine-db",
     "engine:db:migrate": "npm run db:migrate -w @fundhub/engine-db",
     "engine:db:seed": "npm run db:seed -w @fundhub/engine-db",
-    "engine:db:setup": "npm run db:setup -w @fundhub/engine-db"
+    "engine:db:setup": "npm run db:setup -w @fundhub/engine-db",
+    "capture:start": "bash infra/vm/bin/capture.sh start",
+    "capture:restart": "bash infra/vm/bin/capture.sh restart",
+    "capture:stop": "bash infra/vm/bin/capture.sh stop",
+    "capture:status": "bash infra/vm/bin/capture.sh status"
   },
   "devDependencies": {
     "turbo": "^2.11.8",

@@ -1,0 +1,11 @@
+{
+  // code-server / VS Code buttons for the VM. Terminal → Run Task… (or Ctrl+Shift+P → "Tasks: Run Task").
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Capture server: start", "type": "shell", "command": "bash infra/vm/bin/capture.sh start", "problemMatcher": [], "presentation": { "reveal": "always", "panel": "dedicated" } },
+    { "label": "Capture server: restart", "type": "shell", "command": "bash infra/vm/bin/capture.sh restart", "problemMatcher": [], "presentation": { "reveal": "always", "panel": "dedicated" } },
+    { "label": "Capture server: stop", "type": "shell", "command": "bash infra/vm/bin/capture.sh stop", "problemMatcher": [], "presentation": { "reveal": "always", "panel": "dedicated" } },
+    { "label": "Capture server: status", "type": "shell", "command": "bash infra/vm/bin/capture.sh status", "problemMatcher": [], "presentation": { "reveal": "always", "panel": "dedicated" } },
+    { "label": "Capture server: logs", "type": "shell", "command": "bash infra/vm/bin/capture.sh logs", "isBackground": true, "problemMatcher": [], "presentation": { "reveal": "always", "panel": "dedicated" } }
+  ]
+}
