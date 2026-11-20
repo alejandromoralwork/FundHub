@@ -2,16 +2,44 @@
 
 The extension saves the LBR (RCS) pages and filing documents **you open** into the FundHub engine on the Azure VM (or a local one). It never searches, never moves from one company to the next by itself, and never touches LBR's anti-robot check. You browse LBR normally, and the extension does the copying.
 
-## Install (once)
+The work has two phases, and the popup has one tab for each:
+
+| Tab | Phase | What you do | What the engine gets |
+|---|---|---|---|
+| **1 · Find companies** | Build the list of companies registered in Luxembourg | Click **Search on LBR →** (or press Space on the LBR page) word after word | Every company on each results page: RCS number, name, status |
+| **2 · Capture filings** | Fill in each company | Work through a **round**: **Open on LBR →** company after company | Profile, every filing, and (optionally) every PDF |
+
+The tab you pick also decides what the panel on LBR pages offers next: a search (tab 1) or a company (tab 2).
+
+## Set up in 5 minutes
+
+1. **Get the files on your PC**: clone or pull the repo, or download the folder `services/engine/browser-extension` from code-server (right-click → Download).
+2. **Load it in Chrome**: `chrome://extensions` → switch on **Developer mode** (top right) → **Load unpacked** → choose the folder.
+3. **Pin it**: puzzle-piece icon in the toolbar → pin **FundHub LBR Capture**.
+4. **Get the token**: in code-server on the VM, open a terminal and run `npm run capture:token`. Copy the value.
+5. **Connect**: click the extension icon. The setup screen asks for the engine address (keep the default) and the token. Paste it and click **Connect**. The header turns green: **Connected**.
+6. **Log in on https://www.lbr.lu**, then use tab 1 or tab 2.
+
+If **Connect** fails, the popup says why and what to do:
+
+| Popup says | Fix |
+|---|---|
+| The access token is missing or wrong | Copy it again with `npm run capture:token` |
+| The VM answers, but the capture server is not running | code-server: **Terminal → Run Task → Capture server: start** (or `npm run capture:start`) |
+| Cannot reach the VM | The VM is off (Azure portal → Start) or you are offline |
+
+After any change to the extension files, click **↻ Reload** on its card in `chrome://extensions`. Settings (⚙ in the popup header) hold the connection, the admin console address (for the Registry / Round register links), **Save the LBR pages I open** (switch off to browse without sending anything) and **Keep a copy of each PDF in Downloads**.
+
+## How it is wired (VM)
 
 The engine (database + receiver) runs on the **Azure VM** (`alejandro-code.centralindia.cloudapp.azure.com`). Chrome runs on your own PC and talks to it over HTTPS:
 
 ```
-Chrome extension ──HTTPS :443──▶ Caddy  /engine/*  ──▶ capture-server 127.0.0.1:4477 ──▶ engine Postgres 127.0.0.1:5434
+Chrome extension ──HTTPS :443──▶ Caddy  /engine/*  ──▶ capture-server 127.0.0.1:4477 ──▶ engine Postgres 127.0.0.1:5432
                   (Bearer token)        (on the VM)
 ```
 
-No extra port is opened: only 443 (already used by code-server). Port 4477 and 5434 stay private to the VM.
+No extra port is opened: only 443 (already used by code-server). Ports 4477 and 5432 stay private to the VM.
 
 **On the VM** (already set up, both start on boot):
 
@@ -25,21 +53,9 @@ The token lives in `services/engine/.env` (git-ignored) as `CAPTURE_TOKEN=…`. 
 
 After pulling new engine code: `sudo systemctl restart fundhub-capture`.
 
-**On your PC:**
+Start / restart / stop the receiver from code-server: **Terminal → Run Task → Capture server: …**, or `npm run capture:start | capture:restart | capture:stop | capture:status`.
 
-1. Copy the folder `services/engine/browser-extension` from the repo to your PC (`git clone` / `git pull`, or download it from code-server).
-2. In Chrome, go to `chrome://extensions`, switch **Developer mode** on (top right), click **Load unpacked**, and choose that folder.
-3. **Pin it** (puzzle-piece icon, then pin **FundHub LBR Capture**).
-4. Open the popup. In the **Connection** card:
-   * **Engine URL**: `https://alejandro-code.centralindia.cloudapp.azure.com/engine` (the default);
-   * **Token**: the `CAPTURE_TOKEN` from the VM;
-   * **Admin console**: where the admin runs (used by the Round register / Registry links).
-
-   Click **Save & test**. The header turns green: "Engine running".
-
-After any change to the extension files, click **↻ Reload** on its card in `chrome://extensions`.
-
-**Local receiver instead** (engine on your own computer): run `npm run engine:db:local` and `npm run engine -- capture-server`, then in **Connection** click **Use local receiver** (`http://127.0.0.1:4477`, no token needed).
+**Local receiver instead** (engine on your own computer): run `npm run engine:db:local` and `npm run engine -- capture-server`, then on the setup screen open **Engine on this computer instead?** → **Use local receiver** (`http://127.0.0.1:4477`, no token needed).
 
 If you used the DevTools snippet before, you can delete it: the extension replaces it.
 
@@ -52,10 +68,12 @@ Work in **rounds**. Each round is a list of companies to visit and a record of w
 | **Initial** | Companies known (GLEIF / CSSF) but never captured | Profile and all filings; documents if you save them |
 | **Update** (e.g. monthly) | Companies already captured. Those most likely to have changed come first: another source changed, then recent filers, then service providers. "Skip if captured in the last N days" leaves out recent ones. | **Only changes.** An unchanged page writes nothing. Only **new filings' PDFs** are fetched, because documents already saved are skipped. |
 
-**In the popup:**
-* The **Round** card shows its name, progress and what was found (new / changed / unchanged / skipped / new filings / new PDFs).
-* The big **NEXT** box shows the next company with an **Open next →** button.
-* Buttons: **New…** (kind, scope: all / service providers / asset managers / name, skip-days), **Close** (archives the round), **Reset skipped** (puts skipped and failed companies back in the queue).
+**In the popup (tab 2 · Capture filings):**
+* The **round** card shows its name, progress and what was found (new / changed / unchanged / skipped / new filings / new PDFs).
+* The dark **Next company** box has the **Open on LBR →** button.
+* Round buttons: **New round…** (kind, which companies: all / service providers / asset managers / name, skip-days), **Close round** (archives it), **Reset skipped** (puts skipped and failed companies back in the queue).
+* **Also save every PDF of each company I open**: fetches the documents not saved yet, a few seconds apart.
+* **Up next** (fold-out): the following companies, each with Open or ✕ (skip).
 
 **In the panel on LBR pages:**
 * the round's progress;
@@ -89,10 +107,10 @@ GLEIF and the CSSF only list part of the RCS. The **search sweep** finds the res
 * About 45,000 searches in all. Early ones find the most new companies. A complete list only comes from the official LBR extract ([../docs/lbr-data-reuse-request.md](../docs/lbr-data-reuse-request.md)).
 
 **Use**
-1. Popup → **Search sweep** → **Plan sweep** (once; repeating it adds words from newly known names). Or run `npm run engine -- sweep:plan`.
-2. Switch on **Sweep mode**. The panel on LBR pages then offers **Next search →** instead of the next company.
-3. Click **Search →** (or press **Alt+Shift+S**). When the list has loaded, the panel shows the result, for example "fund ✓ done · 199 companies · 23 new to FundHub · +41 words". Then the next one: on the LBR page just press **Space** (or **N**); **X** skips the word. One key per search, no mouse needed — each search is still started by you (LBR's captcha rules out unattended searching).
-4. LBR's check appears as it does for any visitor. Wait for it, then carry on. **Skip** sets a word aside; **Reset skipped** (popup) brings it back. Any search you type yourself also counts.
+1. Popup → tab **1 · Find companies** → **Prepare search list** (once). Or run `npm run engine -- sweep:plan` (repeat it now and then to add words from newly known names).
+2. Being on tab 1 makes the panel on LBR pages offer **Next search →** instead of the next company.
+3. Click **Search on LBR →** (or press **Alt+Shift+S**). When the list has loaded, the panel shows the result, for example "fund ✓ done · 199 companies · 23 new to FundHub · +41 words". Then the next one: on the LBR page just press **Space** (or **N**); **X** skips the word. One key per search, no mouse needed — each search is still started by you (LBR's captcha rules out unattended searching).
+4. LBR's check appears as it does for any visitor. Wait for it, then carry on. **Skip** sets a word aside; **Bring back skipped words** (popup → Coverage by RCS prefix) brings them back. Any search you type yourself also counts.
 
 **Merging into the registry.** Each row is stored as source `lbr_bulk` and resolved like any other record:
 * a number the registry already has (from GLEIF / CSSF) is added to **that** entity, so there are no duplicates;
@@ -107,7 +125,7 @@ Progress: popup (words searched, companies found, numbers known per RCS prefix),
 
 1. Log in on https://www.lbr.lu as usual.
 2. **Pick a company.** There are three ways:
-   * The **popup** (the FundHub icon in the toolbar) lists the next companies with name, category and service-provider / asset-manager tags. You can filter it by service providers, asset managers, or name / B-number.
+   * The **popup**, tab 2: **Open on LBR →**, or **Up next** for the following companies (without a round you can filter by service providers, asset managers, or name / B-number).
    * The **panel** on LBR pages (bottom right) shows the next 5.
    * The shortcut **Alt+Shift+N** opens the next company of the work list, using the popup's filter.
 
@@ -116,7 +134,7 @@ Progress: popup (words searched, companies found, numbers known per RCS prefix),
 4. **Documents.**
    * Any document you open is saved and linked to its filing.
    * The panel's **Save all documents of this company** opens the remaining documents 4–8 s apart. It stops on LBR's check, an access limit, or **Stop**.
-   * With the popup switch **Also save each company's documents when I open it**, this starts by itself on each company you open.
+   * With the popup switch **Also save every PDF of each company I open** (tab 2), this starts by itself on each company you open.
 
 You can stop at any time. The work list skips everything already captured, so the next session continues where you left off.
 
@@ -130,7 +148,7 @@ You can stop at any time. The work list skips everything already captured, so th
 
 | Where | What it shows |
 |---|---|
-| Popup | Engine status; companies captured, documents saved, done today and left; progress against all known RCS numbers; the switches; the filterable list of next companies (Open, or ✕ to skip for this session) |
+| Popup | Connection status; companies known / captured, documents, saved today; tab 1 (search sweep) and tab 2 (rounds, next company, Up next list); ⚙ Settings |
 | Panel (minimise with –) | This company in the engine: whether it was captured, its filings, its sources (CSSF / GLEIF / RCS), documents saved with a progress bar; messages; the next companies; totals |
 | Toolbar badge | Documents saved in this browser session |
 

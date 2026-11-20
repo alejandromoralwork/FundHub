@@ -4,121 +4,180 @@
     <meta charset="utf-8" />
     <link rel="stylesheet" href="ui.css" />
   </head>
+  <!--
+    FundHub LBR Capture — popup. Three views:
+      setup    : until the engine answers (step-by-step connection, with the exact problem and its fix);
+      main     : two tabs that follow the workflow — 1 · Find companies (search sweep), 2 · Capture filings (rounds);
+      settings : connection, what gets saved, shortcuts (gear icon).
+  -->
   <body class="popup">
     <header class="fh-head">
-      <img src="icons/icon32.png" width="24" height="24" alt="" />
-      <div>
+      <img src="icons/icon32.png" width="26" height="26" alt="" />
+      <div class="fh-head-txt">
         <div class="fh-title">FundHub LBR Capture</div>
-        <div class="fh-sub" id="engine">Checking engine…</div>
+        <div class="fh-status" id="status"><span class="dot"></span><span id="status-txt">Checking engine…</span></div>
       </div>
+      <button class="fh-icon" id="gear" title="Settings">⚙</button>
     </header>
 
-    <!-- Where the engine runs (Azure VM through HTTPS, or a local receiver) and its token. -->
-    <section class="fh-card" id="conn">
-      <div class="fh-row0">
-        <div class="fh-h2">Connection</div>
-        <button class="fh-btn ghost" id="c-toggle">Edit</button>
-      </div>
-      <div class="fh-muted0" id="c-line"></div>
-      <div id="c-form" hidden>
-        <div class="fh-grid">
-          <label>Engine URL <input id="c-url" class="fh-input0" placeholder="https://alejandro-code.centralindia.cloudapp.azure.com/engine" /></label>
-          <label>Token <input id="c-token" type="password" class="fh-input0" placeholder="CAPTURE_TOKEN from the VM" autocomplete="off" /></label>
-          <label>Admin console <input id="c-admin" class="fh-input0" placeholder="http://localhost:3001/admin" /></label>
-        </div>
-        <div class="fh-row0" style="margin-top:6px">
-          <button class="fh-btn" id="c-save">Save &amp; test</button>
-          <button class="fh-btn ghost" id="c-local" title="A receiver running on this computer">Use local receiver</button>
-        </div>
-      </div>
-    </section>
+    <!-- ============================================================ SETUP -->
+    <main id="v-setup" hidden>
+      <div class="fh-pad">
+        <h1>Connect to the FundHub engine</h1>
+        <p class="fh-lead">The extension sends the LBR pages you open to the engine on the FundHub VM. It needs the engine address and its access token. You only do this once.</p>
+        <div class="fh-alert" id="setup-problem" hidden></div>
 
-    <!-- The current capture round and the NEXT company to open. -->
-    <section class="fh-round" id="round">
-      <div class="fh-row0">
-        <div>
-          <div class="fh-h2" id="r-name">No active round</div>
-          <div class="fh-muted0" id="r-kind"></div>
-        </div>
-        <div class="fh-actions" id="r-actions"></div>
-      </div>
-      <div class="fh-progress0"><div id="r-bar"></div></div>
-      <div class="fh-muted0" id="r-line"></div>
-      <div class="fh-next" id="r-next"></div>
-    </section>
+        <ol class="fh-steps">
+          <li>
+            <div class="fh-step-t">Engine address</div>
+            <input id="s-url" class="fh-input" spellcheck="false" />
+            <div class="fh-hint">Leave the default unless the engine moved.</div>
+          </li>
+          <li>
+            <div class="fh-step-t">Access token</div>
+            <div class="fh-inline">
+              <input id="s-token" type="password" class="fh-input" placeholder="Paste CAPTURE_TOKEN" autocomplete="off" spellcheck="false" />
+              <button class="fh-btn ghost sm" id="s-show" type="button">Show</button>
+            </div>
+            <div class="fh-hint">On the VM (code-server terminal): <code>npm run capture:token</code></div>
+          </li>
+          <li>
+            <div class="fh-step-t">Test it</div>
+            <button class="fh-btn primary wide" id="s-connect">Connect</button>
+          </li>
+        </ol>
 
-    <!-- Start a new round (hidden until "New round…"). -->
-    <section class="fh-card" id="newRound" hidden>
-      <div class="fh-h2">New capture round</div>
-      <label class="fh-switch"><input type="radio" name="kind" value="initial" checked /> Initial — companies never captured</label>
-      <label class="fh-switch"><input type="radio" name="kind" value="update" /> Update — re-visit captured companies (only changes and new PDFs are saved)</label>
-      <div class="fh-grid">
-        <label>Scope
-          <select id="n-scope">
-            <option value="all">All</option>
-            <option value="sp">Service providers</option>
-            <option value="am">Asset managers</option>
-            <option value="text">Name / B-number…</option>
-          </select>
+        <details class="fh-more">
+          <summary>Engine on this computer instead?</summary>
+          <p class="fh-hint">Run <code>npm run engine:db:local</code> and <code>npm run engine -- capture-server</code>, then:</p>
+          <button class="fh-btn ghost" id="s-local">Use local receiver (127.0.0.1:4477)</button>
+        </details>
+      </div>
+    </main>
+
+    <!-- ============================================================ MAIN -->
+    <main id="v-main" hidden>
+      <div class="fh-paused" id="paused" hidden>
+        Saving is <b>paused</b> — LBR pages you open are not sent.
+        <button class="fh-btn sm" id="resume">Resume</button>
+      </div>
+
+      <section class="fh-stats">
+        <div><b id="k-known">–</b><span>companies known</span></div>
+        <div><b id="k-captured">–</b><span>captured</span></div>
+        <div><b id="k-docs">–</b><span>documents</span></div>
+        <div><b id="k-today">–</b><span>saved today</span></div>
+      </section>
+
+      <nav class="fh-tabs" role="tablist">
+        <button role="tab" data-tab="find"><span class="n">1</span> Find companies</button>
+        <button role="tab" data-tab="capture"><span class="n">2</span> Capture filings</button>
+      </nav>
+
+      <!-- ---------------- TAB 1: search sweep -->
+      <section class="fh-tab" id="t-find" hidden>
+        <p class="fh-lead">Builds the list of companies registered in Luxembourg by searching LBR for words of company names. Every results page you open adds the companies on it.</p>
+        <div id="f-body"></div>
+        <details class="fh-more" id="f-details" hidden>
+          <summary>Coverage by RCS prefix</summary>
+          <table class="fh-table" id="f-table"></table>
+          <button class="fh-btn ghost sm" id="f-reset" title="Put the words you skipped back in the queue">Bring back skipped words</button>
+        </details>
+        <div class="fh-keys">On the LBR page: <kbd>Space</kbd> next search · <kbd>X</kbd> skip · anywhere: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></div>
+      </section>
+
+      <!-- ---------------- TAB 2: capture rounds -->
+      <section class="fh-tab" id="t-capture" hidden>
+        <p class="fh-lead">Opens each known company on LBR so its profile and filings (and, if you want, their PDFs) are saved. Do an <b>initial</b> round once, then an <b>update</b> round every month.</p>
+        <div id="c-body"></div>
+
+        <!-- New round form (replaces c-body while open) -->
+        <div class="fh-card" id="newRound" hidden>
+          <div class="fh-h2">New capture round</div>
+          <label class="fh-radio"><input type="radio" name="kind" value="initial" checked /><span><b>Initial</b> — companies never captured</span></label>
+          <label class="fh-radio"><input type="radio" name="kind" value="update" /><span><b>Update</b> — re-visit captured companies; only changes and new PDFs are saved</span></label>
+          <div class="fh-form">
+            <label>Which companies
+              <select id="n-scope" class="fh-input">
+                <option value="all">All</option>
+                <option value="sp">Service providers only</option>
+                <option value="am">Asset managers only</option>
+                <option value="text">By name or B-number…</option>
+              </select>
+            </label>
+            <label id="n-text-wrap" hidden>Name / B-number contains <input id="n-text" class="fh-input" placeholder="e.g. Arendt or B14" /></label>
+            <label id="n-skip-wrap" hidden>Skip companies captured in the last <span class="fh-inline"><input id="n-skip" type="number" min="0" value="20" class="fh-input num" /> days</span></label>
+            <label>Round name (optional) <input id="n-name" class="fh-input" placeholder="automatic, e.g. Update 2026-11" /></label>
+          </div>
+          <div class="fh-row">
+            <button class="fh-btn primary" id="n-start">Start round</button>
+            <button class="fh-btn ghost" id="n-cancel">Cancel</button>
+          </div>
+          <div class="fh-hint">Starting a round closes the current one; it stays in the round register.</div>
+        </div>
+
+        <label class="fh-toggle" id="autoDocs-wrap">
+          <input type="checkbox" id="autoDocs" />
+          <span><b>Also save every PDF</b> of each company I open<br /><small>Opens the documents not saved yet, a few seconds apart. Slower, but complete.</small></span>
         </label>
-        <label id="n-text-wrap" hidden>Text <input id="n-text" class="fh-input0" placeholder="e.g. Arendt or B14" /></label>
-        <label id="n-skip-wrap" hidden>Skip if captured in last <input id="n-skip" type="number" min="0" value="20" class="fh-input0" style="width:56px" /> days</label>
-        <label>Name <input id="n-name" class="fh-input0" placeholder="(automatic)" /></label>
-      </div>
-      <div class="fh-row0" style="margin-top:6px">
-        <button class="fh-btn" id="n-start">Start round</button>
-        <button class="fh-btn ghost" id="n-cancel">Cancel</button>
-      </div>
-      <div class="fh-muted0">Starting a round closes the current one (it stays in the register).</div>
-    </section>
 
-    <!-- Search sweep: find the companies the engine doesn't know yet (one LBR search per click). -->
-    <section class="fh-card" id="sweep">
-      <div class="fh-row0">
-        <div>
-          <div class="fh-h2">Search sweep — find missing companies</div>
-          <div class="fh-muted0" id="sw-line">Checking…</div>
+        <details class="fh-more" id="c-queue-wrap">
+          <summary>Up next <span id="c-queue-n"></span></summary>
+          <div class="fh-inline" id="c-filter-wrap">
+            <select id="filter" class="fh-input" title="Without a round: which companies come first">
+              <option value="">Priority order</option>
+              <option value="sp">Service providers</option>
+              <option value="am">Asset managers</option>
+            </select>
+            <input id="search" class="fh-input" placeholder="Name or B-number…" />
+          </div>
+          <ol class="fh-queue" id="queue"></ol>
+        </details>
+        <div class="fh-keys">Anywhere: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the next company</div>
+      </section>
+    </main>
+
+    <!-- ============================================================ SETTINGS -->
+    <main id="v-settings" hidden>
+      <div class="fh-pad">
+        <div class="fh-row"><h1>Settings</h1><button class="fh-btn ghost sm" id="back">← Back</button></div>
+
+        <div class="fh-card">
+          <div class="fh-h2">Connection</div>
+          <div class="fh-hint" id="conn-line"></div>
+          <div class="fh-form">
+            <label>Engine address <input id="e-url" class="fh-input" spellcheck="false" /></label>
+            <label>Access token <span class="fh-inline"><input id="e-token" type="password" class="fh-input" autocomplete="off" spellcheck="false" /><button class="fh-btn ghost sm" id="e-show" type="button">Show</button></span></label>
+            <label>Admin console <input id="e-admin" class="fh-input" spellcheck="false" /></label>
+          </div>
+          <div class="fh-row">
+            <button class="fh-btn primary" id="e-save">Save &amp; test</button>
+            <span class="fh-hint" id="e-result"></span>
+          </div>
         </div>
-        <div class="fh-actions" id="sw-actions"></div>
+
+        <div class="fh-card">
+          <div class="fh-h2">What gets saved</div>
+          <label class="fh-toggle"><input type="checkbox" id="enabled" /><span><b>Save the LBR pages I open</b><br /><small>Turn off to browse LBR without sending anything.</small></span></label>
+          <label class="fh-toggle"><input type="checkbox" id="keepLocalCopy" /><span><b>Keep a copy of each PDF in Downloads</b><br /><small>Chrome asks where to save each one.</small></span></label>
+        </div>
+
+        <div class="fh-card">
+          <div class="fh-h2">Keyboard shortcuts</div>
+          <table class="fh-table keys">
+            <tr><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd></td><td>Open the next company (tab 2)</td></tr>
+            <tr><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Run the next search (tab 1)</td></tr>
+            <tr><td><kbd>Space</kbd> / <kbd>X</kbd></td><td>On an LBR results page: next search / skip word</td></tr>
+          </table>
+          <div class="fh-hint">Change them at <code>chrome://extensions/shortcuts</code>.</div>
+        </div>
       </div>
-      <table class="fh-sweep" id="sw-table"></table>
-      <div class="fh-muted0 warn" id="sw-warn" hidden></div>
-      <div class="fh-next" id="sw-next"></div>
-      <label class="fh-switch"><input type="checkbox" id="sweepMode" /> Sweep mode: the panel on LBR pages offers the next <b>search</b> (instead of the next company)</label>
-      <div class="fh-muted0">Each click runs one search, as if you typed it in LBR's search box. Shortcut: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</div>
-    </section>
+    </main>
 
-    <section class="fh-stats" id="stats">
-      <div><b id="s-captured">–</b><span>companies captured</span></div>
-      <div><b id="s-docs">–</b><span>documents saved</span></div>
-      <div><b id="s-today">–</b><span>today</span></div>
-      <div><b id="s-remaining">–</b><span>never captured</span></div>
-    </section>
-
-    <section class="fh-card">
-      <label class="fh-switch"><input type="checkbox" id="enabled" /> Save the LBR pages I open</label>
-      <label class="fh-switch"><input type="checkbox" id="autoDocs" /> Also save each company's documents when I open it (only those not saved yet)</label>
-      <label class="fh-switch"><input type="checkbox" id="keepLocalCopy" /> Also keep a copy of each PDF in my Downloads (shows Chrome's save dialog)</label>
-      <div class="fh-muted0">Shortcut: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the next company.</div>
-    </section>
-
-    <section>
-      <div class="fh-row">
-        <div class="fh-h2">Up next</div>
-        <select id="filter" title="Only used when no round is active">
-          <option value="">Priority order</option>
-          <option value="sp">Service providers</option>
-          <option value="am">Asset managers</option>
-        </select>
-      </div>
-      <input id="search" class="fh-input" placeholder="Filter by name or B-number… (no round only)" />
-      <ol class="fh-queue" id="queue"></ol>
-    </section>
-
-    <footer class="fh-foot">
-      <a id="l-rounds" href="http://localhost:3001/admin/engine/rounds" target="_blank">Round register</a>
-      <a id="l-registry" href="http://localhost:3001/admin/engine/registry" target="_blank">Registry</a>
-      <span class="fh-muted">Only pages you open are saved.</span>
+    <footer class="fh-foot" id="foot" hidden>
+      <a id="l-registry" target="_blank">Registry ↗</a>
+      <a id="l-rounds" target="_blank">Round register ↗</a>
+      <span>Only pages you open are saved</span>
     </footer>
     <script src="popup.js"></script>
   </body>

@@ -30,5 +30,10 @@ case "${1:-start}" in
   stop)    sudo systemctl stop "$UNIT" && echo "$UNIT stopped." ;;
   status)  systemctl status "$UNIT" --no-pager -n 15 ;;
   logs)    journalctl -u "$UNIT" -f -n 50 ;;
-  *) echo "usage: $0 start|restart|stop|status|logs" >&2; exit 2 ;;
+  token)   # The value to paste in the extension (popup → Access token).
+    ENV="$(cd "$(dirname "$0")/../../.." && pwd)/services/engine/.env"
+    t=$(sed -n 's/^CAPTURE_TOKEN=//p' "$ENV" 2>/dev/null | tr -d '"'"'"' \r')
+    [ -n "$t" ] || { echo "No CAPTURE_TOKEN in $ENV (run: sudo bash infra/vm/install.sh)" >&2; exit 1; }
+    echo "Paste this in the extension popup → Access token:"; echo; echo "$t" ;;
+  *) echo "usage: $0 start|restart|stop|status|logs|token" >&2; exit 2 ;;
 esac

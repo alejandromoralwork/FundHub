@@ -88,7 +88,7 @@ The general pattern for any service `X`: `systemctl status X` (is it running?), 
 | Logged in, but `/` says forbidden / loops to login | Your user is not in group `admins` | `sudo grep -A5 'alejandro:' /etc/authelia/users.yml` | Add `    groups: ['admins']`, `sudo systemctl restart authelia` |
 | Drive page "502" | Drive down | `systemctl status fundhub-drive` | `sudo systemctl restart fundhub-drive`; "auth signing key … differs" in the log: the JWT key in `/etc/fundhub-drive/secrets.env` was changed, put the old value back (from your secrets backup) |
 | Extension: "engine not reachable" | Receiver or database down | `systemctl status fundhub-capture postgresql@18-main` | `sudo systemctl restart postgresql@18-main fundhub-capture` |
-| Extension: "unauthorized" | Token wrong in the popup | `grep CAPTURE_TOKEN services/engine/.env` | Paste it in the popup's **Connection** |
+| Extension: "unauthorized" | Token wrong in the popup | `npm run capture:token` | Paste it in the popup (⚙ Settings → Access token) |
 | Admin engine pages: "engine database not reachable" | Postgres down, or `ENGINE_DATABASE_URL` wrong | `systemctl status postgresql@18-main` | Restart it; check the URL |
 | "Run scrape" jobs never run | `services/scraper/.env` missing, or timer stopped | `systemctl list-timers 'fundhub-*'`; `journalctl -u fundhub-scraper-jobs -n 30` | Create the `.env`; `sudo systemctl enable --now fundhub-scraper-jobs.timer` |
 | No new backups | Backup failing | `journalctl -u fundhub-engine-backup -n 30` | Fix the error; `sudo systemctl start fundhub-engine-backup` |

@@ -10,7 +10,7 @@
  *      (4–8 s). Stops by itself on LBR's check / access limit, or when you press Stop. Never leaves the page.
  *   4. The FundHub panel (bottom-right, can be minimised): this company in the engine (captured? filings,
  *      documents saved), progress, and the next companies — you choose; nothing opens by itself.
- *   5. Search sweep (popup switch "Sweep mode"): on a search-results page, what the search found (companies new
+ *   5. Search sweep (popup tab "1 · Find companies" turns on sweepMode): on a search-results page, what the search found (companies new
  *      to FundHub, list full or not, words added) and a "Next search →" button. One click = one search; never
  *      automatic.
  */
@@ -250,7 +250,7 @@
       rcs && lastSweepOpen && Date.now() - lastSweepOpen.at < 30_000
         ? `LBR opened a company page for the search "${lastSweepOpen.term}" (one exact match): it is saved; carry on with the next search.`
         : "";
-    if (!q.ok) ui.note = "FundHub engine not reachable" + (q.error ? " — " + q.error : "") + ". Check the popup's Connection card (VM URL + token) or that the receiver runs on the VM.";
+    if (!q.ok) ui.note = "FundHub engine not reachable" + (q.error ? " — " + q.error : "") + ". Open the FundHub popup: it shows what is wrong and how to fix it.";
     else if (ui.note.startsWith("FundHub engine")) ui.note = "";
     ui.next = q.items || [];
     ui.round = q.round || null;

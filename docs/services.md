@@ -104,8 +104,8 @@ The engine's HTTP service that the Chrome extension talks to: receives LBR pages
 | | |
 |---|---|
 | Address | `https://<vm>/engine/*` → `127.0.0.1:4477`; every request needs `Authorization: Bearer <CAPTURE_TOKEN>` (no 2FA: it is a machine client) |
-| Operate | `sudo systemctl restart fundhub-capture` (after pulling engine code); `journalctl -u fundhub-capture -f` |
-| Token | `grep CAPTURE_TOKEN ~/projects/FundHub/services/engine/.env` |
+| Operate | code-server: *Terminal → Run Task → Capture server: start / restart / stop / logs*, or `npm run capture:start` / `capture:restart`; logs `journalctl -u fundhub-capture -f` |
+| Token | `npm run capture:token` (reads `services/engine/.env`) |
 | Captures | Also saved as files in `services/engine/.engine-data/captures/` (`npm run engine -- rcs:import-captures` re-imports them) |
 
 ## 6. LBR capture extension
@@ -115,7 +115,7 @@ Chrome extension "FundHub LBR Capture" (`services/engine/browser-extension`). Sa
 | | |
 |---|---|
 | Install | `chrome://extensions` → Developer mode → Load unpacked → the folder |
-| Connect | Popup → **Connection**: Engine URL `https://<vm>/engine`, Token = `CAPTURE_TOKEN` → *Save & test* |
+| Connect | Popup → setup screen: Engine address `https://<vm>/engine` (default), Access token = `npm run capture:token` on the VM → *Connect* |
 | Update | Replace the folder, then ↻ Reload on its card |
 
 ## 7. Engine database (PostgreSQL 18)

@@ -51,7 +51,7 @@ Each runs in its own terminal until Ctrl+C. Start only what you need:
 |---|---|
 | Website only | 1 + `npm run dev:web` |
 | Admin with engine pages | 1 + 2 + `npm run dev:admin` |
-| Extension against a local engine | 2 + 4, and in the extension popup **Connection → Use local receiver** |
+| Extension against a local engine | 2 + 4, and in the extension popup **Engine on this computer instead? → Use local receiver** |
 
 Data stays between runs in `packages/db/.pg-data` and `packages/engine-db/.pg-data` (git-ignored).
 

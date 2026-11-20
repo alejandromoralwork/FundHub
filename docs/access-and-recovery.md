@@ -170,9 +170,9 @@ SSH accepts **keys only** (passwords are disabled); bots trying passwords fail h
 | Task | How |
 |---|---|
 | Find the token | `grep CAPTURE_TOKEN ~/projects/FundHub/services/engine/.env` |
-| Set it in Chrome | Extension popup → **Connection** → Token → *Save & test* |
+| Set it in Chrome | Extension popup → **Access token** → *Connect* (later: ⚙ Settings → *Save & test*) |
 | Rotate it (leaked, person left) | `sed -i "s/^CAPTURE_TOKEN=.*/CAPTURE_TOKEN=$(openssl rand -hex 32)/" services/engine/.env && sudo systemctl restart fundhub-capture`, then update every extension install |
-| "unauthorized" in the popup | Token missing or wrong in **Connection** |
+| "unauthorized" in the popup | Token missing or wrong: ⚙ Settings → Access token (`npm run capture:token` on the VM) |
 
 ## 8. Databases
 

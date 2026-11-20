@@ -24,11 +24,20 @@ async function call(path, body) {
   const headers = {};
   if (token) headers.Authorization = "Bearer " + token;
   if (body) headers["Content-Type"] = "application/json";
-  const res = await fetch(base + path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
-  if (res.status === 401) return { ok: false, error: "Engine token missing or wrong — set it in the popup (Connection)" };
-  if (res.status === 413) return { ok: false, error: "Too large for the engine proxy (" + res.status + ")" };
+  // Every failure carries a `code` so the popup can say what to do: offline | down | token | notengine | toolarge.
+  let res;
+  try {
+    res = await fetch(base + path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
+  } catch (err) {
+    return { ok: false, code: "offline", error: "Cannot reach the engine at " + base + " — is the VM on?" };
+  }
+  if (res.status === 401) return { ok: false, code: "token", error: "Engine token missing or wrong — set it in the popup (Settings)" };
+  // Caddy answers 502/503/504 when nothing listens on 127.0.0.1:4477.
+  if (res.status === 502 || res.status === 503 || res.status === 504)
+    return { ok: false, code: "down", error: "The capture server on the VM is not running — start it (code-server: Run Task → Capture server: start)" };
+  if (res.status === 413) return { ok: false, code: "toolarge", error: "Too large for the engine proxy (" + res.status + ")" };
   const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) return { ok: false, error: "Not a FundHub engine at " + base + " (HTTP " + res.status + ")" };
+  if (!ct.includes("application/json")) return { ok: false, code: "notengine", error: "Not a FundHub engine at " + base + " (HTTP " + res.status + ")" };
   return res.json();
 }
 
