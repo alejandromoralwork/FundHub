@@ -24,8 +24,10 @@ import { db } from "@fundhub/db/client";
 import { db as engineDb } from "@fundhub/engine-db/client";
 // `@/…` = this app's src folder. The overview component and the type of one row it shows.
 import { TablesOverview, type TableRow } from "@/components/db-views";
+import type { DbAccess, DbRelation } from "@/components/db-map";
 // `can(staff, action)` = true/false permission check; `requireStaff` = login check.
 import { can, requireStaff } from "@/lib/auth";
+import { ensureEngineDb } from "@/lib/engine-boot";
 // RESOURCES = the tables the Console lets staff browse; `tableName(def)` = a resource's real SQL table name.
 import { RESOURCES, tableName } from "@/lib/resources";
 
@@ -37,6 +39,38 @@ export const metadata: Metadata = { title: "Database" };
  * Tables whose contents are secrets (session/reset token hashes); never browsable.
  */
 const RESTRICTED = new Set(["sessions", "staff_sessions", "password_resets"]);
+
+/**
+ * Kind: constant. Every foreign key in the "public" schema: which column of which table points at which
+ * column of another table. One row per column pair (unnest walks a multi-column key pair by pair).
+ */
+const FOREIGN_KEYS = sql`
+  select cl.relname as from_table, att.attname as from_col, clf.relname as to_table, attf.attname as to_col
+  from pg_constraint c
+  join pg_class cl on cl.oid = c.conrelid
+  join pg_namespace n on n.oid = cl.relnamespace
+  join pg_class clf on clf.oid = c.confrelid
+  cross join lateral unnest(c.conkey, c.confkey) as k(a, b)
+  join pg_attribute att on att.attrelid = c.conrelid and att.attnum = k.a
+  join pg_attribute attf on attf.attrelid = c.confrelid and attf.attnum = k.b
+  where c.contype = 'f' and n.nspname = 'public'`;
+type FkRow = { from_table: string; from_col: string; to_table: string; to_col: string };
+
+/** Kind: constant. The website-database roles, one per part of FundHub (packages/db/scripts/roles.ts). */
+const ROLES = ["fundhub_web", "fundhub_admin", "fundhub_scraper", "fundhub_analyst_ro"] as const;
+
+/**
+ * Kind: function. What each role is EXPECTED to reach when the roles do not exist in this database (local
+ * copy). Mirrors packages/db/scripts/roles.ts — the live grants are used whenever the roles exist.
+ */
+function expectedAccess(role: string, table: string): { read: boolean; write: boolean } {
+  const ingest = table.startsWith("ingest_");
+  const adminOnly = ingest || ["staff_users", "staff_sessions", "staff_password_resets", "audit_log", "email_messages", "billing_customers", "subscriptions", "invoices", "social_posts", "expenses", "budgets"].includes(table);
+  if (role === "fundhub_admin") return { read: true, write: true };
+  if (role === "fundhub_analyst_ro") return { read: true, write: false };
+  if (role === "fundhub_scraper") return { read: ingest || table === "providers", write: ingest };
+  return adminOnly ? { read: false, write: false } : { read: true, write: !["posts", "reports"].includes(table) };
+}
 
 /**
  * Kind: React component (async server component) — the page.
@@ -103,13 +137,15 @@ export default async function DatabasePage() {
 
   // Scraping Engine tables (separate database). Row counts are Postgres estimates there (some tables grow to
   // millions of rows), and an unreachable engine database just leaves its section out.
+  // In development, start the local engine database first if it is down (lib/engine-boot.ts).
+  await ensureEngineDb();
   try {
     const engine = await engineDb.execute<{ table_name: string; rows: number; size: string }>(sql`
       select c.relname as table_name,
              greatest(c.reltuples, 0)::bigint as rows,
              pg_size_pretty(pg_total_relation_size(c.oid)) as size
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-      where n.nspname = public and c.relkind = r and c.relname not like __drizzle%
+      where n.nspname = 'public' and c.relkind = 'r' and c.relname not like '__drizzle%'
       order by c.relname`);
     for (const r of engine.rows) {
       const reg = byTable.get(r.table_name);
@@ -128,6 +164,31 @@ export default async function DatabasePage() {
     console.error("engine database unavailable:", err);
   }
 
+  // ---- the map above the list: foreign keys of both databases, and which role can read/write each table.
+  const relations: DbRelation[] = [];
+  const fk = await db.execute<FkRow>(FOREIGN_KEYS).catch(() => ({ rows: [] as FkRow[] }));
+  for (const r of fk.rows) relations.push({ from: r.from_table, fromCol: r.from_col, to: r.to_table, toCol: r.to_col });
+  const efk = await engineDb.execute<FkRow>(FOREIGN_KEYS).catch(() => ({ rows: [] as FkRow[] }));
+  for (const r of efk.rows) relations.push({ from: `engine.${r.from_table}`, fromCol: r.from_col, to: `engine.${r.to_table}`, toCol: r.to_col });
+
+  // Live grants (has_table_privilege works for any existing role); roles missing here → expected grants.
+  const access: DbAccess[] = [];
+  const live = await db
+    .execute<{ role: string; table_name: string; read: boolean; write: boolean }>(sql`
+      select r.rolname as role, c.relname as table_name,
+             has_table_privilege(r.oid, c.oid, 'SELECT') as read,
+             (has_table_privilege(r.oid, c.oid, 'INSERT') or has_table_privilege(r.oid, c.oid, 'UPDATE')
+               or has_table_privilege(r.oid, c.oid, 'DELETE')) as write
+      from pg_roles r
+      cross join pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where r.rolname in (${sql.join(ROLES.map((x) => sql`${x}`), sql`, `)}) and n.nspname = 'public' and c.relkind = 'r'`)
+    .catch(() => ({ rows: [] as { role: string; table_name: string; read: boolean; write: boolean }[] }));
+  const liveRoles = new Set(live.rows.map((r) => r.role));
+  for (const r of live.rows) access.push({ role: r.role, table: r.table_name, read: r.read, write: r.write, live: true });
+  for (const role of ROLES.filter((x) => !liveRoles.has(x)))
+    for (const r of rows) access.push({ role, table: r.table_name, ...expectedAccess(role, r.table_name), live: false });
+
   // Render the overview; `canSql` decides whether the "SQL console" button is shown.
-  return <TablesOverview tables={tables} canSql={can(staff, "sql")} />;
+  return <TablesOverview tables={tables} relations={relations} access={access} canSql={can(staff, "sql")} />;
 }

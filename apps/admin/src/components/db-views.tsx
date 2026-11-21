@@ -50,6 +50,7 @@ import { CodeOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 // The base web address of the Console's database API (used to fetch a table's "meta").
 import { API_BASE } from "@/lib/data-provider";
+import { DbMap, type DbAccess, type DbRelation } from "./db-map";
 
 // ---------------------------------------------------------------- overview
 
@@ -76,7 +77,7 @@ export type TableRow = {
  * @param canSql  `boolean` — may this staff member use the SQL console? If so, a button to it is shown.
  * @returns       JSX: a Refine `List` page containing the tables table.
  */
-export function TablesOverview({ tables, canSql }: { tables: TableRow[]; canSql: boolean }) {
+export function TablesOverview({ tables, relations, access, canSql }: { tables: TableRow[]; relations: DbRelation[]; access: DbAccess[]; canSql: boolean }) {
   return (
     // Refine's `List` draws a page card with a title and a button area (`headerButtons`).
     <List
@@ -89,6 +90,8 @@ export function TablesOverview({ tables, canSql }: { tables: TableRow[]; canSql:
         ) : null
       }
     >
+      {/* The interactive map: systems → databases → table areas, foreign keys and role access. */}
+      <DbMap tables={tables} relations={relations} access={access} />
       {/* All tables on one page (`pagination={false}`), one row per table keyed by its name. */}
       <Table<TableRow>
         rowKey="table"
