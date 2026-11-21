@@ -5,50 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793807480684,
-      "tag": "0000_engine_baseline",
+      "when": 1795268227147,
+      "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1793809302777,
-      "tag": "0001_provider_profile",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793810024887,
-      "tag": "0002_history_and_manual",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1793810912658,
-      "tag": "0003_engine_settings",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1793884423436,
-      "tag": "0004_capture_rounds",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1793888249832,
-      "tag": "0005_document_filing",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1794144516309,
-      "tag": "0006_lbr_search_sweep",
+      "when": 1795268235252,
+      "tag": "0001_pipeline_sql",
       "breakpoints": true
     }
   ]

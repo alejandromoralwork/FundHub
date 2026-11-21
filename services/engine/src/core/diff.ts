@@ -39,8 +39,8 @@ export function diffRecords(prev: ParsedRecord | null, next: ParsedRecord): Chan
 
   // 2. CSSF authorisations / statuses: keyed by detail type + code.
   const key = (d: { detailType: string; code: string }) => `${d.detailType}:${d.code}`;
-  const before = new Map((prev.cssfDetails ?? []).map((d) => [key(d), d]));
-  for (const d of next.cssfDetails ?? []) {
+  const before = new Map((prev.licences ?? []).map((d) => [key(d), d]));
+  for (const d of next.licences ?? []) {
     const old = before.get(key(d));
     if (!old) out.push({ kind: "authorisation_added", attribute: d.code, newValue: d });
     else if (!old.endDate && d.endDate) out.push({ kind: "authorisation_ended", attribute: d.code, oldValue: old, newValue: d });
@@ -50,8 +50,8 @@ export function diffRecords(prev: ParsedRecord | null, next: ParsedRecord): Chan
   for (const d of before.values()) out.push({ kind: "authorisation_ended", attribute: d.code, oldValue: d, newValue: null });
 
   // 3. RCS filings: any filing number not seen before is new.
-  const seen = new Set((prev.rcsFilings ?? []).map((f) => f.filingNumber));
-  for (const f of next.rcsFilings ?? []) if (!seen.has(f.filingNumber)) out.push({ kind: "new_filing", attribute: f.type, newValue: f });
+  const seen = new Set((prev.filings ?? []).map((f) => f.filingNumber));
+  for (const f of next.filings ?? []) if (!seen.has(f.filingNumber)) out.push({ kind: "new_filing", attribute: f.type, newValue: f });
 
   // 4. Relations (clients…): keyed by kind + normalized client name. Only compared when the new record
   //    states relations at all, so a source that does not report them never "ends" existing ones.

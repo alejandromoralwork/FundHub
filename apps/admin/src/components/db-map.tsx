@@ -4,8 +4,9 @@
  * PART: console (apps/admin)
  * WHAT IT DOES: The interactive map at the top of the Database page. Three layers, top to bottom:
  *   1. where data comes from (visitors, staff, provider websites, CSSF / GLEIF / LBR…);
- *   2. the parts of FundHub that read and write it (website, admin, data module, scraping engine, SQL console);
- *   3. the two databases, with their tables grouped by area, and the flows between areas.
+ *   2. the parts of FundHub that read and write it (website, admin, Intelligence pipeline + its publish role, SQL console);
+ *   3. the two databases (Website DB, Intelligence DB) — the Intelligence DB's tables grouped by pipeline layer
+ *      (Postgres schemas raw / staging / clean / match / core / ops) — and the flows between them.
  *   Click a table: its foreign keys (what it points to / what points to it) and which parts can read or write
  *   it. Click a part: which tables it writes and reads. Everything shown comes from Postgres itself (foreign
  *   keys from pg_constraint, access from has_table_privilege), so it stays true when the schema changes.
@@ -31,19 +32,21 @@ type Level = "write" | "read" | null;
 
 /** Kind: constant. The parts of FundHub that touch the databases, and what feeds each of them. */
 const SYSTEMS: { id: SystemId; name: string; where: string; source: string; role: string | null; cx: number }[] = [
-  { id: "engine", name: "Scraping engine", where: "Azure VM · worker + capture receiver", source: "CSSF · GLEIF · LBR (extension)", role: null, cx: 204 },
+  { id: "engine", name: "Intelligence pipeline", where: "Azure VM · worker, scheduler, capture receiver", source: "LBR · GLEIF · CSSF · FundHub accounts · websites · news", role: null, cx: 204 },
   { id: "admin", name: "Admin console", where: "Vercel · fundhub.lu/admin", source: "Staff · Stripe · Resend", role: "fundhub_admin", cx: 432 },
-  { id: "scraper", name: "Data module", where: "Azure VM · systemd timers", source: "Provider websites (AI)", role: "fundhub_scraper", cx: 696 },
+  { id: "scraper", name: "Pipeline publish", where: "Azure VM · engine worker", source: "Golden records → proposals", role: "fundhub_scraper", cx: 696 },
   { id: "web", name: "Website", where: "Vercel · fundhub.lu", source: "Visitors · providers", role: "fundhub_web", cx: 904 },
   { id: "sql", name: "SQL console", where: "Admin → Database → SQL", source: "Analysts", role: "fundhub_analyst_ro", cx: 1112 },
 ];
 
 /** Kind: constant. Table areas (docs/architecture.md §3), in placement order. Unlisted tables go to "Other". */
 const AREAS: { db: DbId; name: string; tables: string[] }[] = [
-  { db: "engine", name: "What each source said", tables: ["source_records", "captures", "observations", "cssf_details", "rcs_filings", "documents"] },
-  { db: "engine", name: "Registry", tables: ["entities", "entity_identifiers", "entity_names", "entity_relations", "activity_categories", "classification_rules"] },
-  { db: "engine", name: "Change tracking", tables: ["change_events", "row_history", "match_candidates"] },
-  { db: "engine", name: "Operations", tables: ["crawl_runs", "source_cursors", "census_snapshots", "rcs_number_space", "capture_rounds", "capture_round_items", "lbr_search_words", "engine_settings", "session_health"] },
+  { db: "engine", name: "1 · Raw (landing)", tables: ["raw.fetches", "raw.documents"] },
+  { db: "engine", name: "2 · Staging + approval gate", tables: ["staging.source_records", "staging.parsed_records"] },
+  { db: "engine", name: "3 · Clean", tables: ["clean.claims", "clean.rejects", "clean.licences", "clean.filings", "clean.web_pages", "clean.articles"] },
+  { db: "engine", name: "4 · Match & cross-check", tables: ["match.candidates", "match.conflicts"] },
+  { db: "engine", name: "5 · Golden records (core)", tables: ["core.companies", "core.company_identifiers", "core.company_names", "core.company_relations", "core.people", "core.positions", "core.web_presence", "core.news_mentions", "core.review_summaries", "core.field_lineage", "core.changes", "core.row_history", "core.activity_categories", "core.classification_rules"] },
+  { db: "engine", name: "Ops (pipeline control)", tables: ["ops.sources", "ops.attribute_precedence", "ops.review_policies", "ops.runs", "ops.cursors", "ops.settings", "ops.session_health", "ops.quality_checks", "ops.quality_results", "ops.census_snapshots", "ops.news_feeds", "ops.lbr_number_space", "ops.lbr_capture_rounds", "ops.lbr_capture_round_items", "ops.lbr_search_words"] },
   { db: "main", name: "Data pipeline staging", tables: ["ingest_runs", "ingest_jobs", "ingest_records"] },
   { db: "main", name: "Public catalogue", tables: ["providers", "reviews", "posts", "reports", "report_downloads"] },
   { db: "main", name: "Visitor accounts", tables: ["users", "sessions", "password_resets", "saved_providers", "provider_claims", "profile_edits", "rfi_requests", "rate_limits"] },
@@ -78,7 +81,7 @@ const SYS_W = 176;
 const ZONE_Y = 196;
 const ZONE_GAP = 48;
 const ZONES: { db: DbId; title: string; sub: string; cols: number }[] = [
-  { db: "engine", title: "Engine database", sub: "PostgreSQL 18 on the Azure VM · staging of register data", cols: 2 },
+  { db: "engine", title: "Intelligence database", sub: "PostgreSQL 18 on the Azure VM · one schema per pipeline layer", cols: 2 },
   { db: "main", title: "Website database", sub: "Neon Postgres · what the business serves and runs on", cols: 4 },
 ];
 

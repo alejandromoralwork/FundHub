@@ -5,7 +5,7 @@
  *   login you complete once by hand (`engine rcs:login`) is reused by the worker until it expires.
  *   It opens an RCS company page, switches to "List of filings", and returns the page text + HTML.
  *   It NEVER tries to get past a captcha or bot check: it detects them and throws `RcsSessionError`, the
- *   worker then pauses the RCS queue and records the state in `session_health` so a person can log in again.
+ *   worker then pauses the RCS queue and records the state in `ops.session_health` so a person can log in again.
  * WHERE IT RUNS: the RCS worker only (your PC, or a VM with a noVNC sidecar for the login screen).
  * FRAMEWORK NOTES: Playwright's `launchPersistentContext(dir)` = a browser that keeps cookies/storage in
  *   `dir` between runs. Selectors / URLs are configurable via env (RCS_*) because LBR's markup may change.
@@ -240,7 +240,7 @@ export class RcsBrowser {
   }
 
   /**
-   * Kind: method. Downloads a filing document while logged in (used for tier ≥ 1 entities).
+   * Kind: method. Downloads a filing document while logged in (used for tier ≥ 1 companies).
    * @param url  the document link as shown on the filings list.
    * @returns `Promise<Buffer>` — the PDF bytes.
    */

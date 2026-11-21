@@ -45,8 +45,8 @@ test("CSSF: Arendt Investor Services — identity, statuses, name history", () =
   );
 
   // The page shows 4 authorised statuses and 2 other statuses.
-  const authorised = r.cssfDetails!.filter((d) => d.kind === "authorised");
-  const other = r.cssfDetails!.filter((d) => d.kind === "other");
+  const authorised = r.licences!.filter((d) => d.kind === "authorised");
+  const other = r.licences!.filter((d) => d.kind === "other");
   assert.deepEqual(authorised.map((d) => d.code).sort(), ["ACT_SPP_ATR", "ACT_SPP_DEPAAIF", "ACT_SPP_DOM", "ACT_SPP_PCG"]);
   assert.deepEqual(other.map((d) => d.code).sort(), ["OST_SPP_AA", "OST_SPP_ACC"]);
   const dom = authorised.find((d) => d.code === "ACT_SPP_DOM")!;
@@ -64,7 +64,7 @@ test("CSSF: Arendt Investor Services — identity, statuses, name history", () =
 test("CSSF: UCI compartments keep their own LEI", () => {
   const r = parseCssf(raw("cssf", "6940004", "cssf-opc-6940004.json"));
   assert.equal(r.scope, "OPC");
-  const comps = r.cssfDetails!.filter((d) => d.kind === "compartment");
+  const comps = r.licences!.filter((d) => d.kind === "compartment");
   assert.equal(comps.length, 3);
   assert.ok(comps.every((c) => c.label && !c.label.includes("_")));
   assert.ok(comps.some((c) => c.lei === "5493007NCPZXUXEPET36"));
@@ -103,25 +103,25 @@ test("RCS: company page text — profile and filings", () => {
 
   // Every complete block is a filing; the truncated last one (L210013018, no date) is skipped.
   const blocks = text.split(/\r?\n/).filter((l) => /^L\d{9}$/.test(l.trim())).length;
-  assert.equal(r.rcsFilings!.length, blocks - 1);
-  assert.ok(!r.rcsFilings!.some((f) => f.filingNumber === "L210013018"));
+  assert.equal(r.filings!.length, blocks - 1);
+  assert.ok(!r.filings!.some((f) => f.filingNumber === "L210013018"));
 
-  const first = r.rcsFilings![0];
+  const first = r.filings![0];
   assert.deepEqual(first, { filingNumber: "L260377560", filingDate: "2026-09-21", type: "Authorized signature list", details: [], corrects: null, correctedBy: null, hasDocuments: true });
 
-  const correction = r.rcsFilings!.find((f) => f.filingNumber === "L260045422")!;
+  const correction = r.filings!.find((f) => f.filingNumber === "L260045422")!;
   assert.equal(correction.corrects, "L250446350");
-  assert.equal(r.rcsFilings!.find((f) => f.filingNumber === "L250446350")!.correctedBy, "L260045422");
+  assert.equal(r.filings!.find((f) => f.filingNumber === "L250446350")!.correctedBy, "L260045422");
 
-  const mixed = r.rcsFilings!.find((f) => f.filingNumber === "L230229129")!;
+  const mixed = r.filings!.find((f) => f.filingNumber === "L230229129")!;
   assert.equal(mixed.corrects, "L230198597");
   assert.deepEqual(mixed.details, ["Administrator(s)/Manager(s)"]);
 
-  const noDocs = r.rcsFilings!.find((f) => f.filingNumber === "L240267217")!;
+  const noDocs = r.filings!.find((f) => f.filingNumber === "L240267217")!;
   assert.equal(noDocs.hasDocuments, false);
   assert.equal(noDocs.details.length, 3);
 
-  const accounts = r.rcsFilings!.find((f) => f.filingNumber === "L260093654")!;
+  const accounts = r.filings!.find((f) => f.filingNumber === "L260093654")!;
   assert.equal(accounts.type, "Annual accounts (eCDF)");
   assert.deepEqual(accounts.details, ["Financial year from 01/01/2025 to 12/31/2025"]);
 });
@@ -161,12 +161,12 @@ test("RCS live page (LBR 2026): company header, address, filings — not fooled 
   assert.equal(r.facts.status, "active");
   assert.equal((r.facts.address as { postcode: string; city: string }).postcode, "3364");
   assert.equal((r.facts.address as { postcode: string; city: string }).city, "Leudelange");
-  assert.ok(r.rcsFilings!.length >= 60);
-  assert.deepEqual(r.rcsFilings![0], { filingNumber: "L260403335", filingDate: "2026-10-16", type: "Annual accounts (eCDF)", details: ["Financial year from 01/01/2025 to 31/12/2025"], corrects: null, correctedBy: null, hasDocuments: true });
-  assert.equal(r.rcsFilings!.find((f) => f.filingNumber === "L210139264")!.corrects, "L210116926");
-  assert.equal(r.rcsFilings!.at(-1)!.type, "Registration");
+  assert.ok(r.filings!.length >= 60);
+  assert.deepEqual(r.filings![0], { filingNumber: "L260403335", filingDate: "2026-10-16", type: "Annual accounts (eCDF)", details: ["Financial year from 01/01/2025 to 31/12/2025"], corrects: null, correctedBy: null, hasDocuments: true });
+  assert.equal(r.filings!.find((f) => f.filingNumber === "L210139264")!.corrects, "L210116926");
+  assert.equal(r.filings!.at(-1)!.type, "Registration");
   // The page footer must not leak into the last filing.
-  assert.deepEqual(r.rcsFilings!.at(-1)!.details, []);
+  assert.deepEqual(r.filings!.at(-1)!.details, []);
 });
 
 test("RCS search-results page: companies with struck-off flag, sole traders (A…) dropped", () => {
@@ -195,5 +195,5 @@ test("RCS struck-off company page ('radiée'): status, deletion date, address, l
   assert.equal(r.facts.rcsDeletionDate, "2025-02-13");
   assert.equal(r.facts.legalForm, "Société à responsabilité limitée");
   assert.deepEqual(r.facts.address, { street: "8-10, rue Genistre", postcode: "1623", city: "Luxembourg", country: "LU", raw: "8-10, rue Genistre, 1623 Luxembourg" });
-  assert.equal(r.rcsFilings!.length, 0);
+  assert.equal(r.filings!.length, 0);
 });

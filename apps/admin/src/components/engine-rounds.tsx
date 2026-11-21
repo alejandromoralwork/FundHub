@@ -111,7 +111,7 @@ export function RoundsView({ data, canEdit, status }: { data: Data; canEdit: boo
             columns={[
               { title: "#", dataIndex: "position", width: 70 },
               { title: "RCS", dataIndex: "rcs", render: (v: string) => <span className="mono">{v}</span>, width: 100 },
-              { title: "Company", render: (_, i) => (i.entity_id ? <Link href={`/engine/registry/${i.entity_id}`}>{i.name ?? i.rcs}</Link> : i.name ?? "—") },
+              { title: "Company", render: (_, i) => (i.company_id ? <Link href={`/engine/companies/${i.company_id}`}>{i.name ?? i.rcs}</Link> : i.name ?? "—") },
               { title: "Status", dataIndex: "status", render: (s: string) => <Tag color={ITEM_COLOR[s]}>{s.replace("_", " ")}</Tag>, width: 110 },
               { title: "Visited", dataIndex: "visited_at", render: fmt, width: 150 },
               { title: "Filings", render: (_, i) => (i.filings_after === null ? "—" : `${i.filings_before ?? "–"} → ${i.filings_after}`), width: 100 },

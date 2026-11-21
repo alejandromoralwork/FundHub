@@ -2,13 +2,14 @@
  * FILE: services/engine/src/core/types.ts
  * PART: scraping engine (services/engine)
  * WHAT IT DOES: The contracts every source adapter follows, and the shape of a parsed record. A new source
- *   (RESA, LuxSE, a paid LBR feed…) = one new folder in src/sources implementing `SourceAdapter`; the
- *   ingest pipeline (core/ingest.ts) then handles storage, change detection, matching and classification.
+ *   (RESA, LuxSE, LinkedIn…) = one new folder in src/sources implementing `SourceAdapter` + a row in
+ *   ops.sources; the pipeline (src/pipeline) then handles raw storage, staging + the approval gate, cleaning,
+ *   matching, consolidation into the golden record, change detection and publishing.
  * WHERE IT RUNS: types only — nothing at run time.
  * TYPESCRIPT YOU WILL SEE HERE: `interface`, optional members `?`, generics, union types.
  */
 
-import type { Address, EngineSource, IdScheme, Logo, RelationKind } from "@fundhub/engine-db/schema";
+import type { Address, EngineSource, IdScheme, Logo, Platform, PositionRole, RelationKind, WebPageKind } from "@fundhub/engine-db/schema";
 
 /** Kind: type alias. Raw bytes fetched from a source, before parsing. */
 export type RawCapture = {
@@ -41,11 +42,18 @@ export type Facts = {
   operatingCountries?: string[];
   /** Logo already stored in object storage (see core/media.ts storeLogo()). */
   logo?: Logo | null;
+  description?: string | null;
+  phone?: string | null;
+  /** A generic company address (info@…), never a person's. */
+  email?: string | null;
+  headcount?: number | null;
+  foundedYear?: number | null;
+  services?: string[];
   /** Anything source-specific (CSSF type, GLEIF legal-form code, last filing date…). */
   [key: string]: unknown;
 };
 
-/** Kind: type alias. One CSSF detail line (see the cssf_details table). */
+/** Kind: type alias. One CSSF detail line (see the clean.licences table). */
 export type CssfDetailRow = {
   detailType: string;
   kind: string;
@@ -56,7 +64,7 @@ export type CssfDetailRow = {
   endDate: string | null;
 };
 
-/** Kind: type alias. One RCS filing (see the rcs_filings table). */
+/** Kind: type alias. One RCS filing (see the clean.filings table). */
 export type RcsFilingRow = {
   filingNumber: string;
   filingDate: string | null;
@@ -84,10 +92,48 @@ export type ParsedRecord = {
   facts: Facts;
   identifiers: { scheme: IdScheme; value: string }[];
   names: { name: string; kind: "legal" | "former" | "trade"; validFrom: string | null }[];
-  cssfDetails?: CssfDetailRow[];
-  rcsFilings?: RcsFilingRow[];
+  licences?: CssfDetailRow[];
+  filings?: RcsFilingRow[];
   /** Clients and other relations (web agent, filings…). A full list each time: missing ones are ended. */
   relations?: RelationRow[];
+  /** People working at the company (team page, filings, LinkedIn). A full list each time: missing ones are ended. */
+  people?: PersonRow[];
+  /** Website / social profiles of the company. */
+  webPresence?: WebPresenceRow[];
+  /** Pages crawled (company website source). */
+  pages?: PageRow[];
+  /** The article itself (news source). */
+  article?: ArticleRow;
+  /** Overall confidence of the extraction (AI sources), 0…1. Used by the approval gate. */
+  confidence?: number;
+  /**
+   * The company this record is ABOUT when the source was fetched for a known company (website crawl, per-company
+   * news search, FundHub listing already linked). The resolver links to it unless identifiers prove otherwise.
+   */
+  targetCompanyId?: string | null;
+};
+
+/** Kind: type alias. A person at the record's company. Data minimization: name, title, public profile link. */
+export type PersonRow = { fullName: string; title: string; role: PositionRole; profileUrl?: string | null; evidenceUrl?: string | null };
+
+/** Kind: type alias. One online presence of the company. */
+export type WebPresenceRow = { platform: Platform; url: string; handle?: string | null; followers?: number | null; verified?: boolean };
+
+/** Kind: type alias. One crawled page (text already in object storage). */
+export type PageRow = { url: string; kind: WebPageKind; title: string | null; textBlobKey: string | null };
+
+/** Kind: type alias. A news article and the companies it was found for / mentions. */
+export type ArticleRow = {
+  url: string;
+  title: string;
+  publishedAt: string | null;
+  author: string | null;
+  language: string | null;
+  snippet: string | null;
+  feedId: number | null;
+  textBlobKey: string | null;
+  /** Text used for mention detection (title + summary + body when available). Not stored in the payload's facts. */
+  matchText: string;
 };
 
 /** Kind: type alias. An id found during discovery, possibly with its raw content already in hand. */

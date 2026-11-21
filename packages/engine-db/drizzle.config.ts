@@ -16,5 +16,7 @@ export default defineConfig({
   schema: "./src/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
+  // One Postgres schema per pipeline layer (see src/schema/shared.ts). "mart" holds views made in SQL.
+  schemaFilter: ["ops", "raw", "staging", "clean", "match", "core"],
   dbCredentials: { url: engineDirectUrl() },
 });

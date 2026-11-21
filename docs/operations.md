@@ -21,7 +21,7 @@ Every variable is listed with a comment in [`.env.example`](../.env.example) (we
    `DATABASE_URL=<owner url> WEB_DB_PASSWORD=… ADMIN_DB_PASSWORD=… SCRAPER_DB_PASSWORD=… ANALYST_DB_PASSWORD=… npm run db:roles -w @fundhub/db`. Re-run it after migrations that add tables.
 2. **Website** (`fund-hub`): `DATABASE_URL` (fundhub_web role), `ADMIN_ORIGIN` (admin deployment URL), optional `RESEND_API_KEY`, `EMAIL_FROM`, `LISTMONK_URL`, `LISTMONK_LIST_UUID`.
 3. **Admin** (`fund-hub-admin`): `DATABASE_URL` (fundhub_admin), `DATABASE_URL_UNPOOLED`, `ANALYST_DATABASE_URL`, `PUBLIC_SITE_URL`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, Stripe keys, price ids and `STRIPE_WEBHOOK_SECRET`, `POSTHOG_URL`, `ENGINE_DATABASE_URL` (engine pages), and the sidebar tools `DRIVE_URL`, `CODE_SERVER_URL`, `NEXTCLOUD_URL`, `TWENTY_URL`, `LISTMONK_URL`, `POSTIZ_URL`.
-4. **Data module (VM):** `services/scraper/.env` with `DATABASE_URL` (fundhub_scraper role) and `ANTHROPIC_API_KEY`, then enable the timers ([deploy/README.md](../infra/vm/README.md#data-module)).
+4. **Intelligence pipeline (VM):** `services/engine/.env` with `ENGINE_DATABASE_URL`, `ANTHROPIC_API_KEY` (company-website source; a separate key from the admin's), `WEBSITE_DATABASE_URL_RO` (fundhub_engine_ro role) and `WEBSITE_DATABASE_URL_PUBLISH` (fundhub_scraper role), then `sudo bash infra/vm/install.sh` to start `fundhub-engine-worker` and `fundhub-engine-scheduler` ([docs/data-pipeline.md](data-pipeline.md)).
 5. **First staff owner:** `npm run staff -w @fundhub/admin -- create <email> "<name>" owner` against the production database.
 
 Deploys happen on push to `main` (Vercel). Migrations run in the admin build.

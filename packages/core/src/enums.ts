@@ -82,7 +82,7 @@ export const REVIEW_STATUSES = ["pending", "approved", "rejected"] as const;
 /** Kind: constant. What a reviewer must declare about their relationship with the reviewed provider. */
 export const CLIENT_RELATIONSHIPS = ["Current client", "Former client (last 3 years)"] as const;
 /** Kind: constant. Where the scraper got data from: "ai_web" (AI reading websites) or "rcs" (business register). */
-export const INGEST_SOURCES = ["ai_web", "rcs"] as const;
+export const INGEST_SOURCES = ["engine", "ai_web", "rcs"] as const;
 /** Kind: constant. States of one scraper run (a batch). */
 export const INGEST_RUN_STATUSES = ["running", "succeeded", "failed"] as const;
 /** Kind: constant. States of one job inside a scraper run. */

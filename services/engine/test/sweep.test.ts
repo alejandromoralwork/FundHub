@@ -12,11 +12,11 @@ import { test } from "node:test";
 import { sql } from "drizzle-orm";
 import { db, pool } from "@fundhub/engine-db/client";
 import { nextSweepItems, planSweep, recordSearch, resetSkippedSweep, skipSweepTerm } from "@fundhub/engine-db/core/sweep";
-import { entities } from "@fundhub/engine-db/schema";
+import { companies } from "@fundhub/engine-db/schema";
 
 async function dbReady() {
   try {
-    const r = await pool.query("select to_regclass('public.lbr_search_words') as t");
+    const r = await pool.query("select to_regclass('ops.lbr_search_words') as t");
     return r.rows[0].t !== null;
   } catch {
     return false;
@@ -25,16 +25,16 @@ async function dbReady() {
 const ready = await dbReady();
 class Rollback extends Error {}
 
-test("search sweep: seed words, book a page, snowball new names' words, skip/reset", { skip: !ready && "engine database not reachable (or migration 0006 not applied)" }, async () => {
+test("search sweep: seed words, book a page, snowball new names' words, skip/reset", { skip: !ready && "engine database not reachable" }, async () => {
   try {
     await db.transaction(async (tx) => {
-      await tx.insert(entities).values([
+      await tx.insert(companies).values([
         { canonicalName: "Zqxfoo Zqxbar S.à r.l.", normalizedName: "zqxfoo zqxbar" },
         { canonicalName: "Zqxfoo Invest", normalizedName: "zqxfoo invest" },
       ]);
       const out = await planSweep(tx);
       assert.ok(out.words > 0);
-      const w = (await tx.execute<{ term: string; seen: number; status: string }>(sql`select term, seen, status from lbr_search_words where term like 'zqx%' and length(term) > 3 order by term`)).rows;
+      const w = (await tx.execute<{ term: string; seen: number; status: string }>(sql`select term, seen, status from ops.lbr_search_words where term like 'zqx%' and length(term) > 3 order by term`)).rows;
       assert.deepEqual(w.map((r) => [r.term, r.seen, r.status]), [["zqxbar", 1, "pending"], ["zqxfoo", 2, "pending"]]);
 
       // A page for "Zqxfoo": two companies, one new to the engine → its words join the queue.
@@ -45,9 +45,9 @@ test("search sweep: seed words, book a page, snowball new names' words, skip/res
       const r = await recordSearch("Zqxfoo", 2, page, new Set(["B9999902"]), tx);
       assert.deepEqual({ ...r, addedWords: undefined }, { term: "zqxfoo", total: 2, rows: 2, newNumbers: 1, capped: false, addedWords: undefined, planned: true });
       assert.ok((r?.addedWords ?? 0) >= 1);
-      const nw = (await tx.execute<{ status: string; origin: string }>(sql`select status, origin from lbr_search_words where term = 'zqxnew'`)).rows[0];
+      const nw = (await tx.execute<{ status: string; origin: string }>(sql`select status, origin from ops.lbr_search_words where term = 'zqxnew'`)).rows[0];
       assert.deepEqual({ ...nw }, { status: "pending", origin: "results" });
-      assert.equal((await tx.execute<{ status: string }>(sql`select status from lbr_search_words where term = 'zqxfoo'`)).rows[0].status, "done");
+      assert.equal((await tx.execute<{ status: string }>(sql`select status from ops.lbr_search_words where term = 'zqxfoo'`)).rows[0].status, "done");
 
       // A full list is "capped"; a search outside the plan is recorded as done; an RCS number is ignored.
       const full = await recordSearch("zqxother", 199, page, new Set(), tx);

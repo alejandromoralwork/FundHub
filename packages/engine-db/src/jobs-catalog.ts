@@ -20,7 +20,7 @@ export type JobParam = {
 
 /** Kind: type alias. One job as data. */
 export type JobInfo = {
-  group: "cssf" | "gleif" | "rcs" | "maintenance";
+  group: "cssf" | "gleif" | "rcs" | "web" | "news" | "maintenance";
   title: string;
   description: string;
   params: JobParam[];
@@ -88,8 +88,65 @@ export const JOB_CATALOG = {
     ],
   },
   rcs_refresh: { group: "maintenance", title: "RCS refresh queue", description: "Queues known-but-unfetched numbers (highest tier first), then due records, within the daily cap.", params: [{ name: "limit", kind: "number", label: "Limit" }], schedule: { cron: "30 7 * * *" } },
-  reclassify: { group: "maintenance", title: "Reclassify", description: "Re-applies classification rules to every entity and links clients to entities.", params: [], schedule: { cron: "0 5 * * 0" } },
+  reclassify: { group: "maintenance", title: "Reclassify", description: "Re-applies classification rules to every company and links clients to companies.", params: [], schedule: { cron: "0 5 * * 0" } },
   census_snapshot: { group: "maintenance", title: "Census snapshot", description: "Writes today's registry census.", params: [], schedule: { cron: "30 23 * * *" } },
+  // ---- FundHub accounts, company websites (group "web")
+  fundhub_sync: {
+    group: "web",
+    title: "FundHub accounts sync",
+    description: "Reads every FundHub listing and approved unlisted account claim (self-declared data) into the pipeline, and links companies to their listing.",
+    params: [
+      { name: "since", kind: "string", label: "Changed since (ISO date)", placeholder: "2026-11-01" },
+      { name: "limit", kind: "number", label: "Limit (testing)" },
+    ],
+    schedule: { cron: "5 * * * *" },
+  },
+  website_crawl: {
+    group: "web",
+    title: "Company website crawl",
+    description: "Crawls a company website and extracts facts with AI (legal notice verifies the RCS number). Without a company: queues the followed companies that are due.",
+    params: [
+      { name: "companyId", kind: "string", label: "Company id (empty = queue due companies)" },
+      { name: "limit", kind: "number", label: "How many to queue", placeholder: "25" },
+    ],
+    schedule: { cron: "0 1 * * *" },
+  },
+  // ---- News (group "news")
+  news_poll: { group: "news", title: "News feeds", description: "Reads the newspaper / press-release feeds and matches articles to the companies they mention.", params: [{ name: "feedId", kind: "number", label: "One feed id (empty = all)" }], schedule: { cron: "*/30 * * * *" } },
+  news_search: {
+    group: "news",
+    title: "Company news search",
+    description: "Searches the news for one company; without a company, queues the next batch of followed companies (tier 2, FundHub listings).",
+    params: [
+      { name: "companyId", kind: "string", label: "Company id (empty = next batch)" },
+      { name: "limit", kind: "number", label: "Batch size", placeholder: "40" },
+    ],
+    schedule: { cron: "0 9 * * *" },
+  },
+  // ---- Pipeline (group "maintenance")
+  staging_release: { group: "maintenance", title: "Release approved record", description: "Runs clean → match → core for a version approved at the staging gate (queued by the console).", params: [{ name: "parsedId", kind: "number", label: "Parsed record id", required: true }] },
+  quality_run: { group: "maintenance", title: "Data quality", description: "Measures every data-quality check (coverage, cross-checking, match rate, conflicts, backlog, freshness…).", params: [], schedule: { cron: "45 23 * * *" } },
+  publish_proposals: {
+    group: "maintenance",
+    title: "Publish proposals",
+    description: "Compares golden records with their FundHub listings and writes change proposals for staff review (Publish review).",
+    params: [
+      { name: "limit", kind: "number", label: "Limit companies" },
+      { name: "dryRun", kind: "boolean", label: "Dry run (count only)" },
+    ],
+    schedule: { cron: "0 7 * * *" },
+  },
+  reprocess: {
+    group: "maintenance",
+    title: "Reprocess a source",
+    description: "Re-runs the pipeline for one source without re-fetching: from 'parse' (after a parser fix) or 'consolidate' (after a precedence / rules change).",
+    params: [
+      { name: "source", kind: "string", label: "Source code", placeholder: "cssf", required: true },
+      { name: "from", kind: "string", label: "From stage", placeholder: "parse | consolidate", required: true },
+      { name: "limit", kind: "number", label: "Limit records" },
+    ],
+  },
+  retention_purge: { group: "maintenance", title: "Retention purge", description: "Deletes people data older than each source's retention limit (GDPR minimization).", params: [], schedule: { cron: "15 3 * * *" } },
 } as const satisfies Record<string, JobInfo>;
 
 export type JobName = keyof typeof JOB_CATALOG;

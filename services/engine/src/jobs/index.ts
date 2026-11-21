@@ -15,9 +15,12 @@ import { gleifFetch, gleifSync } from "./gleif";
 import { censusSnapshot, cssfRefresh, reclassify } from "./maintenance";
 import { rcsFetch, rcsFrontier, rcsRefresh, rcsSweep } from "./rcs";
 import { rcsImportFile, rcsSeedFrontier } from "./rcs-list";
+import { newsPoll, newsSearch } from "./news";
+import { publishJob, qualityRun, reprocess, retentionPurge, stagingRelease } from "./pipeline";
+import { fundhubSync, websiteCrawl } from "./web";
 
 /** Kind: constant. Worker groups. One RCS worker only (one browser session, human pace). */
-export const GROUPS = ["cssf", "gleif", "rcs", "maintenance"] as const;
+export const GROUPS = ["cssf", "gleif", "rcs", "web", "news", "maintenance"] as const;
 export type Group = (typeof GROUPS)[number];
 
 /** Kind: type alias. A job definition. */
@@ -56,6 +59,15 @@ export const JOBS: Record<CatalogName, JobDef> = {
   rcs_refresh: job("rcs_refresh", rcsRefresh, 1, 600),
   reclassify: job("reclassify", reclassify, 1, 3 * 3600),
   census_snapshot: job("census_snapshot", censusSnapshot, 2, 600),
+  fundhub_sync: job("fundhub_sync", fundhubSync, 2, 1800),
+  website_crawl: job("website_crawl", websiteCrawl, 2, 900),
+  news_poll: job("news_poll", newsPoll, 1, 1800),
+  news_search: job("news_search", newsSearch, 2, 600),
+  staging_release: job("staging_release", stagingRelease, 3, 300),
+  quality_run: job("quality_run", qualityRun, 1, 900),
+  publish_proposals: job("publish_proposals", publishJob, 1, 1800),
+  reprocess: job("reprocess", reprocess, 0, 12 * 3600),
+  retention_purge: job("retention_purge", retentionPurge, 1, 600),
 };
 
 export type JobName = keyof typeof JOBS;

@@ -14,7 +14,7 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, type EngineTx } from "../client";
-import { captureRoundItems, captureRounds, type RoundScope } from "../schema";
+import { lbrCaptureRoundItems, lbrCaptureRounds, type RoundScope } from "../schema";
 
 /** Kind: type alias. One company as shown in the extension / admin. */
 export type RoundItemView = {
@@ -28,11 +28,11 @@ export type RoundItemView = {
   position: number;
 };
 
-/** Kind: function. The SQL condition for a scope (on entities `e` and identifier `i`). */
+/** Kind: function. The SQL condition for a scope (on companies `e` and identifier `i`). */
 function scopeWhere(scope: RoundScope) {
   const f = scope.filter;
   if (f === "sp") return sql`and e.is_service_provider`;
-  if (f === "am") return sql`and e.entity_kind = 'asset_manager'`;
+  if (f === "am") return sql`and e.company_kind = 'asset_manager'`;
   if (f === "text" && scope.text?.trim()) {
     const t = scope.text.trim();
     return sql`and (e.canonical_name ilike ${"%" + t + "%"} or i.value ilike ${t + "%"})`;
@@ -42,7 +42,7 @@ function scopeWhere(scope: RoundScope) {
 
 /** Kind: async function. The active round, or null. */
 export async function activeRound(tx: EngineTx = db) {
-  const [r] = await tx.select().from(captureRounds).where(eq(captureRounds.status, "active"));
+  const [r] = await tx.select().from(lbrCaptureRounds).where(eq(lbrCaptureRounds.status, "active"));
   return r ?? null;
 }
 
@@ -53,19 +53,19 @@ export async function activeRound(tx: EngineTx = db) {
 export async function startRound(opts: { kind: "initial" | "update"; scope: RoundScope; name?: string; actor?: string; notes?: string }, tx: EngineTx = db) {
   await closeRound(tx);
   const name = opts.name?.trim() || `${new Date().toISOString().slice(0, 7)} ${opts.kind}${opts.scope.filter !== "all" ? ` (${opts.scope.filter === "text" ? opts.scope.text : opts.scope.filter})` : ""}`;
-  const [round] = await tx.insert(captureRounds).values({ name, kind: opts.kind, scope: opts.scope, createdBy: opts.actor ?? null, notes: opts.notes ?? null }).returning();
+  const [round] = await tx.insert(lbrCaptureRounds).values({ name, kind: opts.kind, scope: opts.scope, createdBy: opts.actor ?? null, notes: opts.notes ?? null }).returning();
   const where = scopeWhere(opts.scope);
 
   if (opts.kind === "initial") {
     // Known RCS numbers never captured from the RCS, most important first.
     await tx.execute(sql`
-      insert into capture_round_items (round_id, rcs, position)
+      insert into ops.lbr_capture_round_items (round_id, rcs, position)
       select ${round.id}, rcs, row_number() over (order by tier desc, sp desc, am desc, rcs)
       from (
-        select distinct on (i.value) i.value as rcs, e.tier, e.is_service_provider as sp, (e.entity_kind = 'asset_manager') as am
-        from entity_identifiers i join entities e on e.id = i.entity_id
+        select distinct on (i.value) i.value as rcs, e.tier, e.is_service_provider as sp, (e.company_kind = 'asset_manager') as am
+        from core.company_identifiers i join core.companies e on e.id = i.company_id
         where i.scheme = 'rcs' and i.value !~ '^A'
-          and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
+          and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
           ${where}
         order by i.value
       ) q`);
@@ -74,22 +74,22 @@ export async function startRound(opts: { kind: "initial" | "update"; scope: Roun
     // capture, then recent filers, then tier / service providers.
     const skipDays = opts.scope.skipCapturedWithinDays ?? 0;
     await tx.execute(sql`
-      insert into capture_round_items (round_id, rcs, position, filings_before)
+      insert into ops.lbr_capture_round_items (round_id, rcs, position, filings_before)
       select ${round.id}, rcs, row_number() over (order by other_changed desc, last_filing desc nulls last, tier desc, sp desc, rcs), filings
       from (
         select s.external_id as rcs, e.tier, e.is_service_provider as sp,
-               exists (select 1 from change_events c where c.entity_id = e.id and c.source in ('cssf', 'gleif') and c.detected_at > s.last_changed_at) as other_changed,
-               (s.parsed -> 'facts' ->> 'rcsLastFilingDate') as last_filing,
-               (select count(*) from rcs_filings f where f.source_record_id = s.id)::int as filings
-        from source_records s
-        join entities e on e.id = s.entity_id
-        join entity_identifiers i on i.entity_id = e.id and i.scheme = 'rcs' and i.value = s.external_id
+               exists (select 1 from core.changes c where c.company_id = e.id and c.source in ('cssf', 'gleif') and c.detected_at > s.last_changed_at) as other_changed,
+               (s.released -> 'facts' ->> 'rcsLastFilingDate') as last_filing,
+               (select count(*) from clean.filings f where f.source_record_id = s.id)::int as filings
+        from staging.source_records s
+        join core.companies e on e.id = s.company_id
+        join core.company_identifiers i on i.company_id = e.id and i.scheme = 'rcs' and i.value = s.external_id
         where s.source = 'rcs' and s.state = 'found'
           and (${skipDays} = 0 or s.last_seen_at < now() - (${skipDays} || ' days')::interval)
           ${where}
       ) q`);
   }
-  const [{ n }] = (await tx.execute<{ n: number }>(sql`select count(*)::int as n from capture_round_items where round_id = ${round.id}`)).rows;
+  const [{ n }] = (await tx.execute<{ n: number }>(sql`select count(*)::int as n from ops.lbr_capture_round_items where round_id = ${round.id}`)).rows;
   return { round, items: n };
 }
 
@@ -97,7 +97,7 @@ export async function startRound(opts: { kind: "initial" | "update"; scope: Roun
 export async function closeRound(tx: EngineTx = db) {
   const r = await activeRound(tx);
   if (!r) return null;
-  await tx.update(captureRounds).set({ status: "closed", closedAt: new Date() }).where(eq(captureRounds.id, r.id));
+  await tx.update(lbrCaptureRounds).set({ status: "closed", closedAt: new Date() }).where(eq(lbrCaptureRounds.id, r.id));
   return r;
 }
 
@@ -105,7 +105,7 @@ export async function closeRound(tx: EngineTx = db) {
 export async function resetSkipped(tx: EngineTx = db) {
   const r = await activeRound(tx);
   if (!r) return 0;
-  const res = await tx.execute(sql`update capture_round_items set status = 'pending', error = null where round_id = ${r.id} and status in ('skipped', 'failed')`);
+  const res = await tx.execute(sql`update ops.lbr_capture_round_items set status = 'pending', error = null where round_id = ${r.id} and status in ('skipped', 'failed')`);
   return res.rowCount ?? 0;
 }
 
@@ -115,11 +115,11 @@ export async function nextItems(n = 10, tx: EngineTx = db): Promise<RoundItemVie
   if (!r) return [];
   const rows = (
     await tx.execute<{ rcs: string; name: string | null; kind: string | null; sp: boolean | null; category: string | null; status: string | null; item_status: string; position: number }>(sql`
-      select it.rcs, it.status as item_status, it.position, e.canonical_name as name, e.entity_kind as kind, e.is_service_provider as sp, e.status,
-             (select label from activity_categories c where c.id = e.activity_category_id) as category
-      from capture_round_items it
-      left join entity_identifiers i on i.scheme = 'rcs' and i.value = it.rcs
-      left join entities e on e.id = i.entity_id
+      select it.rcs, it.status as item_status, it.position, e.canonical_name as name, e.company_kind as kind, e.is_service_provider as sp, e.status,
+             (select label from core.activity_categories c where c.id = e.activity_category_id) as category
+      from ops.lbr_capture_round_items it
+      left join core.company_identifiers i on i.scheme = 'rcs' and i.value = it.rcs
+      left join core.companies e on e.id = i.company_id
       where it.round_id = ${r.id} and it.status = 'pending'
       order by it.position
       limit ${n}`)
@@ -131,7 +131,7 @@ export async function nextItems(n = 10, tx: EngineTx = db): Promise<RoundItemVie
 export async function skipItem(rcs: string, tx: EngineTx = db) {
   const r = await activeRound(tx);
   if (!r) return false;
-  const res = await tx.execute(sql`update capture_round_items set status = 'skipped', visited_at = now() where round_id = ${r.id} and rcs = ${rcs} and status = 'pending'`);
+  const res = await tx.execute(sql`update ops.lbr_capture_round_items set status = 'skipped', visited_at = now() where round_id = ${r.id} and rcs = ${rcs} and status = 'pending'`);
   return (res.rowCount ?? 0) > 0;
 }
 
@@ -144,9 +144,9 @@ export async function recordVisit(rcs: string, result: { status: string; filings
   if (!r) return null;
   const status = result.error ? "failed" : result.status === "new" ? "captured" : result.status === "changed" ? "changed" : result.status === "unchanged" ? "unchanged" : "not_found";
   await tx
-    .update(captureRoundItems)
-    .set({ status, visitedAt: new Date(), filingsAfter: result.filingsAfter ?? null, newFilings: sql`${captureRoundItems.newFilings} + ${result.newFilings ?? 0}`, error: result.error ?? null })
-    .where(and(eq(captureRoundItems.roundId, r.id), eq(captureRoundItems.rcs, rcs)));
+    .update(lbrCaptureRoundItems)
+    .set({ status, visitedAt: new Date(), filingsAfter: result.filingsAfter ?? null, newFilings: sql`${lbrCaptureRoundItems.newFilings} + ${result.newFilings ?? 0}`, error: result.error ?? null })
+    .where(and(eq(lbrCaptureRoundItems.roundId, r.id), eq(lbrCaptureRoundItems.rcs, rcs)));
   return r;
 }
 
@@ -154,7 +154,7 @@ export async function recordVisit(rcs: string, result: { status: string; filings
 export async function recordDocument(rcs: string, tx: EngineTx = db) {
   const r = await activeRound(tx);
   if (!r) return;
-  await tx.execute(sql`update capture_round_items set new_documents = new_documents + 1 where round_id = ${r.id} and rcs = ${rcs}`);
+  await tx.execute(sql`update ops.lbr_capture_round_items set new_documents = new_documents + 1 where round_id = ${r.id} and rcs = ${rcs}`);
 }
 
 /** Kind: type alias. Totals of a round. */
@@ -189,25 +189,25 @@ export async function roundStats(roundId: number, tx: EngineTx = db): Promise<Ro
              coalesce(sum(new_filings), 0)::int as new_filings,
              coalesce(sum(new_documents), 0)::int as new_documents,
              max(visited_at) as last_visit
-      from capture_round_items where round_id = ${roundId}`)
+      from ops.lbr_capture_round_items where round_id = ${roundId}`)
   ).rows;
   return s;
 }
 
 /** Kind: async function. The register: every round with its totals, newest first. */
 export async function listRounds(tx: EngineTx = db) {
-  const rounds = await tx.select().from(captureRounds).orderBy(desc(captureRounds.startedAt));
+  const rounds = await tx.select().from(lbrCaptureRounds).orderBy(desc(lbrCaptureRounds.startedAt));
   return Promise.all(rounds.map(async (r) => ({ ...r, stats: await roundStats(r.id, tx) })));
 }
 
 /** Kind: async function. The items of one round (for the register detail), with entity names. */
 export async function roundItems(roundId: number, opts: { status?: string; limit?: number } = {}, tx: EngineTx = db) {
   return (
-    await tx.execute<{ rcs: string; position: number; status: string; visited_at: string | null; filings_before: number | null; filings_after: number | null; new_filings: number; new_documents: number; error: string | null; entity_id: string | null; name: string | null }>(sql`
-      select it.*, e.id as entity_id, e.canonical_name as name
-      from capture_round_items it
-      left join entity_identifiers i on i.scheme = 'rcs' and i.value = it.rcs
-      left join entities e on e.id = i.entity_id
+    await tx.execute<{ rcs: string; position: number; status: string; visited_at: string | null; filings_before: number | null; filings_after: number | null; new_filings: number; new_documents: number; error: string | null; company_id: string | null; name: string | null }>(sql`
+      select it.*, e.id as company_id, e.canonical_name as name
+      from ops.lbr_capture_round_items it
+      left join core.company_identifiers i on i.scheme = 'rcs' and i.value = it.rcs
+      left join core.companies e on e.id = i.company_id
       where it.round_id = ${roundId} ${opts.status ? sql`and it.status = ${opts.status}` : sql``}
       order by (it.status = 'pending'), it.visited_at desc nulls last, it.position
       limit ${opts.limit ?? 500}`)

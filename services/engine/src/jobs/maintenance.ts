@@ -2,7 +2,7 @@
  * FILE: services/engine/src/jobs/maintenance.ts
  * PART: scraping engine (services/engine) — jobs that are not tied to one source
  *   reclassify {}       — re-applies classification rules to every entity (after editing rules), then links
- *                         clients (entity_relations) to entities that appeared since they were recorded.
+ *                         clients (core.company_relations) to companies that appeared since they were recorded.
  *   census_snapshot {}  — writes today's registry-wide census (totals by kind, service providers, coverage).
  *   cssf_refresh {}     — queues `cssf_fetch` for CSSF records whose refresh date has passed.
  * WHERE IT RUNS: queue "maintenance" workers, or inline from the CLI.
@@ -11,8 +11,8 @@
 
 import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
-import { entities, sourceRecords } from "@fundhub/engine-db/schema";
-import { clearRulesCache, linkRelations, recomputeEntity } from "@fundhub/engine-db/core/entity";
+import { companies, sourceRecords } from "@fundhub/engine-db/schema";
+import { clearRulesCache, linkRelations, recomputeCompany } from "@fundhub/engine-db/core/entity";
 import { snapshotRegistry } from "../core/ops";
 import { snapshotRcsKnown } from "./rcs-list";
 import { log } from "../log";
@@ -24,16 +24,16 @@ export async function reclassify() {
   let last = "00000000-0000-0000-0000-000000000000";
   let done = 0;
   for (;;) {
-    const page = await db.select({ id: entities.id }).from(entities).where(gt(entities.id, last)).orderBy(asc(entities.id)).limit(500);
+    const page = await db.select({ id: companies.id }).from(companies).where(gt(companies.id, last)).orderBy(asc(companies.id)).limit(500);
     if (!page.length) break;
-    for (const e of page) await db.transaction((tx) => recomputeEntity(tx, e.id));
+    for (const e of page) await db.transaction((tx) => recomputeCompany(tx, e.id));
     done += page.length;
     last = page[page.length - 1].id;
     log.info("reclassify", { done });
   }
   // Clients named before their own entity existed can be linked now.
   const linkedRelations = await linkRelations();
-  return { entities: done, linkedRelations };
+  return { companies: done, linkedRelations };
 }
 
 /** Kind: async function. Job "census_snapshot". */

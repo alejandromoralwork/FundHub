@@ -32,34 +32,37 @@ const rcs = () => parseRcsText(fx("rcs-B145917.txt").toString("utf8"), "B145917"
 
 /** Kind: class. A ResolverStore in memory, mirroring the database behaviour. */
 class MemStore implements ResolverStore {
-  entities = new Map<string, { name: string; normalizedName: string; postcode: string | null }>();
+  companies = new Map<string, { name: string; normalizedName: string; postcode: string | null }>();
   ids = new Map<string, string>(); // "scheme:value" → entity id
-  candidates: { entityId: string; method: MatchMethod; decision: string }[] = [];
+  candidates: { companyId: string; method: MatchMethod; decision: string }[] = [];
   #n = 0;
   async findByIdentifier(scheme: IdScheme, value: string) {
     return this.ids.get(`${scheme}:${value}`) ?? null;
   }
   async findByName(n: string) {
-    return [...this.entities].filter(([, e]) => e.normalizedName === n).map(([entityId, e]) => ({ entityId, postcode: e.postcode }));
+    return [...this.companies].filter(([, e]) => e.normalizedName === n).map(([companyId, e]) => ({ companyId, postcode: e.postcode }));
   }
-  async createEntity(seed: { canonicalName: string; normalizedName: string }) {
+  async exists(companyId: string) {
+    return this.companies.has(companyId);
+  }
+  async createCompany(seed: { canonicalName: string; normalizedName: string }) {
     const id = `e${++this.#n}`;
-    this.entities.set(id, { name: seed.canonicalName, normalizedName: seed.normalizedName, postcode: null });
+    this.companies.set(id, { name: seed.canonicalName, normalizedName: seed.normalizedName, postcode: null });
     return id;
   }
-  async addIdentifiers(entityId: string, ids: { scheme: IdScheme; value: string }[]) {
-    for (const i of ids) if (!this.ids.has(`${i.scheme}:${i.value}`)) this.ids.set(`${i.scheme}:${i.value}`, entityId);
+  async addIdentifiers(companyId: string, ids: { scheme: IdScheme; value: string }[]) {
+    for (const i of ids) if (!this.ids.has(`${i.scheme}:${i.value}`)) this.ids.set(`${i.scheme}:${i.value}`, companyId);
   }
   async merge(keep: string, drop: string) {
     for (const [k, v] of this.ids) if (v === drop) this.ids.set(k, keep);
-    this.entities.delete(drop);
+    this.companies.delete(drop);
   }
-  async addCandidate(entityId: string, method: MatchMethod, _score: number, decision: string) {
-    this.candidates.push({ entityId, method, decision });
+  async addCandidate(companyId: string, method: MatchMethod, _score: number, decision: string) {
+    this.candidates.push({ companyId, method, decision });
   }
-  /** Like recomputeEntity: remember the postcode a record reported. */
-  touch(entityId: string, rec: ParsedRecord) {
-    const e = this.entities.get(entityId)!;
+  /** Like recomputeCompany: remember the postcode a record reported. */
+  touch(companyId: string, rec: ParsedRecord) {
+    const e = this.companies.get(companyId)!;
     e.postcode = (rec.facts.address as { postcode?: string } | null)?.postcode ?? e.postcode;
   }
 }
@@ -78,11 +81,11 @@ for (const order of orders) {
     for (const [name, make] of order) {
       const rec = make();
       const res = await resolveRecord(rec, store, links.get(name) ?? null);
-      store.touch(res.entityId, rec);
-      links.set(name, res.entityId);
+      store.touch(res.companyId, rec);
+      links.set(name, res.companyId);
     }
-    assert.equal(store.entities.size, 1, `entities left: ${[...store.entities.keys()]}`);
-    const only = [...store.entities.keys()][0];
+    assert.equal(store.companies.size, 1, `companies left: ${[...store.companies.keys()]}`);
+    const only = [...store.companies.keys()][0];
     assert.equal(store.ids.get("rcs:B145917"), only);
     assert.equal(store.ids.get("lei:222100IVSOG87C1WWJ84"), only);
     assert.equal(store.ids.get("cssf_code:P00000348"), only);
@@ -93,18 +96,18 @@ test("resolve: same name in another postcode is NOT merged, only flagged for rev
   const store = new MemStore();
   const a = cssf();
   const r1 = await resolveRecord(a, store);
-  store.touch(r1.entityId, a);
+  store.touch(r1.companyId, a);
   const b: ParsedRecord = { ...cssf(), externalId: "999", identifiers: [{ scheme: "cssf_id", value: "999" }], facts: { ...a.facts, lei: null, address: { raw: "x", postcode: "8070" } } };
   const r2 = await resolveRecord(b, store);
-  assert.notEqual(r1.entityId, r2.entityId);
+  assert.notEqual(r1.companyId, r2.companyId);
   assert.equal(store.candidates.at(-1)!.decision, "pending");
 });
 
 test("diff: a new filing on the next capture is exactly one new_filing event", () => {
   const before = rcs();
   const after = rcs();
-  after.rcsFilings = [{ filingNumber: "L260400001", filingDate: "2026-10-30", type: "Authorized signature list", details: [], corrects: null, correctedBy: null, hasDocuments: true }, ...after.rcsFilings!];
-  after.facts.rcsFilingCount = after.rcsFilings.length;
+  after.filings = [{ filingNumber: "L260400001", filingDate: "2026-10-30", type: "Authorized signature list", details: [], corrects: null, correctedBy: null, hasDocuments: true }, ...after.filings!];
+  after.facts.rcsFilingCount = after.filings.length;
   const changes = diffRecords(before, after);
   assert.equal(changes.filter((c) => c.kind === "new_filing").length, 1);
   assert.equal(changes.filter((c) => c.kind === "attribute_changed").length, 1); // rcsFilingCount
@@ -115,7 +118,7 @@ test("diff: a new filing on the next capture is exactly one new_filing event", (
 test("diff: an authorisation that gets an end date is authorisation_ended; a name change is name_change", () => {
   const before = cssf();
   const after = cssf();
-  after.cssfDetails = after.cssfDetails!.map((d) => (d.code === "ACT_SPP_DOM" ? { ...d, endDate: "2026-10-01" } : d));
+  after.licences = after.licences!.map((d) => (d.code === "ACT_SPP_DOM" ? { ...d, endDate: "2026-10-01" } : d));
   after.facts.name = "ARENDT FUND SERVICES S.A.";
   const kinds = diffRecords(before, after).map((c) => c.kind).sort();
   assert.deepEqual(kinds, ["authorisation_ended", "name_change"]);
@@ -136,20 +139,20 @@ test("classify: Arendt (SPP with admin-agent status) → service provider in Fun
   // Give seed rules and categories fake ids, as the seed script would.
   const slugIds = new Map<string, number>();
   const id = (slug?: string) => (slug ? (slugIds.get(slug) ?? slugIds.set(slug, slugIds.size + 1).get(slug)!) : null);
-  const rules = RULES.map((r, i) => ({ id: i + 1, kind: r.kind, match: r.match, isServiceProvider: r.isServiceProvider ?? null, entityKind: r.entityKind ?? null, categoryId: id(r.category), subcategoryId: id(r.subcategory), tier: r.tier ?? null, priority: r.priority, enabled: true }));
+  const rules = RULES.map((r, i) => ({ id: i + 1, kind: r.kind, match: r.match, isServiceProvider: r.isServiceProvider ?? null, companyKind: r.companyKind ?? null, categoryId: id(r.category), subcategoryId: id(r.subcategory), tier: r.tier ?? null, priority: r.priority, enabled: true }));
   const rec = cssf();
-  const c = classify({ cssfTypes: ["SPP"], cssfCodes: rec.cssfDetails!.filter((d) => !d.endDate).map((d) => d.code), hasRcs: true }, rules);
+  const c = classify({ cssfTypes: ["SPP"], cssfCodes: rec.licences!.filter((d) => !d.endDate).map((d) => d.code), hasRcs: true }, rules);
   assert.equal(c.isServiceProvider, true);
-  assert.equal(c.entityKind, "service_provider");
+  assert.equal(c.companyKind, "service_provider");
   assert.equal(c.activityCategoryId, slugIds.get("fund-administration"));
   assert.equal(c.activitySubcategoryId, slugIds.get("fund-administration--fund-accounting-nav-calculation"));
   assert.equal(c.tier, 2);
 
   const corp = classify({ cssfTypes: [], cssfCodes: [], hasRcs: true }, rules, { corporateCategoryId: 99 });
-  assert.deepEqual([corp.isServiceProvider, corp.entityKind, corp.activityCategoryId, corp.tier], [false, "corporate", 99, 0]);
+  assert.deepEqual([corp.isServiceProvider, corp.companyKind, corp.activityCategoryId, corp.tier], [false, "corporate", 99, 0]);
 
   const manco = classify({ cssfTypes: ["C15"], cssfCodes: [], hasRcs: true }, rules);
-  assert.deepEqual([manco.isServiceProvider, manco.entityKind, manco.activityCategoryId], [false, "asset_manager", slugIds.get("aifm-manco")]);
+  assert.deepEqual([manco.isServiceProvider, manco.companyKind, manco.activityCategoryId], [false, "asset_manager", slugIds.get("aifm-manco")]);
 });
 
 test("countries: names, codes and French spellings become ISO codes", () => {
@@ -165,7 +168,7 @@ test("countries: names, codes and French spellings become ISO codes", () => {
 
 test("diff: clients added and removed on the website become relation events", () => {
   const base: ParsedRecord = {
-    source: "web",
+    source: "website",
     externalId: "arendt.com",
     state: "found",
     facts: { website: "https://www.arendt.com", operatingCountries: ["LU"] },
@@ -195,15 +198,15 @@ test("golden: website, countries and logo come from the web source", () => {
   const logo = { blobKey: "logos/ab/ab.png", sourceUrl: "https://www.arendt.com/logo.png", mime: "image/png", sha256: "ab", bytes: 10 };
   const g = buildGolden([
     { source: "gleif", attribute: "website", value: "http://arendt.lu" },
-    { source: "web", attribute: "website", value: "https://www.arendt.com" },
-    { source: "web", attribute: "operatingCountries", value: ["LU"] },
-    { source: "web", attribute: "logo", value: logo },
+    { source: "website", attribute: "website", value: "https://www.arendt.com" },
+    { source: "website", attribute: "operatingCountries", value: ["LU"] },
+    { source: "website", attribute: "logo", value: logo },
   ]);
   assert.equal(g.website, "https://www.arendt.com");
   assert.deepEqual(g.operatingCountries, ["LU"]);
   assert.deepEqual(g.logo, logo);
   // An empty list is "no information", not "operates nowhere".
-  assert.equal(buildGolden([{ source: "web", attribute: "operatingCountries", value: [] }]).operatingCountries, undefined);
+  assert.equal(buildGolden([{ source: "website", attribute: "operatingCountries", value: [] }]).operatingCountries, undefined);
 });
 
 test("normalize: names and RCS numbers compare across sources", () => {
@@ -253,4 +256,100 @@ test("search list: French status lines (radiée, en faillite, en liquidation jud
     list.items.map((i) => [i.rcs, i.status]),
     [["B108301", null], ["B112849", "struck_off"], ["B246954", "in_liquidation"], ["B1", "in_liquidation"], ["B250137", null]],
   );
+});
+
+// ------------------------------------------------------------------ layered pipeline: pure stages
+
+import { consolidate, PRECEDENCE as SEED_PRECEDENCE } from "@fundhub/engine-db/core/golden";
+import type { ReviewPolicy } from "@fundhub/engine-db/schema";
+import { canonicalUrl, cleanRecord, normalizePhone, normalizePostcode } from "../src/pipeline/clean";
+import { evaluate, pickPolicy } from "../src/pipeline/gate";
+import { buildIndex, findMentions } from "../src/pipeline/mentions";
+
+test("clean: normalizes values and rejects bad ones (never silently)", () => {
+  const rec: ParsedRecord = {
+    source: "website",
+    externalId: "acme.lu",
+    state: "found",
+    facts: { name: "  Acme   Services  S.A. ", website: "ACME.lu/?utm_campaign=x#top", email: "jean.dupont@acme.lu", phone: "+352 (0) 26 12 34 56", headcount: 0, address: { raw: "1 rue X, 1234 Luxembourg", postcode: "1234", country: "Luxembourg" } },
+    identifiers: [],
+    names: [],
+    people: [{ fullName: "Our team", title: "", role: "employee" }, { fullName: "Marie Curie", title: " CEO ", role: "executive" }],
+  };
+  const { record, rejects } = cleanRecord(rec);
+  assert.equal(record.facts.name, "Acme Services S.A.");
+  assert.equal(record.facts.website, "https://acme.lu");
+  assert.equal(record.facts.phone, "+35226123456");
+  assert.equal(record.facts.address?.postcode, "L-1234");
+  assert.equal(record.facts.address?.country, "LU");
+  assert.equal(record.facts.email, undefined, "a person's e-mail is dropped");
+  assert.equal(record.facts.headcount, undefined);
+  assert.deepEqual(record.people?.map((p) => [p.fullName, p.title]), [["Marie Curie", "CEO"]]);
+  assert.deepEqual(rejects.map((r) => r.attribute).sort(), ["email", "headcount", "people"]);
+  assert.equal(rec.facts.email, "jean.dupont@acme.lu", "the input is not modified");
+  assert.equal(canonicalUrl("not a url"), null);
+  assert.equal(normalizePhone("0049 30 1234567"), "+49301234567");
+  assert.equal(normalizePostcode("2222", "BE"), "2222");
+});
+
+const pol = (p: Partial<ReviewPolicy>): ReviewPolicy => ({ id: 1, source: "*", scope: "*", mode: "auto", conditions: {}, sampleRate: 0, enabled: true, note: null, updatedBy: null, updatedAt: new Date(), ...p });
+
+test("gate: most specific policy wins; each mode and condition", () => {
+  const all = [pol({ id: 1 }), pol({ id: 2, source: "cssf", mode: "review_if", conditions: { protectedAttributes: ["status"], parserChanged: true } }), pol({ id: 3, source: "cssf", scope: "SPP", mode: "review_all" }), pol({ id: 4, source: "gleif", mode: "review_all", enabled: false })];
+  assert.equal(pickPolicy(all, "cssf", "SPP")?.id, 3);
+  assert.equal(pickPolicy(all, "cssf", "B")?.id, 2);
+  assert.equal(pickPolicy(all, "gleif", null)?.id, 1, "disabled policies are skipped");
+  const base = { source: "cssf", scope: "B", newRecord: false, newCompany: false, parserChanged: false, changes: [], confidence: null };
+  assert.equal(evaluate(all[1], base).hold, false);
+  assert.deepEqual(evaluate(all[1], { ...base, changes: [{ kind: "status_change", attribute: "status" }] }).reasons, ["protected attribute changed: status"]);
+  assert.equal(evaluate(all[1], { ...base, parserChanged: true }).hold, true);
+  assert.equal(evaluate(all[1], { ...base, newRecord: true, parserChanged: true, changes: [{ kind: "new_record" }] }).hold, false, "a first version is not a 'change'");
+  assert.equal(evaluate(pol({ mode: "review_if", conditions: { minConfidence: 0.8 } }), { ...base, confidence: 0.6 }).reasons[0], "confidence 60% below 80%");
+  assert.equal(evaluate(pol({ mode: "sample", sampleRate: 0.1 }), { ...base, random: 0.05 }).hold, true);
+  assert.equal(evaluate(pol({ mode: "sample", sampleRate: 0.1 }), { ...base, random: 0.5 }).hold, false);
+});
+
+test("consolidate: precedence, lineage, conflicts (cosmetic differences are not conflicts), manual wins", () => {
+  const out = consolidate(
+    [
+      { id: 1, source: "gleif", attribute: "name", value: "ACME SERVICES S.A." },
+      { id: 2, source: "rcs", attribute: "name", value: "Acme Services SA" },
+      { id: 3, source: "rcs", attribute: "status", value: "unknown" },
+      { id: 4, source: "gleif", attribute: "status", value: "active" },
+      { id: 5, source: "rcs", attribute: "address", value: { raw: "x", postcode: "L-1111" } },
+      { id: 6, source: "gleif", attribute: "address", value: { raw: "y", postcode: "L-2222" } },
+      { id: 7, source: "website", attribute: "website", value: "https://acme.lu" },
+      { id: 8, source: "manual", attribute: "website", value: "https://www.acme.com" },
+    ],
+    SEED_PRECEDENCE,
+  );
+  assert.equal(out.golden.canonicalName, "Acme Services SA");
+  assert.equal(out.golden.status, "active", "'unknown' never overrides a real status");
+  assert.equal(out.golden.website, "https://www.acme.com");
+  assert.deepEqual(out.conflicts.map((c) => c.attribute), ["address"], "names differ only cosmetically");
+  const name = out.lineage.find((l) => l.attribute === "name")!;
+  assert.deepEqual([name.source, name.claimId, name.sourcesAgreeing, name.sourcesTotal], ["rcs", 2, 2, 2]);
+  assert.equal(out.sourceCount, 3);
+});
+
+test("mentions: dictionary match by tokens, confidence, distinctive names only", () => {
+  const idx = buildIndex([
+    { id: "a", normalized_name: "arendt and medernach", canonical_name: "Arendt & Medernach SA" },
+    { id: "b", normalized_name: "capital", canonical_name: "Capital SA" },
+    { id: "c", normalized_name: "alterdomus", canonical_name: "Alterdomus" },
+  ]);
+  const hits = findMentions("Arendt & Medernach SA advised the deal in Luxembourg; Alterdomus administers it. Capital markets…", idx, "c");
+  const by = Object.fromEntries(hits.map((h) => [h.companyId, h.confidence]));
+  assert.equal(by.a, 0.9);
+  assert.equal(by.c, 0.99);
+  assert.equal(by.b, undefined, "one common word is never a mention");
+});
+
+import { pressName } from "../src/pipeline/mentions";
+
+test("mentions: press-name alias ('Creditreform Luxembourg S.A.' is written 'Creditreform')", () => {
+  assert.equal(pressName("Banque de Luxembourg"), "Banque de Luxembourg");
+  assert.equal(pressName("Alter Domus (Luxembourg) S.à r.l."), "Alter Domus");
+  const idx = buildIndex([{ id: "k", normalized_name: "creditreform luxembourg", canonical_name: "Creditreform Luxembourg S.A." }]);
+  assert.deepEqual(findMentions("Creditreform warns of rising insolvencies", idx, null).map((h) => h.companyId), ["k"]);
 });

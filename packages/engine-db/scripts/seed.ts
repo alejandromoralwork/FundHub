@@ -1,9 +1,12 @@
 /**
  * FILE: packages/engine-db/scripts/seed.ts
  * PART: shared package (packages/engine-db)
- * WHAT IT DOES: Loads the engine's reference data: the activity category tree (the 8 website categories from
- *   packages/core/src/taxonomy.ts with their services as subcategories, plus the extra roots in
- *   src/seed-data.ts), the classification rules and the RCS prefixes. Idempotent: re-running updates rows.
+ * WHAT IT DOES: Loads the Intelligence DB's reference data: the activity category tree (the 8 website
+ *   categories from packages/core/src/taxonomy.ts with their services as subcategories, plus the extra roots in
+ *   src/seed-data.ts), the classification rules, the RCS prefixes, and pipeline control: the source registry,
+ *   attribute precedence, staging review policies, news feeds and quality checks.
+ *   Idempotent: re-running updates descriptions but keeps what staff changed in the console (enabled flags,
+ *   policies, precedence) — only rows that do not exist yet are created for those.
  * WHERE IT RUNS: from the command line (`npm run engine:db:seed`) and at container start.
  * TYPESCRIPT YOU WILL SEE HERE: `for…of` loops, `Map`, `await` inside loops, `onConflictDoUpdate` (upsert).
  */
@@ -11,8 +14,8 @@
 import "dotenv/config";
 import { TAXONOMY } from "@fundhub/core/taxonomy";
 import { db, pool } from "../src/client";
-import { activityCategories, classificationRules, rcsNumberSpace } from "../src/schema";
-import { EXTRA_CATEGORIES, RCS_PREFIXES, RULES, subSlug, type CategorySeed } from "../src/seed-data";
+import { activityCategories, attributePrecedence, classificationRules, lbrNumberSpace, newsFeeds, qualityChecks, reviewPolicies, sources } from "../src/schema";
+import { EXTRA_CATEGORIES, NEWS_FEEDS, PRECEDENCE, QUALITY_CHECKS, RCS_PREFIXES, REVIEW_POLICIES, RULES, SOURCES, subSlug, type CategorySeed } from "../src/seed-data";
 
 /**
  * Kind: async function. Upserts one category row.
@@ -56,7 +59,7 @@ async function main() {
       kind: r.kind,
       match: r.match,
       isServiceProvider: r.isServiceProvider ?? null,
-      entityKind: r.entityKind ?? null,
+      companyKind: r.companyKind ?? null,
       categoryId: idOf(r.category),
       subcategoryId: idOf(r.subcategory),
       tier: r.tier ?? null,
@@ -68,10 +71,44 @@ async function main() {
 
   // RCS prefixes: keep progress counters, only refresh label / enabled.
   for (const p of RCS_PREFIXES) {
-    await db.insert(rcsNumberSpace).values(p).onConflictDoUpdate({ target: rcsNumberSpace.prefix, set: { label: p.label, enabled: p.enabled } });
+    await db.insert(lbrNumberSpace).values(p).onConflictDoUpdate({ target: lbrNumberSpace.prefix, set: { label: p.label } });
   }
 
-  console.log(`✔ Engine seed: ${ids.size} categories, ${RULES.length} rules, ${RCS_PREFIXES.length} RCS prefixes`);
+  // Source registry: descriptive fields follow this file; `enabled` and limits stay as staff set them.
+  let sourceSort = 0;
+  for (const s of SOURCES) {
+    const row = { ...s, sort: sourceSort++ };
+    await db
+      .insert(sources)
+      .values(row)
+      .onConflictDoUpdate({ target: sources.code, set: { system: s.system, name: s.name, kind: s.kind, acquisition: s.acquisition, homepage: s.homepage ?? null, description: s.description, complianceNote: s.complianceNote ?? null, sort: row.sort } });
+  }
+
+  // Precedence: "manual" first, then the listed order. Existing ranks (edited in the console) are kept.
+  let precedenceRows = 0;
+  for (const [attribute, list] of Object.entries(PRECEDENCE)) {
+    const rows = ["manual" as const, ...list].map((source, rank) => ({ attribute, source, rank }));
+    precedenceRows += rows.length;
+    await db.insert(attributePrecedence).values(rows).onConflictDoNothing();
+  }
+
+  for (const p of REVIEW_POLICIES) {
+    await db
+      .insert(reviewPolicies)
+      .values({ source: p.source, scope: p.scope ?? "*", mode: p.mode, conditions: p.conditions ?? {}, sampleRate: p.sampleRate ?? 0, note: p.note, updatedBy: "seed" })
+      .onConflictDoNothing();
+  }
+  for (const f of NEWS_FEEDS) await db.insert(newsFeeds).values(f).onConflictDoNothing();
+  let qsort = 0;
+  for (const q of QUALITY_CHECKS) {
+    const row = { code: q.code, label: q.label, description: q.description, layer: q.layer, min: q.min ?? null, max: q.max ?? null, sort: qsort++ };
+    await db.insert(qualityChecks).values(row).onConflictDoUpdate({ target: qualityChecks.code, set: { label: row.label, description: row.description, layer: row.layer, sort: row.sort } });
+  }
+
+  console.log(
+    `✔ Intelligence DB seed: ${ids.size} categories, ${RULES.length} rules, ${RCS_PREFIXES.length} RCS prefixes, ${SOURCES.length} sources, ` +
+      `${precedenceRows} precedence rows, ${REVIEW_POLICIES.length} review policies, ${NEWS_FEEDS.length} news feeds, ${QUALITY_CHECKS.length} quality checks`,
+  );
 }
 
 main()

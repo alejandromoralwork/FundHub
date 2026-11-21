@@ -9,7 +9,7 @@
  *   - clients / relations: add, end (ended ones stay listed as history);
  *   - tabs: source records, attribute history (every value every source ever stated, with dates), change
  *     events (who / what / when), CSSF statuses, RCS filings, names, row history (database-level audit).
- * WHERE IT RUNS: in the browser (client component), rendered by app/(console)/engine/registry/[id]/page.tsx.
+ * WHERE IT RUNS: in the browser (client component), rendered by app/(console)/engine/companies/[id]/page.tsx.
  * TYPESCRIPT YOU WILL SEE HERE: `Form` + `Modal`, computed diffs before saving, `Record` lookups.
  */
 
@@ -18,7 +18,7 @@ import Link from "next/link";
 import { Alert, Button, Card, Checkbox, Col, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Table, Tabs, Tag, Typography } from "antd";
 import { EditOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { ENTITY_KINDS, ENTITY_STATUSES, RELATION_KINDS } from "@fundhub/engine-db/enums";
+import { COMPANY_KINDS, COMPANY_STATUSES, RELATION_KINDS } from "@fundhub/engine-db/enums";
 import type { categoryOptions, entityDetail } from "@/lib/engine-data";
 import { addRelation, endRelationAction, saveEntityEdit } from "@/lib/engine-actions";
 import { fmt, short, STATE_COLOR } from "./engine-overview";
@@ -38,11 +38,17 @@ const FIELDS: { attr: string; label: string; get: (e: Detail["entity"]) => unkno
   { attr: "rcsNumber", label: "RCS number", get: (e) => e.rcsNumber, editable: false },
   { attr: "lei", label: "LEI", get: (e) => e.lei, editable: false },
   { attr: "website", label: "Website", get: (e) => e.website, editable: true },
+  { attr: "description", label: "Description", get: (e) => e.description, editable: false },
+  { attr: "phone", label: "Phone", get: (e) => e.phone, editable: false },
+  { attr: "email", label: "E-mail (generic)", get: (e) => e.email, editable: false },
+  { attr: "headcount", label: "Headcount", get: (e) => e.headcount, editable: false },
+  { attr: "foundedYear", label: "Founded", get: (e) => e.foundedYear, editable: false },
+  { attr: "services", label: "Services", get: (e) => e.services, editable: false },
   { attr: "operatingCountries", label: "Countries of operation", get: (e) => e.operatingCountries, editable: true },
   { attr: "logo", label: "Logo", get: (e) => e.logo?.sourceUrl, editable: false },
 ];
 
-const SOURCE_COLOR: Record<string, string> = { manual: "purple", rcs: "geekblue", lbr_bulk: "blue", cssf: "cyan", gleif: "green", web: "gold" };
+export const SOURCE_COLOR: Record<string, string> = { manual: "purple", rcs: "geekblue", lbr_bulk: "blue", cssf: "cyan", gleif: "green", fundhub: "magenta", website: "gold", news: "volcano", linkedin: "blue", glassdoor: "lime", instagram: "pink", facebook: "blue", x: "default" };
 const show = (v: unknown) => (Array.isArray(v) ? (v.length ? v.join(", ") : "—") : v === null || v === undefined || v === "" ? "—" : String(v));
 
 /** Kind: React component. The edit modal for golden fields (only changed fields are sent). */
@@ -82,7 +88,7 @@ function EditModal({ d, open, onClose }: { d: Detail; open: boolean; onClose: ()
         <Form.Item name="name" label="Name" rules={[{ required: true }]}><Input /></Form.Item>
         <Row gutter={12}>
           <Col span={12}><Form.Item name="legalForm" label="Legal form"><Input /></Form.Item></Col>
-          <Col span={12}><Form.Item name="status" label="Status"><Select options={ENTITY_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))} /></Form.Item></Col>
+          <Col span={12}><Form.Item name="status" label="Status"><Select options={COMPANY_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))} /></Form.Item></Col>
         </Row>
         <Form.Item name="address" label="Registered address (one line)"><Input placeholder="9, rue de Bitbourg, L-1273 Luxembourg" /></Form.Item>
         <Row gutter={12}>
@@ -117,9 +123,9 @@ function ClassificationModal({ d, categories, open, onClose }: { d: Detail; cate
         </Space>
       )}>
       <Form form={form} layout="vertical" onFinish={save}
-        initialValues={{ isServiceProvider: e.isServiceProvider, entityKind: e.entityKind, activityCategoryId: e.activityCategoryId, activitySubcategoryId: e.activitySubcategoryId, tier: e.tier }}>
+        initialValues={{ isServiceProvider: e.isServiceProvider, companyKind: e.companyKind, activityCategoryId: e.activityCategoryId, activitySubcategoryId: e.activitySubcategoryId, tier: e.tier }}>
         <Form.Item name="isServiceProvider" valuePropName="checked"><Checkbox>Service provider (in FundHub's directory scope)</Checkbox></Form.Item>
-        <Form.Item name="entityKind" label="Kind"><Select options={ENTITY_KINDS.map((k) => ({ value: k, label: k.replace(/_/g, " ") }))} /></Form.Item>
+        <Form.Item name="companyKind" label="Kind"><Select options={COMPANY_KINDS.map((k) => ({ value: k, label: k.replace(/_/g, " ") }))} /></Form.Item>
         <Form.Item name="activityCategoryId" label="Category">
           <Select allowClear options={categories.filter((c) => c.level === 1).map((c) => ({ value: c.id, label: c.label }))} onChange={() => form.setFieldValue("activitySubcategoryId", null)} />
         </Form.Item>
@@ -133,13 +139,13 @@ function ClassificationModal({ d, categories, open, onClose }: { d: Detail; cate
 }
 
 /** Kind: React component. Add-a-client form. */
-function AddRelation({ entityId }: { entityId: string }) {
+function AddRelation({ companyId }: { companyId: string }) {
   const { run, pending } = useAction();
   const [form] = Form.useForm();
   return (
     <Form form={form} layout="inline" initialValues={{ kind: "client" }}
       onFinish={(v) => run(async () => {
-        const res = await addRelation(entityId, { ...v, evidenceUrl: v.evidenceUrl || null });
+        const res = await addRelation(companyId, { ...v, evidenceUrl: v.evidenceUrl || null });
         if (!res.error) form.resetFields(["objectName", "evidenceUrl"]);
         return res;
       })}>
@@ -163,14 +169,25 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Card
-        title={<Space wrap><span style={{ fontSize: 18 }}>{e.canonicalName}</span><Tag color={STATUS_COLOR[e.status]}>{e.status.replace(/_/g, " ")}</Tag>{e.isServiceProvider && <Tag color="blue">service provider</Tag>}<Tag>{e.entityKind.replace(/_/g, " ")}</Tag><Tag>tier {e.tier}</Tag></Space>}
-        extra={<Space><Link href="/engine/registry">← Registry</Link>{canEdit && <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>}</Space>}
+        title={<Space wrap><span style={{ fontSize: 18 }}>{e.canonicalName}</span><Tag color={STATUS_COLOR[e.status]}>{e.status.replace(/_/g, " ")}</Tag>{e.isServiceProvider && <Tag color="blue">service provider</Tag>}<Tag>{e.companyKind.replace(/_/g, " ")}</Tag><Tag>tier {e.tier}</Tag></Space>}
+        extra={<Space><Link href="/engine/companies">← Companies</Link>{canEdit && <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>}</Space>}
       >
         <Table size="small" pagination={false} rowKey="attr" dataSource={FIELDS}
           columns={[
             { title: "Field", dataIndex: "label", width: 190 },
             { title: "Value", render: (_, f) => (f.attr === "website" && e.website ? <a href={e.website} target="_blank" rel="noreferrer">{e.website}</a> : show(f.get(e))) },
             { title: "From", width: 110, render: (_, f) => (d.winners[f.attr] ? <Tag color={SOURCE_COLOR[d.winners[f.attr]!]}>{d.winners[f.attr]}</Tag> : "—") },
+            {
+              title: "Cross-check",
+              width: 150,
+              render: (_, f) => {
+                const l = d.lineage.find((x) => x.attribute === f.attr);
+                const c = d.conflicts.find((x) => x.attribute === f.attr && x.status === "open");
+                if (c) return <Link href="/engine/review?tab=conflicts"><Tag color="red">sources disagree</Tag></Link>;
+                if (!l) return "—";
+                return <Tag color={l.sourcesTotal > 1 ? "green" : undefined}>{l.sourcesAgreeing}/{l.sourcesTotal} source{l.sourcesTotal > 1 ? "s" : ""} agree</Tag>;
+              },
+            },
             {
               title: "",
               width: 140,
@@ -183,7 +200,7 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
             },
           ]} />
         <Typography.Text type="secondary" style={{ display: "block", marginTop: 8 }}>
-          First seen {fmt(e.firstSeenAt)} · last changed {fmt(e.lastChangedAt)} · last seen {fmt(e.lastSeenAt)}{e.websiteVerifiedAt ? ` · website verified ${fmt(e.websiteVerifiedAt)}` : ""}
+          Stated by {e.sourceCount} source{e.sourceCount === 1 ? "" : "s"} · first seen {fmt(e.firstSeenAt)} · last changed {fmt(e.lastChangedAt)} · last seen {fmt(e.lastSeenAt)}{e.websiteVerifiedAt ? ` · website verified ${fmt(e.websiteVerifiedAt)}` : ""}
         </Typography.Text>
       </Card>
 
@@ -193,7 +210,7 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
             <Descriptions size="small" column={1}
               items={[
                 { label: "Service provider", children: e.isServiceProvider ? "yes" : "no" },
-                { label: "Kind", children: e.entityKind.replace(/_/g, " ") },
+                { label: "Kind", children: e.companyKind.replace(/_/g, " ") },
                 { label: "Category", children: catLabel(e.activityCategoryId) },
                 { label: "Subcategory", children: catLabel(e.activitySubcategoryId) },
                 { label: "Tier", children: e.tier },
@@ -207,18 +224,18 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
             {d.clientOf.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <Typography.Text strong>Client of: </Typography.Text>
-                {d.clientOf.map((c) => <Tag key={c.id}><Link href={`/engine/registry/${c.providerId}`}>{c.providerName}</Link> ({c.kind}){c.validTo ? " — ended" : ""}</Tag>)}
+                {d.clientOf.map((c) => <Tag key={c.id}><Link href={`/engine/companies/${c.providerId}`}>{c.providerName}</Link> ({c.kind}){c.validTo ? " — ended" : ""}</Tag>)}
               </div>
             )}
           </Card>
         </Col>
       </Row>
 
-      <Card size="small" title={`Clients & relations (${d.relations.filter((r) => !r.validTo).length} current)`} extra={canEdit && <AddRelation entityId={e.id} />}>
+      <Card size="small" title={`Clients & relations (${d.relations.filter((r) => !r.validTo).length} current)`} extra={canEdit && <AddRelation companyId={e.id} />}>
         <Table size="small" rowKey="id" dataSource={d.relations} pagination={{ pageSize: 20 }}
           columns={[
             { title: "Role", dataIndex: "kind", render: (k: string) => <Tag>{k.replace(/_/g, " ")}</Tag>, width: 150 },
-            { title: "Name", render: (_, r) => (r.objectEntityId ? <Link href={`/engine/registry/${r.objectEntityId}`}>{r.objectName}</Link> : r.objectName) },
+            { title: "Name", render: (_, r) => (r.objectCompanyId ? <Link href={`/engine/companies/${r.objectCompanyId}`}>{r.objectName}</Link> : r.objectName) },
             { title: "Source", dataIndex: "source", render: (s: string) => <Tag color={SOURCE_COLOR[s]}>{s}</Tag>, width: 90 },
             { title: "Evidence", dataIndex: "evidenceUrl", render: (u: string | null) => (u ? <a href={u} target="_blank" rel="noreferrer">link</a> : "—"), width: 80 },
             { title: "Since", dataIndex: "validFrom", render: fmt, width: 150 },
@@ -234,6 +251,82 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
       <Card size="small">
         <Tabs
           items={[
+            {
+              key: "people",
+              label: `People (${d.team.filter((p) => !p.validTo).length})`,
+              children: (
+                <Table size="small" rowKey="id" dataSource={d.team} pagination={{ pageSize: 25 }}
+                  columns={[
+                    { title: "Name", render: (_, p) => (p.profileUrl ? <a href={p.profileUrl} target="_blank" rel="noreferrer">{p.name}</a> : p.name) },
+                    { title: "Title", dataIndex: "title" },
+                    { title: "Role", dataIndex: "role", render: (r: string) => <Tag>{r.replace(/_/g, " ")}</Tag>, width: 160 },
+                    { title: "Source", dataIndex: "source", render: (s: string) => <Tag color={SOURCE_COLOR[s]}>{s}</Tag>, width: 90 },
+                    { title: "Evidence", dataIndex: "evidenceUrl", render: (u: string | null) => (u ? <a href={u} target="_blank" rel="noreferrer">page</a> : "—"), width: 80 },
+                    { title: "Since", dataIndex: "validFrom", render: fmt, width: 150 },
+                    { title: "Until", dataIndex: "validTo", render: (v: string | null) => (v ? fmt(v) : <Tag color="green">current</Tag>), width: 150 },
+                  ]} />
+              ),
+            },
+            {
+              key: "web",
+              label: `Web & social (${d.presence.length})`,
+              children: (
+                <Table size="small" rowKey="id" dataSource={d.presence} pagination={false}
+                  columns={[
+                    { title: "Platform", dataIndex: "platform", render: (p: string) => <Tag>{p}</Tag>, width: 110 },
+                    { title: "Profile", dataIndex: "url", render: (u: string) => <a href={u} target="_blank" rel="noreferrer">{u}</a> },
+                    { title: "Verified", dataIndex: "verified", render: (v: boolean) => (v ? <Tag color="green">✓ verified</Tag> : <Tag>unverified</Tag>), width: 110 },
+                    { title: "Followers", dataIndex: "followers", render: (v: number | null) => v?.toLocaleString("en") ?? "—", width: 100 },
+                    { title: "Source", dataIndex: "source", render: (s: string) => <Tag color={SOURCE_COLOR[s]}>{s}</Tag>, width: 90 },
+                    { title: "Last seen", dataIndex: "lastSeenAt", render: fmt, width: 150 },
+                  ]} />
+              ),
+            },
+            {
+              key: "news",
+              label: `News (${d.news.filter((n) => n.decision !== "rejected").length})`,
+              children: (
+                <Table size="small" rowKey="id" dataSource={d.news.filter((n) => n.decision !== "rejected")} pagination={{ pageSize: 20 }}
+                  columns={[
+                    { title: "Published", dataIndex: "publishedAt", render: fmt, width: 150 },
+                    { title: "Article", render: (_, n) => <Space direction="vertical" size={0}><a href={n.url} target="_blank" rel="noreferrer">{n.title}</a><Typography.Text type="secondary">{n.snippet ?? ""}</Typography.Text></Space> },
+                    { title: "By", dataIndex: "author", width: 160 },
+                    { title: "Match", render: (_, n) => <Tag color={n.decision === "pending" ? "orange" : undefined}>{n.decision === "pending" ? "to review" : `${Math.round(n.confidence * 100)}%`}</Tag>, width: 100 },
+                  ]} />
+              ),
+            },
+            {
+              key: "lineage",
+              label: `Lineage & conflicts${d.conflicts.some((c) => c.status === "open") ? " ⚠" : ""}`,
+              children: (
+                <Space direction="vertical" style={{ width: "100%" }}>
+                  <Typography.Text type="secondary">For each golden field: the source whose value is used (precedence) and how many of the sources that state the field agree with it. All current claims are below, per source.</Typography.Text>
+                  <Table size="small" rowKey="attribute" dataSource={d.lineage} pagination={false}
+                    columns={[
+                      { title: "Field", dataIndex: "attribute", render: (a: string) => <span className="mono">{a}</span>, width: 170 },
+                      { title: "Used", dataIndex: "source", render: (s: string) => <Tag color={SOURCE_COLOR[s]}>{s}</Tag>, width: 90 },
+                      { title: "Value", dataIndex: "value", render: short },
+                      { title: "Agreement", render: (_, l) => `${l.sourcesAgreeing} of ${l.sourcesTotal}`, width: 100 },
+                      {
+                        title: "Other sources say",
+                        render: (_, l) =>
+                          d.open
+                            .filter((o) => o.attribute === l.attribute && o.source !== l.source)
+                            .map((o) => <div key={o.source}><Tag color={SOURCE_COLOR[o.source]}>{o.source}</Tag>{short(o.value)}</div>),
+                      },
+                    ]} />
+                  {d.conflicts.length > 0 && (
+                    <Table size="small" rowKey="id" dataSource={d.conflicts} pagination={false} title={() => "Conflicts"}
+                      columns={[
+                        { title: "Field", dataIndex: "attribute", width: 170 },
+                        { title: "Status", dataIndex: "status", render: (s: string) => <Tag color={s === "open" ? "red" : undefined}>{s}</Tag>, width: 100 },
+                        { title: "Values", render: (_, c) => c.values.map((v) => <div key={v.source}><Tag color={SOURCE_COLOR[v.source]}>{v.source}</Tag>{short(v.value)}</div>) },
+                        { title: "Updated", dataIndex: "updatedAt", render: fmt, width: 150 },
+                      ]} />
+                  )}
+                </Space>
+              ),
+            },
             {
               key: "events",
               label: `Change events (${d.events.length})`,
@@ -283,7 +376,7 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
             },
             {
               key: "cssf",
-              label: `CSSF (${d.details.length})`,
+              label: `CSSF licences (${d.details.length})`,
               children: (
                 <Table size="small" rowKey="id" dataSource={d.details} pagination={{ pageSize: 25 }}
                   columns={[
@@ -298,7 +391,7 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
             },
             {
               key: "filings",
-              label: `RCS filings (${d.filings.length})`,
+              label: `LBR filings (${d.filings.length})`,
               children: (
                 <Table size="small" rowKey="filingNumber" dataSource={d.filings} pagination={{ pageSize: 25 }}
                   columns={[

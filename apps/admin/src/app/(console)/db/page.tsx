@@ -56,6 +56,21 @@ const FOREIGN_KEYS = sql`
   where c.contype = 'f' and n.nspname = 'public'`;
 type FkRow = { from_table: string; from_col: string; to_table: string; to_col: string };
 
+/** Kind: constant. The Intelligence DB's layer schemas, in pipeline order (packages/engine-db/src/schema/shared.ts). */
+const ENGINE_LAYERS = ["raw", "staging", "clean", "match", "core", "ops"];
+/** Kind: constant. Foreign keys of the Intelligence DB, schema-qualified ("core.companies"). */
+const ENGINE_FOREIGN_KEYS = sql`
+  select n.nspname || '.' || cl.relname as from_table, att.attname as from_col, nf.nspname || '.' || clf.relname as to_table, attf.attname as to_col
+  from pg_constraint c
+  join pg_class cl on cl.oid = c.conrelid
+  join pg_namespace n on n.oid = cl.relnamespace
+  join pg_class clf on clf.oid = c.confrelid
+  join pg_namespace nf on nf.oid = clf.relnamespace
+  cross join lateral unnest(c.conkey, c.confkey) as k(a, b)
+  join pg_attribute att on att.attrelid = c.conrelid and att.attnum = k.a
+  join pg_attribute attf on attf.attrelid = c.confrelid and attf.attnum = k.b
+  where c.contype = 'f' and n.nspname in ('raw', 'staging', 'clean', 'match', 'core', 'ops')`;
+
 /** Kind: constant. The website-database roles, one per part of FundHub (packages/db/scripts/roles.ts). */
 const ROLES = ["fundhub_web", "fundhub_admin", "fundhub_scraper", "fundhub_analyst_ro"] as const;
 
@@ -135,18 +150,18 @@ export default async function DatabasePage() {
     };
   });
 
-  // Scraping Engine tables (separate database). Row counts are Postgres estimates there (some tables grow to
-  // millions of rows), and an unreachable engine database just leaves its section out.
+  // Intelligence DB tables (separate database, one Postgres schema per pipeline layer). Row counts are Postgres
+  // estimates there (some tables grow to millions of rows); an unreachable database just leaves its section out.
   // In development, start the local engine database first if it is down (lib/engine-boot.ts).
   await ensureEngineDb();
   try {
     const engine = await engineDb.execute<{ table_name: string; rows: number; size: string }>(sql`
-      select c.relname as table_name,
+      select n.nspname || '.' || c.relname as table_name,
              greatest(c.reltuples, 0)::bigint as rows,
              pg_size_pretty(pg_total_relation_size(c.oid)) as size
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-      where n.nspname = 'public' and c.relkind = 'r' and c.relname not like '__drizzle%'
-      order by c.relname`);
+      where n.nspname in (${sql.join(ENGINE_LAYERS.map((x) => sql`${x}`), sql`, `)}) and c.relkind = 'r'
+      order by array_position(${`{${ENGINE_LAYERS.join(",")}}`}::text[], n.nspname::text), c.relname`);
     for (const r of engine.rows) {
       const reg = byTable.get(r.table_name);
       tables.push({
@@ -155,7 +170,7 @@ export default async function DatabasePage() {
         size: r.size,
         resource: reg?.key ?? null,
         label: reg?.def.label ?? null,
-        group: "Scraping engine",
+        group: reg?.def.group ?? `Intelligence · ${r.table_name.split(".")[0]}`,
         editable: !!reg?.def.write?.includes(staff.role),
         restricted: false,
       });
@@ -168,7 +183,7 @@ export default async function DatabasePage() {
   const relations: DbRelation[] = [];
   const fk = await db.execute<FkRow>(FOREIGN_KEYS).catch(() => ({ rows: [] as FkRow[] }));
   for (const r of fk.rows) relations.push({ from: r.from_table, fromCol: r.from_col, to: r.to_table, toCol: r.to_col });
-  const efk = await engineDb.execute<FkRow>(FOREIGN_KEYS).catch(() => ({ rows: [] as FkRow[] }));
+  const efk = await engineDb.execute<FkRow>(ENGINE_FOREIGN_KEYS).catch(() => ({ rows: [] as FkRow[] }));
   for (const r of efk.rows) relations.push({ from: `engine.${r.from_table}`, fromCol: r.from_col, to: `engine.${r.to_table}`, toCol: r.to_col });
 
   // Live grants (has_table_privilege works for any existing role); roles missing here → expected grants.

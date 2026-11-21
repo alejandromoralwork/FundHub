@@ -2,7 +2,7 @@
 /**
  * FILE: apps/admin/src/components/engine-overview.tsx
  * PART: console (apps/admin)
- * WHAT IT DOES: The Scraping Engine dashboard: headline totals, RCS session state (with pause / resume),
+ * WHAT IT DOES: The operational part of the Pipeline page (under the dataflow diagram): headline totals, RCS session state (with pause / resume),
  *   today's census per source (expected vs seen, new, gone), RCS coverage per prefix, queue state, recent runs
  *   and the latest change events. Data comes from lib/engine-data.ts engineDashboard().
  * WHERE IT RUNS: in the browser (client component), rendered by app/(console)/engine/page.tsx.
@@ -34,7 +34,7 @@ export const short = (v: unknown) => {
 /** Kind: React component. Shown when the engine database cannot be reached. */
 export function EngineUnavailable({ error }: { error: string }) {
   return (
-    <Alert type="error" showIcon message="The Scraping Engine database is not reachable."
+    <Alert type="error" showIcon message="The Intelligence database is not reachable."
       description={<>Set <code>ENGINE_DATABASE_URL</code> for the Console (locally: <code>npm run engine:db:local</code>, then <code>npm run engine:db:setup</code>). Error: {error}</>} />
   );
 }
@@ -98,16 +98,16 @@ export function EngineOverview({ data, round }: { data: Data; round: Round }) {
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <CurrentRoundCard round={round} />
       <Row gutter={16}>
-        <Col span={4}><Card size="small"><Statistic title="Entities" value={t.entities} /></Card></Col>
+        <Col span={4}><Card size="small"><Statistic title="Companies" value={t.companies} /></Card></Col>
         <Col span={4}><Card size="small"><Statistic title="Service providers" value={t.service_providers} /></Card></Col>
         <Col span={4}><Card size="small"><Statistic title="With RCS number" value={t.with_rcs} /></Card></Col>
         <Col span={4}><Card size="small"><Statistic title="With LEI" value={t.with_lei} /></Card></Col>
         <Col span={4}>
           <Card size="small">
-            <Link href="/engine/matches"><Statistic title="Matches to review" value={t.pending_matches} valueStyle={t.pending_matches ? { color: "#d97706" } : undefined} /></Link>
+            <Link href="/engine/review?tab=matches"><Statistic title="Matches to review" value={t.pending_matches} valueStyle={t.pending_matches ? { color: "#d97706" } : undefined} /></Link>
           </Card>
         </Col>
-        <Col span={4}><Card size="small"><Link href="/engine/registry"><Button type="primary" block>Open registry</Button></Link><Link href="/engine/jobs"><Button block style={{ marginTop: 8 }}>Jobs</Button></Link></Card></Col>
+        <Col span={4}><Card size="small"><Link href="/engine/companies"><Button type="primary" block>Open companies</Button></Link><Link href="/engine/jobs"><Button block style={{ marginTop: 8 }}>Jobs</Button></Link></Card></Col>
       </Row>
 
       <Row gutter={16}>
@@ -172,7 +172,7 @@ export function EngineOverview({ data, round }: { data: Data; round: Round }) {
         <Table size="small" pagination={false} rowKey="id" dataSource={data.events}
           columns={[
             { title: "When", dataIndex: "detectedAt", render: fmt, width: 150 },
-            { title: "Entity", render: (_, r) => (r.entityId ? <Link href={`/engine/registry/${r.entityId}`}>{r.entityName ?? r.entityId}</Link> : "—") },
+            { title: "Company", render: (_, r) => (r.companyId ? <Link href={`/engine/companies/${r.companyId}`}>{r.entityName ?? r.companyId}</Link> : "—") },
             { title: "Change", dataIndex: "kind", render: (k: string, r) => <Space size={4}><Tag>{k}</Tag>{r.attribute && <span className="mono">{r.attribute}</span>}</Space> },
             { title: "Source", dataIndex: "source", render: (s: string) => <Tag color={s === "manual" ? "purple" : undefined}>{s}</Tag> },
             { title: "New value", dataIndex: "newValue", render: short },

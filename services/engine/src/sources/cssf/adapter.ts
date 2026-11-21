@@ -1,7 +1,7 @@
 /**
  * FILE: services/engine/src/sources/cssf/adapter.ts
  * PART: scraping engine (services/engine) — source "cssf"
- * WHAT IT DOES: Talks to the public JSON API behind CSSF eDesk "Search entities"
+ * WHAT IT DOES: Talks to the public JSON API behind CSSF eDesk "Search companies"
  *   (https://edesk.apps.cssf.lu/search-entities). No login, no browser needed:
  *     GET {base}/api/v1/entite?page=P&size=N&st=advanced&entType=SPP   → a page + totalElements (census)
  *     GET {base}/api/v1/entite/{entiteId}                                → one entity with all details
@@ -16,7 +16,7 @@ import type { RawCapture, SourceAdapter } from "../../core/types";
 import { CSSF_PARSER_VERSION, parseCssf, type CssfApiEntity } from "./parse";
 
 /**
- * Kind: constant. Entity types the census walks. Order = importance for FundHub, so a partial run already
+ * Kind: constant. Company types the census walks. Order = importance for FundHub, so a partial run already
  * covers the service providers. (CI, IFM and VAP return 0 on the API today; kept so new entries are noticed.)
  */
 export const CENSUS_TYPES = [

@@ -58,6 +58,23 @@ if [ "$DIFF_ONLY" = 1 ]; then
   exit 0
 fi
 
+say "Swap (4 GB file)"
+# The VM has 4 GB RAM and no swap: when memory runs out it freezes instead of slowing down.
+# Created once; /etc/fstab turns it on at every boot. Safe to re-run (skips what already exists).
+SWAP_FILE=/swapfile
+if ! swapon --show=NAME --noheadings | grep -qx "$SWAP_FILE"; then
+  if [ ! -f "$SWAP_FILE" ]; then
+    fallocate -l 4G "$SWAP_FILE" || dd if=/dev/zero of="$SWAP_FILE" bs=1M count=4096 status=none
+    chmod 600 "$SWAP_FILE"
+    mkswap "$SWAP_FILE" >/dev/null
+  fi
+  swapon "$SWAP_FILE"
+fi
+grep -q "^$SWAP_FILE " /etc/fstab || echo "$SWAP_FILE none swap sw 0 0" >>/etc/fstab
+# Use swap only under real pressure (default 60 swaps too eagerly for a database host).
+echo "vm.swappiness=10" >/etc/sysctl.d/90-fundhub-swap.conf
+sysctl -q -p /etc/sysctl.d/90-fundhub-swap.conf
+
 say "Packages (Caddy, PostgreSQL 18, Authelia)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q >/dev/null
@@ -146,9 +163,16 @@ say "systemd units and scripts"
 install_file "$HERE/bin/backup-engine-db.sh" /usr/local/lib/fundhub/backup-engine-db.sh 755 || true
 for u in "$HERE"/systemd/*; do install_file "$u" "/etc/systemd/system/$(basename "$u")" 644 || true; done
 systemctl daemon-reload
-systemctl enable fundhub-capture fundhub-engine-backup.timer fundhub-scraper-jobs.timer fundhub-scraper-weekly.timer >/dev/null 2>&1
+# The retired data module (services/scraper) is folded into the engine: remove its timers if still installed.
+for old in fundhub-scraper-jobs fundhub-scraper-weekly; do
+  systemctl disable --now "$old.timer" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/$old.timer" "/etc/systemd/system/$old.service"
+done
+systemctl daemon-reload
+systemctl enable fundhub-capture fundhub-engine-worker fundhub-engine-scheduler fundhub-engine-backup.timer >/dev/null 2>&1
 systemctl restart fundhub-capture
-systemctl start fundhub-engine-backup.timer fundhub-scraper-jobs.timer fundhub-scraper-weekly.timer
+[ -f "$REPO/services/engine/.env" ] && systemctl restart fundhub-engine-worker fundhub-engine-scheduler || echo "  engine worker/scheduler not started: create services/engine/.env (template .env.example)"
+systemctl start fundhub-engine-backup.timer
 
 say "Drive (FileBrowser Quantum)"
 DRIVE_VERSION="v2.0.2-stable"

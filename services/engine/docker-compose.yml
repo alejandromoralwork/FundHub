@@ -71,7 +71,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-engine-secret}
       LOG_FORMAT: json
       ENGINE_MIGRATE: "1"
-    command: ["worker", "--groups", "cssf,gleif,maintenance"]
+    command: ["worker", "--groups", "cssf,gleif,web,news,maintenance"]
 
   engine-scheduler:
     <<: *engine

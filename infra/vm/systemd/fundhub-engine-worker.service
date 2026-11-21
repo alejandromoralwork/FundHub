@@ -1,0 +1,21 @@
+[Unit]
+Description=FundHub Intelligence pipeline worker (registers, FundHub accounts, websites, news, maintenance)
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+ConditionPathExists=@REPO@/services/engine/.env
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@/services/engine
+# ENGINE_DATABASE_URL, ANTHROPIC_API_KEY (website extraction), WEBSITE_DATABASE_URL_RO (FundHub source),
+# WEBSITE_DATABASE_URL_PUBLISH (publish proposals); template: services/engine/.env.example
+EnvironmentFile=@REPO@/services/engine/.env
+Environment=PATH=@NODE_DIR@:/usr/bin:/bin
+ExecStart=@NODE_DIR@/node --import tsx src/cli.ts worker --groups cssf,gleif,web,news,maintenance
+Restart=on-failure
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,9 @@ import { CssfAdapter } from "../sources/cssf/adapter";
 import { GleifAdapter } from "../sources/gleif/adapter";
 import { RcsAdapter } from "../sources/rcs/adapter";
 import { RcsBrowser } from "../sources/rcs/browser";
+import { FundhubAdapter } from "../sources/fundhub/adapter";
+import { NewsAdapter } from "../sources/news/adapter";
+import { WebsiteAdapter } from "../sources/website/adapter";
 
 /** Kind: type alias. Options for a queued follow-up job. */
 export type EnqueueOptions = { singletonKey?: string; startAfter?: Date | number; priority?: number };
@@ -28,6 +31,9 @@ export type JobContext = {
   trigger: string;
   cssf: CssfAdapter;
   gleif: GleifAdapter;
+  website: WebsiteAdapter;
+  news: NewsAdapter;
+  fundhub: FundhubAdapter;
   /** Created on first use (starts a browser). */
   rcs(): { adapter: RcsAdapter; browser: RcsBrowser };
   enqueue(job: string, data: Record<string, unknown>, opts?: EnqueueOptions): Promise<void>;
@@ -44,6 +50,7 @@ export function makeContext(enqueue: JobContext["enqueue"], trigger: string): Jo
   const cfg = config();
   const http = new PoliteHttp(cfg.userAgent);
   let rcs: { adapter: RcsAdapter; browser: RcsBrowser } | null = null;
+  const fundhub = new FundhubAdapter(cfg.websiteDb.readUrl);
   return {
     cfg,
     http,
@@ -51,6 +58,9 @@ export function makeContext(enqueue: JobContext["enqueue"], trigger: string): Jo
     trigger,
     cssf: new CssfAdapter(cfg.cssf, http),
     gleif: new GleifAdapter(cfg.gleif, http),
+    website: new WebsiteAdapter(cfg),
+    news: new NewsAdapter(http, cfg.userAgent, cfg.news.delayMs),
+    fundhub,
     rcs() {
       if (!rcs) {
         const browser = new RcsBrowser(cfg.rcs);
@@ -61,6 +71,7 @@ export function makeContext(enqueue: JobContext["enqueue"], trigger: string): Jo
     enqueue,
     async close() {
       await rcs?.browser.close();
+      await fundhub.close();
     },
   };
 }

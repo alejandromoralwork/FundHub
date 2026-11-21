@@ -22,6 +22,7 @@
 import "server-only";
 // From Drizzle ORM: read a table's columns and its SQL name; `type Column` is the type of one column object.
 import { getTableColumns, getTableName, type Column } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 // The type of any Postgres table defined with Drizzle (type-only import).
 import type { PgTable } from "drizzle-orm/pg-core";
 // All table definitions from our database package, reachable as `s.providers`, `s.users`, etc.
@@ -46,7 +47,7 @@ import { ENGINE_RESOURCES } from "./engine-resources";
 export type ResourceDef = {
   table: PgTable;
   label: string;
-  group: "Catalogue" | "Accounts" | "Requests & reviews" | "Platform" | "Billing" | "Data pipeline" | "Scraping engine";
+  group: "Catalogue" | "Accounts" | "Requests & reviews" | "Platform" | "Billing" | "Publish review" | `Intelligence · ${string}`;
   /** Which database holds the table: the website database (default) or the Scraping Engine database. */
   database?: "main" | "engine";
   search?: string[];
@@ -89,9 +90,9 @@ export const RESOURCES: Record<string, ResourceDef> = {
   billing_customers: { table: s.billingCustomers, label: "Billing customers", group: "Billing", search: ["name", "email", "stripeCustomerId"] },
   subscriptions: { table: s.subscriptions, label: "Subscriptions", group: "Billing", search: ["stripeSubscriptionId", "status"] },
   invoices: { table: s.invoices, label: "Invoices", group: "Billing", search: ["number", "description", "status"] },
-  ingest_runs: { table: s.ingestRuns, label: "Ingest runs", group: "Data pipeline" },
-  ingest_jobs: { table: s.ingestJobs, label: "Ingest jobs", group: "Data pipeline" },
-  ingest_records: { table: s.ingestRecords, label: "Ingest records", group: "Data pipeline", search: ["sourceUrl"] },
+  ingest_runs: { table: s.ingestRuns, label: "Ingest runs", group: "Publish review" },
+  ingest_jobs: { table: s.ingestJobs, label: "Ingest jobs", group: "Publish review" },
+  ingest_records: { table: s.ingestRecords, label: "Ingest records", group: "Publish review", search: ["sourceUrl"] },
   // Scraping Engine tables (separate database): see lib/engine-resources.ts.
   ...ENGINE_RESOURCES,
 };
@@ -183,7 +184,9 @@ export function columnsOf(def: ResourceDef): ColumnMeta[] {
  * @returns    `string` — the table's real name in Postgres, e.g. "rfi_requests" (return type inferred).
  */
 export function tableName(def: ResourceDef) {
-  return getTableName(def.table);
+  // Intelligence DB tables live in one Postgres schema per pipeline layer: name them "core.companies" etc.
+  const schema = getTableConfig(def.table as PgTable).schema;
+  return schema ? `${schema}.${getTableName(def.table)}` : getTableName(def.table);
 }
 
 /**

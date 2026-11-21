@@ -2,7 +2,7 @@
  * Creates one Postgres login role per FundHub part, so each can only touch what it needs.
  * Run once per database as the owner (e.g. Neon's default role):
  *
- *   DATABASE_URL=<owner url> WEB_DB_PASSWORD=… ADMIN_DB_PASSWORD=… SCRAPER_DB_PASSWORD=… ANALYST_DB_PASSWORD=… npm run db:roles
+ *   DATABASE_URL=<owner url> WEB_DB_PASSWORD=… ADMIN_DB_PASSWORD=… SCRAPER_DB_PASSWORD=… ANALYST_DB_PASSWORD=… [ENGINE_RO_DB_PASSWORD=…] npm run db:roles
  *
  * Then give each app its own connection string (same host/database, different user).
  */
@@ -12,7 +12,10 @@
  * WHAT IT DOES: Creates (or updates the password of) four database logins and sets what each may do:
  *   - fundhub_web: the public website; reads/writes public tables, cannot see staff, billing or ingest data.
  *   - fundhub_admin: the internal console; may do everything to every table.
- *   - fundhub_scraper: the scraper; reads providers and writes only the ingest_* tables.
+ *   - fundhub_scraper: the Intelligence pipeline's PUBLISH role (services/engine publish_proposals, formerly the
+ *     scraper); reads providers and writes only the ingest_* tables (proposals staff review in the console).
+ *   - fundhub_engine_ro (optional, when ENGINE_RO_DB_PASSWORD is set): the pipeline's "fundhub" source; reads
+ *     providers, provider_claims and profile_edits — nothing else, never writes.
  *   - fundhub_analyst_ro: read-only ("ro") access for the console's SQL screen.
  *   This is the "least privilege" principle: if one part is hacked, the attacker gets only that part's rights.
  * WHERE IT RUNS: from a developer's terminal (Node.js), connected as the database owner.
@@ -87,6 +90,8 @@ async function main() {
     ["fundhub_scraper", need("SCRAPER_DB_PASSWORD")],
     ["fundhub_analyst_ro", need("ANALYST_DB_PASSWORD")],
   ];
+  // Optional: only when its password is given, so older setups keep working unchanged.
+  if (process.env.ENGINE_RO_DB_PASSWORD) roles.push(["fundhub_engine_ro", process.env.ENGINE_RO_DB_PASSWORD]);
   // `[role, pw]` unpacks each pair.
   for (const [role, pw] of roles) {
     // `do $$ begin … end $$;` runs a small anonymous PL/pgSQL program (Postgres's built-in scripting
@@ -126,8 +131,11 @@ async function main() {
   await q(`grant select, insert, update on ${INGEST_TABLES.join(", ")} to fundhub_scraper`);
   await q(`grant usage, select on all sequences in schema public to fundhub_scraper`);
 
+  // Intelligence pipeline, "fundhub" source: read what providers declared, nothing else.
+  if (process.env.ENGINE_RO_DB_PASSWORD) await q(`grant select on providers, provider_claims, profile_edits to fundhub_engine_ro`);
+
   await pool.end();
-  console.log("✔ Roles fundhub_web, fundhub_admin, fundhub_scraper, fundhub_analyst_ro configured");
+  console.log(`✔ Roles fundhub_web, fundhub_admin, fundhub_scraper, fundhub_analyst_ro${process.env.ENGINE_RO_DB_PASSWORD ? ", fundhub_engine_ro" : ""} configured`);
   console.log("  Re-run after migrations that add tables, so grants cover them.");
 }
 

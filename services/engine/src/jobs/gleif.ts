@@ -14,7 +14,7 @@
  * TYPESCRIPT YOU WILL SEE HERE: `for await`, a tiny concurrency pool with `Promise.all`.
  */
 
-import { ingest } from "../core/ingest";
+import { ingest } from "../pipeline/ingest";
 import { finishRun, getCursor, setCursor, snapshotScope, startRun } from "../core/ops";
 import type { RawCapture } from "../core/types";
 import { log } from "../log";

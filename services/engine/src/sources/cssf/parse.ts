@@ -82,7 +82,7 @@ export function parseCssfEntity(e: CssfApiEntity): ParsedRecord {
   const names = history.map((h) => ({ name: h.name, kind: (h.name === e.entiteName.trim() ? "legal" : "former") as "legal" | "former", validFrom: h.validFrom }));
   if (!names.some((n) => n.kind === "legal")) names.unshift({ name: e.entiteName.trim(), kind: "legal", validFrom: null });
 
-  const cssfDetails: CssfDetailRow[] = e.details
+  const licences: CssfDetailRow[] = e.details
     .filter((d) => d.detailType !== "HISTORIC_NAME")
     .map((d) => {
       const kind = detailKind(d.detailType, d.detailValue);
@@ -128,7 +128,7 @@ export function parseCssfEntity(e: CssfApiEntity): ParsedRecord {
     },
     identifiers,
     names,
-    cssfDetails,
+    licences,
   };
 }
 

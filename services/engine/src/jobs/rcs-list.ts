@@ -1,6 +1,6 @@
 /**
  * FILE: services/engine/src/jobs/rcs-list.ts
- * PART: scraping engine (services/engine) — building the list of RCS entities WITHOUT browsing LBR
+ * PART: scraping engine (services/engine) — building the list of RCS companies WITHOUT browsing LBR
  *   rcs_seed_frontier {}         — sets each prefix's `max_known` from the highest RCS number any source
  *                                   knows (GLEIF registeredAs, CSSF, imports), so the frontier and the sweep
  *                                   start from a real number, and writes the "rcs:known" census.
@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
-import { ingest } from "../core/ingest";
+import { ingest } from "../pipeline/ingest";
 import { finishRun, startRun, upsertCensus } from "../core/ops";
 import type { RawCapture, SourceAdapter } from "../core/types";
 import { log } from "../log";
@@ -39,8 +39,8 @@ export async function snapshotRcsKnown() {
   const rows = (
     await db.execute<{ prefix: string; known: number; max: number | null }>(sql`
       select s.prefix, count(distinct i.value)::int as known, s.max_known as max
-      from rcs_number_space s
-      left join entity_identifiers i on i.scheme = 'rcs' and left(i.value, 1) = s.prefix
+      from ops.lbr_number_space s
+      left join core.company_identifiers i on i.scheme = 'rcs' and left(i.value, 1) = s.prefix
       group by s.prefix, s.max_known order by s.prefix`)
   ).rows;
   for (const r of rows) {
@@ -58,14 +58,14 @@ export async function rcsSeedFrontier() {
       -- real range (GLEIF once had B563447 while new companies were around B313xxx) is ignored.
       with n as (
         select left(value, 1) as prefix, substring(value from 2)::int as num
-        from entity_identifiers where scheme = 'rcs' and value ~ '^[A-Z][0-9]+$'
+        from core.company_identifiers where scheme = 'rcs' and value ~ '^[A-Z][0-9]+$'
       ), d as (
         select prefix, num, num - lag(num) over (partition by prefix order by num) as gap from n
       )
       select prefix, max(num) as max from d where gap is not null and gap <= 1000 group by 1`)
   ).rows;
   for (const m of maxes) {
-    await db.execute(sql`update rcs_number_space set max_known = ${m.max}, updated_at = now() where prefix = ${m.prefix} and (max_known < ${m.max} or max_known > ${m.max} + 1000)`);
+    await db.execute(sql`update ops.lbr_number_space set max_known = ${m.max}, updated_at = now() where prefix = ${m.prefix} and (max_known < ${m.max} or max_known > ${m.max} + 1000)`);
   }
   const census = await snapshotRcsKnown();
   log.info("rcs frontier seeded", { maxes });

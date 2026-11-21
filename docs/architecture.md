@@ -19,21 +19,17 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
         ┌────────────────────── WEBSITE DB (Neon Postgres) ──────────────┐           │
         │ published providers, users, reviews, claims, RFIs, reports,    │           │
         │ + internal: staff, audit, email log, billing, finance, GDPR,   │           │
-        │ + ingest_* staging (review queue for scraped changes)          │           │
-        └───────────────▲────────────────────────────────────────────────┘           │
-                        │ role fundhub_scraper (ingest_* only)                       │
-        ┌───────────────┴───────────┐                                                │
-        │ services/scraper          │  on the Azure VM (systemd timers): weekly AI   │
-        │ (data module)             │  web extraction, queued jobs every 5 min       │
-        └───────────────────────────┘                                                │
-                                                                                     ▼
+        │ + ingest_* (Publish review queue: proposals from the pipeline) │           │
+        └───────────────▲──────────────────────────┬─────────────────────┘           │
+   role fundhub_scraper │ (publish: ingest_* only)  │ role fundhub_engine_ro          │
+                        │                           │ (FundHub accounts source)       │
+                        └──────── Intelligence pipeline (Azure VM) ◀──┘               ▼
 ┌──────────────────────────── Azure VM  (Ubuntu 24.04, Caddy HTTPS on :443) ─────────────────────────┐
 │  /engine/*  ─▶ capture-server :4477 ──┐                                                            │
-│                (Bearer token)         ├─▶ ENGINE DB  PostgreSQL 18 :5432 (localhost only)          │
-│  services/engine CLI / worker ────────┘     registry, history, filings, rounds, sweep              │
+│                (Bearer token)         ├─▶ INTELLIGENCE DB  PostgreSQL 18 :5432 (localhost only)    │
+│  services/engine worker + scheduler ──┘     schemas raw · staging · clean · match · core · mart · ops│
 │  /drive/*   ─▶ internal drive (file manager)          /var/backups ◀─ nightly pg_dump              │
 │  /          ─▶ code-server (VS Code in the browser), behind Authelia 2FA (/authelia)              │
-│  timers     ─▶ services/scraper (data module) ──▶ website DB (ingest_* only)                       │
 └────────────────────────────────────────────────────────────────────────────────────────────────────┘
         ▲ HTTPS
         │
@@ -48,8 +44,7 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
 |---|---|---|---|
 | **Website** | `apps/web` | Vercel (`fund-hub` project) | Public comparator of Luxembourg fund service providers: search, compare, profiles, FundHub Score, reviews, claims, RFIs, Data Intelligence reports, advisory, legal/GDPR pages, AI advisor widget |
 | **Admin console** | `apps/admin` | Vercel (`fund-hub-admin`), mounted at `fundhub.lu/admin` | Everything staff do: moderation, inbox, email, content studio, billing (Stripe), finance, analytics, data pipeline review, scraping-engine pages, Drive, reports, DB browser, GDPR, staff, audit |
-| **Data module** | `services/scraper` | Azure VM, systemd timers (weekly + every 5 min for queued jobs) | AI extraction of provider websites into the review queue (`ingest_*`). Its RCS source is a mock |
-| **Scraping engine** | `services/engine` | Azure VM (or Docker anywhere) | Builds one registry of every Luxembourg entity from CSSF, GLEIF and RCS/LBR, with full history |
+| **Intelligence pipeline** ("engine") | `services/engine` | Azure VM: `fundhub-engine-worker` + `fundhub-engine-scheduler` (or Docker anywhere) | The most complete database of Luxembourg companies: LBR, GLEIF, CSSF, FundHub accounts, company websites (AI extraction — the former `services/scraper`) and news, through raw → staging → approval gate → clean → match → golden records, with full history; publishes proposals to the website. See [data-pipeline.md](data-pipeline.md) |
 | **LBR capture extension** | `services/engine/browser-extension` | Staff Chrome | Saves the LBR pages and filing PDFs a person opens into the engine (LBR blocks automated browsing) |
 | **Shared code** | `packages/core`, `packages/db`, `packages/engine-db`, `packages/email` | Imported by the above | Taxonomy and rules, the two database schemas and clients, email templates |
 | **VM setup** | `infra/vm` | Azure VM (`install.sh`) | Every config the VM runs outside the repo: Caddy, Authelia 2FA, PostgreSQL, systemd units, backups |
@@ -62,12 +57,12 @@ Each part deploys and fails on its own. They share only code (`packages/*`) and 
 
 FundHub keeps **two databases on purpose**:
 
-| | Website DB | Engine DB |
+| | Website DB | Intelligence DB ("engine DB") |
 |---|---|---|
-| Purpose | What the business **serves and runs on**: published data, accounts, and internal operations | **Staging** of the data pipeline: raw facts from registers, their history, unreviewed |
+| Purpose | What the business **serves and runs on**: published data, accounts, and internal operations | The **data pipeline**: every source's raw content, cleaned facts with history, matching, golden company records |
 | Engine | Neon Postgres (serverless) | PostgreSQL 18 on the Azure VM (`fundhub_engine`) |
-| Schema | `packages/db/src/schema.ts` (Drizzle) | `packages/engine-db/src/schema.ts` (Drizzle) |
-| Who connects | website (`fundhub_web`), admin (`fundhub_admin`), scraper (`fundhub_scraper`), SQL console (`fundhub_analyst_ro`) | engine processes, capture receiver, admin engine pages |
+| Schema | `packages/db/src/schema.ts` (Drizzle) | `packages/engine-db/src/schema/*.ts` (Drizzle, one Postgres schema per layer) |
+| Who connects | website (`fundhub_web`), admin (`fundhub_admin`), pipeline publish (`fundhub_scraper`), pipeline FundHub source (`fundhub_engine_ro`, read-only), SQL console (`fundhub_analyst_ro`) | engine processes, capture receiver, admin Company intelligence pages |
 | Backups | Neon point-in-time restore | nightly `pg_dump` on the VM (`infra/vm/`) |
 | Size driver | small | grows with the LBR scrape; PDFs live outside it |
 
@@ -80,10 +75,10 @@ FundHub keeps **two databases on purpose**:
 | Staff and audit | `staff_users`, `staff_sessions`, `staff_password_resets`, `audit_log` |
 | Money | `billing_customers`, `subscriptions`, `invoices`, `expenses`, `budgets` |
 | Communication | `email_messages`, `social_posts` |
-| Data pipeline staging | `ingest_runs`, `ingest_jobs`, `ingest_records` |
+| Publish review (proposals from the pipeline) | `ingest_runs`, `ingest_jobs` (retired), `ingest_records` |
 | Compliance | `gdpr_requests` |
 
-**Engine DB tables** (24): the registry (`entities`, `entity_identifiers`, `entity_names`, `entity_relations`, `activity_categories`, `classification_rules`), what each source said (`source_records`, `captures`, `observations`, `cssf_details`, `rcs_filings`, `documents`), change tracking (`change_events`, `row_history`, `match_candidates`), and operations (`crawl_runs`, `source_cursors`, `census_snapshots`, `rcs_number_space`, `capture_rounds`, `capture_round_items`, `lbr_search_words`, `engine_settings`, `session_health`).
+**Intelligence DB** (41 tables + 5 views), one Postgres schema per pipeline layer: `raw` (fetches, documents), `staging` (source_records, parsed_records + approval gate), `clean` (claims, rejects, licences, filings, web_pages, articles), `match` (candidates, conflicts), `core` (companies, identifiers, names, relations, people, positions, web_presence, news_mentions, review_summaries, field_lineage, changes, row_history, categories, rules), `mart` (views) and `ops` (sources, attribute_precedence, review_policies, runs, quality, census, LBR tooling, news feeds). Table by table: [data-pipeline.md](data-pipeline.md).
 
 **Files** live outside the databases:
 
@@ -95,35 +90,26 @@ FundHub keeps **two databases on purpose**:
 
 ## 4. How data moves
 
-### 4.1 Provider data: from the web to a public profile
+### 4.1 One pipeline for every source
 
 ```
-provider website ──▶ services/scraper (Claude, strict JSON schema) ──▶ ingest_records (website DB)
-                                                                            │  staff review field by field
-                                                                            ▼  /admin/pipeline
-                                                                       providers (published)
+LBR · GLEIF · CSSF · FundHub accounts · company websites · news   (LinkedIn, Glassdoor, Instagram, Facebook, X: phase 2)
+   │ acquire
+   ▼
+ raw ──▶ staging ──◇ approval gate ──▶ clean ──▶ match ──▶ core (golden) ──▶ publish ──▶ ingest_records ──▶ providers
+ bytes    parsed    (per-source       validate   resolve +   precedence,      proposals    staff accept field by field
+ kept     versions   review policy)   normalize  cross-check lineage          (one-way)    in /admin/pipeline
 ```
 
-Scraped values that already match the live profile are dropped, so only real changes reach review. Page content is treated as untrusted data.
+Every source goes through the same stages (`services/engine/src/pipeline/`). Unchanged content stops at staging; a source's review policy may hold a version for a person; cleaned values become claims with history; matching links records to one company per real legal entity and opens conflicts where sources disagree; the golden record takes each field from the most trusted source and records its lineage. Full description and the source registry: [data-pipeline.md](data-pipeline.md); the console shows it live as a diagram at `/admin/engine`.
 
-### 4.2 Register data: the scraping engine
-
-```
-CSSF API ─┐                                  ┌─▶ object storage (raw bytes)
-GLEIF API ├─▶ adapter.fetch ─▶ raw capture ──┤
-LBR pages ┘   (extension → capture-server)   └─▶ adapter.parse ─▶ core/ingest.ts
-                                                     unchanged? touch last_seen
-                                                     changed?  capture → diff → change_events
-                                                               → observations (history per attribute)
-                                                               → resolve entity (RCS → LEI → CSSF code → name)
-                                                               → golden record + classification + tier
-```
+### 4.2 LBR capture
 
 The LBR register cannot be browsed by robots (every search runs a Friendly Captcha), so a person browses it and the extension copies what they open. Details: [services/engine/README.md](../services/engine/README.md), [browser-extension/README.md](../services/engine/browser-extension/README.md), [services/engine/docs/lbr-findings.md](../services/engine/docs/lbr-findings.md).
 
-### 4.3 From the engine to the website (not built yet)
+### 4.3 From the pipeline to the website
 
-The intended path is one-way: an engine job writes proposals into the website's `ingest_*` tables with the `fundhub_scraper` role, and staff approve them in `/admin/pipeline` like any scraped change. The website never reads the engine DB. Today only the admin console reads both.
+One-way: the `publish_proposals` job writes proposals into the website's `ingest_records` with the `fundhub_scraper` role (insert/update on `ingest_*` only), and staff approve them in `/admin/pipeline` (Publish review). The website never reads the Intelligence DB. The other direction — what providers declare on fundhub.lu — enters the pipeline as the `fundhub` source through the read-only `fundhub_engine_ro` role, and is held at the approval gate for a person by default.
 
 ## 5. Security model
 
@@ -144,8 +130,7 @@ The intended path is one-way: an engine job writes proposals into the website's 
 In order of importance:
 
 1. **Data location.** The website DB is in Neon `us-east-1` and the VM in Azure Central India. FundHub handles EU personal data (directors, accounts): move both to an EU region (Frankfurt / West Europe).
-2. **Engine → website promoter** (4.3) is missing; engine data reaches the site only by hand.
-3. **Engine files** are on the VM disk. Move them to S3-compatible storage (`STORAGE_DRIVER=s3`) and put the database on a separate Azure data disk ([infra/vm/README.md](../infra/vm/README.md)).
-4. **Two scrapers.** Fold `services/scraper`'s AI extraction into the engine's planned web agent and retire the mock RCS source.
-5. **Internal data separation.** Finance, CRM, staff and audit tables share the website DB, separated by roles. Next step: move them to an `internal` schema the `fundhub_web` role cannot reach; a separate database later if needed.
-6. **Dev and prod on one VM.** The engine runs from the development checkout. Later, run it from a fixed release (the existing `services/engine/Dockerfile`).
+2. **Engine files** are on the VM disk. Move them to S3-compatible storage (`STORAGE_DRIVER=s3`) and put the database on a separate Azure data disk ([infra/vm/README.md](../infra/vm/README.md)).
+3. **Social and people sources** (LinkedIn, Glassdoor, Instagram, Facebook, X) are registered but disabled: schema and review policies exist, adapters are phase 2. Their terms forbid scraping; keep to public pages, human pace, and the GDPR minimization in [data-pipeline.md](data-pipeline.md).
+4. **Internal data separation.** Finance, CRM, staff and audit tables share the website DB, separated by roles. Next step: move them to an `internal` schema the `fundhub_web` role cannot reach; a separate database later if needed.
+5. **Dev and prod on one VM.** The engine runs from the development checkout. Later, run it from a fixed release (the existing `services/engine/Dockerfile`).

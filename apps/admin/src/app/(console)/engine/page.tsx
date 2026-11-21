@@ -1,25 +1,27 @@
 /**
  * FILE: apps/admin/src/app/(console)/engine/page.tsx
  * PART: console (apps/admin)
- * WHAT IT DOES: The Scraping Engine overview page (census, coverage, RCS session, queue, runs, change feed).
+ * WHAT IT DOES: The Company Intelligence "Pipeline" page: KPIs, the interactive dataflow diagram (sources → raw →
+ *   staging → approval gate → clean → match → golden → publish), coverage, completeness, quality, operations.
  * WHERE IT RUNS: on the server (React Server Component); data from lib/engine-data.ts, drawn by
- *   components/engine-overview.tsx.
+ *   components/engine-pipeline.tsx.
  */
 
 import type { Metadata } from "next";
-import { EngineOverview, EngineUnavailable } from "@/components/engine-overview";
+import { EngineUnavailable } from "@/components/engine-overview";
+import { PipelineView } from "@/components/engine-pipeline";
 import { CAN, requireStaff } from "@/lib/auth";
-import { currentRound, engineDashboard } from "@/lib/engine-data";
+import { currentRound, pipelineOverview } from "@/lib/engine-data";
 
-export const metadata: Metadata = { title: "Scraping engine" };
-// Always fresh: the engine changes in the background.
+export const metadata: Metadata = { title: "Intelligence pipeline" };
+// Always fresh: the pipeline runs in the background.
 export const dynamic = "force-dynamic";
 
-export default async function EnginePage() {
+export default async function PipelinePage() {
   await requireStaff(CAN.engine);
   try {
-    const [data, round] = await Promise.all([engineDashboard(), currentRound()]);
-    return <EngineOverview data={data} round={round} />;
+    const [data, round] = await Promise.all([pipelineOverview(), currentRound()]);
+    return <PipelineView data={data} round={round} />;
   } catch (err) {
     return <EngineUnavailable error={err instanceof Error ? err.message : String(err)} />;
   }

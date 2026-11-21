@@ -81,7 +81,7 @@ async function addWords(counts: Map<string, number>, origin: "letters" | "seed" 
   let added = 0;
   for (let i = 0; i < rows.length; i += 1000) {
     const chunk = rows.slice(i, i + 1000);
-    const before = (await tx.execute<{ n: number }>(sql`select count(*)::int as n from lbr_search_words where term in ${chunk.map((r) => r.term)}`)).rows[0].n;
+    const before = (await tx.execute<{ n: number }>(sql`select count(*)::int as n from ops.lbr_search_words where term in ${chunk.map((r) => r.term)}`)).rows[0].n;
     await tx
       .insert(lbrSearchWords)
       .values(chunk)
@@ -106,9 +106,9 @@ async function addWords(counts: Map<string, number>, origin: "letters" | "seed" 
 export async function planSweep(tx: EngineTx = db) {
   const names = (
     await tx.execute<{ name: string }>(sql`
-      select canonical_name as name from entities where canonical_name is not null
+      select canonical_name as name from core.companies where canonical_name is not null
       union
-      select name from entity_names`)
+      select name from core.company_names`)
   ).rows.map((r) => r.name);
   const counts = countWords(names);
   const letters = new Map(letterWords().map((w) => [w, counts.get(w) ?? 0]));
@@ -125,7 +125,7 @@ export type SweepItem = { term: string; seen: number; origin: string; phase: num
 export async function nextSweepItems(n = 5, tx: EngineTx = db): Promise<SweepItem[]> {
   return (
     await tx.execute<SweepItem>(sql`
-      select term, seen, origin, phase from lbr_search_words where status = 'pending'
+      select term, seen, origin, phase from ops.lbr_search_words where status = 'pending'
       order by phase, case when phase = 2 then length(term) end, case when phase = 2 then term end, seen desc, term
       limit ${n}`)
   ).rows;
@@ -145,7 +145,7 @@ export type SweepOutcome = { term: string; total: number | null; rows: number; n
 export async function recordSearch(term: string, total: number | null, items: { rcs: string; name: string }[], newRcs: Set<string>, tx: EngineTx = db): Promise<SweepOutcome | null> {
   const t = foldTerm(term);
   if (!t || RCS_LIKE.test(t)) return null;
-  const planned = (await tx.execute(sql`select 1 from lbr_search_words where term = ${t}`)).rows.length > 0;
+  const planned = (await tx.execute(sql`select 1 from ops.lbr_search_words where term = ${t}`)).rows.length > 0;
   const capped = (total ?? items.length) >= SWEEP_CAP;
   const newNumbers = items.filter((i) => newRcs.has(i.rcs)).length;
   await tx
@@ -163,13 +163,13 @@ export async function recordSearch(term: string, total: number | null, items: { 
 
 /** Kind: async function. Skips a word (Reset skipped brings it back). */
 export async function skipSweepTerm(term: string, tx: EngineTx = db) {
-  const r = await tx.execute(sql`update lbr_search_words set status = 'skipped' where term = ${foldTerm(term)} and status = 'pending'`);
+  const r = await tx.execute(sql`update ops.lbr_search_words set status = 'skipped' where term = ${foldTerm(term)} and status = 'pending'`);
   return (r.rowCount ?? 0) > 0;
 }
 
 /** Kind: async function. Puts skipped words back in the queue. */
 export async function resetSkippedSweep(tx: EngineTx = db) {
-  const r = await tx.execute(sql`update lbr_search_words set status = 'pending' where status = 'skipped'`);
+  const r = await tx.execute(sql`update ops.lbr_search_words set status = 'pending' where status = 'skipped'`);
   return r.rowCount ?? 0;
 }
 
@@ -184,7 +184,7 @@ export async function knownMaxima(tx: EngineTx = db): Promise<Record<string, num
     await tx.execute<{ prefix: string; max: number }>(sql`
       with nums as (
         select left(value, 1) as prefix, regexp_replace(value, '[^0-9]', '', 'g')::int as n, bool_or(source = 'lbr_bulk') as lbr
-        from entity_identifiers where scheme = 'rcs' and value ~ '^[A-Z][0-9]{1,7}$' group by 1, 2
+        from core.company_identifiers where scheme = 'rcs' and value ~ '^[A-Z][0-9]{1,7}$' group by 1, 2
       ),
       ranked as (select *, row_number() over (partition by prefix order by n desc) as rk from nums),
       ids as (
@@ -193,7 +193,7 @@ export async function knownMaxima(tx: EngineTx = db): Promise<Record<string, num
       )
       select coalesce(s.prefix, ids.prefix) as prefix,
              coalesce(greatest(nullif(s.max_known, 0), ids.lbr, ids.second), ids.top)::int as max
-      from ids full join rcs_number_space s on s.prefix = ids.prefix`)
+      from ids full join ops.lbr_number_space s on s.prefix = ids.prefix`)
   ).rows;
   return Object.fromEntries(rows.map((r) => [r.prefix, r.max]));
 }
@@ -210,16 +210,16 @@ export async function sweepStats(tx: EngineTx = db) {
              coalesce(sum(new_numbers), 0)::int as found,
              count(*) filter (where searched_at >= current_date)::int as today,
              coalesce(sum(new_numbers) filter (where searched_at >= current_date), 0)::int as found_today
-      from lbr_search_words`)
+      from ops.lbr_search_words`)
   ).rows;
   const phases = (
     await tx.execute<{ phase: number; total: number; done: number; found: number }>(sql`
       select phase, count(*)::int as total, count(*) filter (where status = 'done')::int as done, coalesce(sum(new_numbers), 0)::int as found
-      from lbr_search_words group by phase order by phase`)
+      from ops.lbr_search_words group by phase order by phase`)
   ).rows;
   const known = (
     await tx.execute<{ prefix: string; known: number }>(sql`
-      select left(value, 1) as prefix, count(distinct value)::int as known from entity_identifiers
+      select left(value, 1) as prefix, count(distinct value)::int as known from core.company_identifiers
       where scheme = 'rcs' and value !~ '^A' group by 1 order by 2 desc`)
   ).rows;
   const max = await knownMaxima(tx);

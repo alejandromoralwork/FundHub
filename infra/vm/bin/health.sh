@@ -13,14 +13,14 @@ warn() { printf '  \033[33mWARN\033[0m %s\n' "$1"; [ -n "${2:-}" ] && printf '  
 lastlog() { journalctl -u "$1" -n 40 --no-pager 2>/dev/null | grep -E "level=(error|fatal)|FATAL|ERROR|error|denied|failed" | tail -2 | sed 's/^/       log: /'; }
 
 echo "== Services"
-for u in caddy authelia "code-server@$APP_USER" postgresql@18-main fundhub-capture fundhub-drive; do
+for u in caddy authelia "code-server@$APP_USER" postgresql@18-main fundhub-capture fundhub-engine-worker fundhub-engine-scheduler fundhub-drive; do
   if systemctl is-active --quiet "$u"; then ok "$u running"
   else bad "$u is $(systemctl is-active "$u")" "sudo systemctl restart $u; journalctl -u $u -n 50 --no-pager"; lastlog "$u"; fi
 done
-for t in fundhub-engine-backup.timer fundhub-scraper-jobs.timer fundhub-scraper-weekly.timer; do
+for t in fundhub-engine-backup.timer; do
   systemctl is-active --quiet "$t" && ok "$t scheduled" || bad "$t not scheduled" "sudo systemctl enable --now $t"
 done
-for s in fundhub-engine-backup fundhub-scraper-jobs fundhub-scraper-weekly; do
+for s in fundhub-engine-backup; do
   [ "$(systemctl show -p Result --value "$s")" = "success" ] || warn "$s: last run result $(systemctl show -p Result --value "$s")" "journalctl -u $s -n 50 --no-pager"
 done
 

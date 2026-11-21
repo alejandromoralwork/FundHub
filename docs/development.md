@@ -43,7 +43,7 @@ Only for the automated RCS browser (diagnosis): `npx playwright install chromium
 | 2 | Engine database | `npm run engine:db:local` | `localhost:5434` |
 | 3 | Website + admin | `npm run dev` (or `dev:web` / `dev:admin`) | http://localhost:3000 · http://localhost:3001/admin |
 | 4 | Capture receiver (local extension use) | `npm run engine -- capture-server` | `127.0.0.1:4477` |
-| 5 | Engine worker (optional) | `npm run engine -- worker --groups cssf,gleif,maintenance` | — |
+| 5 | Engine worker (optional) | `npm run engine -- worker --groups cssf,gleif,web,news,maintenance` | — |
 
 Each runs in its own terminal until Ctrl+C. Start only what you need:
 

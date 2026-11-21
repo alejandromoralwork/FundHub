@@ -1,8 +1,9 @@
 /**
  * FILE: apps/admin/src/app/(console)/pipeline/page.tsx
  * PART: console (apps/admin)
- * WHAT IT DOES: The "Data pipeline" page. The scraper (services/scraper) collects facts about providers and
- *   stores them as "pending" records for a human to approve. This page loads those pending records (with the
+ * WHAT IT DOES: The "Publish review" page. The Intelligence pipeline (services/engine, job publish_proposals)
+ *   compares each listed provider's golden record with its live profile and stores the differences as "pending"
+ *   records for a human to approve (older records from the retired data module may still be listed). This page loads those pending records (with the
  *   current live values, so staff can see a before/after comparison), the history of scraper runs, the list
  *   of requested scrape jobs, and the published providers (to request a new job for one).
  * WHERE IT RUNS: on the server (Node.js), as a server component reading the database; PipelineView runs in
@@ -29,7 +30,7 @@ import { PipelineView, type JobRow, type RecordRow, type RunRow } from "@/compon
 import { CAN, requireStaff } from "@/lib/auth";
 
 /** Kind: constant. Browser-tab title, read by Next.js. */
-export const metadata: Metadata = { title: "Data pipeline" };
+export const metadata: Metadata = { title: "Publish review" };
 
 /**
  * Kind: React component (async server component) — the page.

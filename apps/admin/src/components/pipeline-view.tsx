@@ -39,7 +39,13 @@ import { useAction } from "./use-action";
 /** Kind: arrow function. Formats date text as "18 Oct 2026 14:05", or "—" for `null`. */
 const fmt = (d: string | null) => (d ? dayjs(d).format("D MMM YYYY HH:mm") : "—");
 /** Kind: constant. Human names for the scraper's source codes (unknown codes are shown as-is with `?? s`). */
-const SOURCE_LABEL: Record<string, string> = { ai_web: "AI web extractor", rcs: "RCS register" };
+const SOURCE_LABEL: Record<string, string> = { engine: "Intelligence pipeline", ai_web: "AI web extractor (retired)", rcs: "RCS register (retired)" };
+/** Kind: constant. What the "Run" button can ask the Intelligence pipeline to do. */
+const RUN_ACTIONS: { value: string; label: string }[] = [
+  { value: "website", label: "Crawl website(s)" },
+  { value: "fundhub", label: "Sync FundHub accounts" },
+  { value: "publish", label: "Compute proposals now" },
+];
 /** Kind: arrow function. Value → display text: lists joined with commas; null/undefined/empty text → "—". */
 const show = (v: unknown) => (Array.isArray(v) ? v.join(", ") : v === null || v === undefined || v === "" ? "—" : String(v));
 /**
@@ -173,7 +179,7 @@ function RecordCard({ r }: { r: RecordRow }) {
 export function PipelineView({ records, runs, jobs, providers }: { records: RecordRow[]; runs: RunRow[]; jobs: JobRow[]; providers: { id: number; name: string }[] }) {
   const { run, pending } = useAction();
   // The chosen scrape source (default: the AI web extractor).
-  const [source, setSource] = useState("ai_web");
+  const [source, setSource] = useState("publish");
   // The chosen provider, or `null` meaning "all published providers".
   const [providerId, setProviderId] = useState<number | null>(null);
 
@@ -183,15 +189,17 @@ export function PipelineView({ records, runs, jobs, providers }: { records: Reco
           The provider dropdown is searchable by name (`showSearch`, `optionFilterProp="label"`) and clearable
           (`allowClear`); clearing gives `undefined`, which `?? null` turns into null ("all"), and `?? undefined`
           does the reverse for display. "Run scrape" queues a job via the `queueScrape` server action. */}
-      <Card title="Data pipeline" extra={<Typography.Text type="secondary">Scraped data never goes live without review</Typography.Text>}>
+      <Card title="Publish review" extra={<Typography.Text type="secondary">Golden records → website listings. Nothing goes live without review.</Typography.Text>}>
         <Space wrap>
-          <Select value={source} onChange={setSource} style={{ width: 200 }} options={Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }))} />
-          <Select allowClear showSearch optionFilterProp="label" placeholder="All published providers" style={{ width: 300 }} value={providerId ?? undefined}
-            onChange={(v) => setProviderId(v ?? null)} options={providers.map((p) => ({ value: p.id, label: p.name }))} />
-          <Button type="primary" icon={<CloudDownloadOutlined />} loading={pending} onClick={() => run(() => queueScrape(source, providerId))}>Run scrape</Button>
+          <Select value={source} onChange={setSource} style={{ width: 220 }} options={RUN_ACTIONS} />
+          {source === "website" && (
+            <Select allowClear showSearch optionFilterProp="label" placeholder="All companies due" style={{ width: 300 }} value={providerId ?? undefined}
+              onChange={(v) => setProviderId(v ?? null)} options={providers.map((p) => ({ value: p.id, label: p.name }))} />
+          )}
+          <Button type="primary" icon={<CloudDownloadOutlined />} loading={pending} onClick={() => run(() => queueScrape(source, providerId))}>Run</Button>
         </Space>
         <Alert style={{ marginTop: 12 }} type="info" showIcon
-          message="The data module runs separately on the Azure VM: weekly for all websites (Monday 03:00 UTC), and within 5 minutes when you click Run scrape. The RCS source uses mock data until a register provider is chosen." />
+          message="Proposals come from the Intelligence pipeline (Company intelligence → Pipeline): every source is cleaned, matched and cross-checked, then the golden record of each listed provider is compared with its live profile daily (07:00). Accept the fields you trust below." />
       </Card>
       {/* Tabs. "Review queue" shows a count bubble and one RecordCard per record (each with a unique `key`).
           "Runs": status as a coloured dot (green succeeded, blue pulsing running, red otherwise; hover shows the

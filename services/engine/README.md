@@ -1,6 +1,8 @@
-# FundHub Scraping Engine
+# FundHub Intelligence pipeline ("engine")
 
-An independent service that builds **one registry of every Luxembourg entity**: a "golden record" per real company, merged from the official registers and enriched from websites, with the full history of every change. It feeds the website (through the existing `/admin/pipeline` review) and the Data Intelligence products.
+An independent service that builds **the most complete database of Luxembourg companies**: a golden record per real company, cross-checked across LBR, GLEIF, the CSSF, FundHub accounts, company websites and the news, with the full history of every change. Every source flows through the same layers (raw → staging → optional approval gate → clean → match → core), each a Postgres schema of the Intelligence DB. It feeds the website through proposals that staff accept in `/admin/pipeline` (Publish review), and the Data Intelligence products.
+
+**Start with [docs/data-pipeline.md](../../docs/data-pipeline.md)**: layers, tables, sources, precedence, approval policies, jobs. The pipeline code is in `src/pipeline/` (ingest · gate · release · clean · mentions · publish · quality); sources in `src/sources/<code>/`. The table below covers the register sources in detail.
 
 | Source | What it gives | Access | Census ("how many exist") |
 |---|---|---|---|
@@ -68,7 +70,7 @@ To run with the queue, start the processes:
 
 ```sh
 npm run engine -- scheduler
-npm run engine -- worker --groups cssf,gleif,maintenance
+npm run engine -- worker --groups cssf,gleif,web,news,maintenance
 ```
 
 ## Admin console (`/admin/engine`)

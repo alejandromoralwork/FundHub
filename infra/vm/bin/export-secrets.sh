@@ -13,7 +13,7 @@ APP_USER="$(stat -c %U "$REPO")"; APP_HOME="$(getent passwd "$APP_USER" | cut -d
 OUT="$APP_HOME/fundhub-vm-secrets-$(date -u +%Y%m%d).tar.gz.gpg"
 FILES=()
 for f in /etc/authelia-secrets /etc/authelia/users.yml /etc/fundhub-drive/secrets.env \
-         "$REPO/services/engine/.env" "$REPO/packages/engine-db/.env" "$REPO/services/scraper/.env" \
+         "$REPO/services/engine/.env" "$REPO/packages/engine-db/.env" \
          "$APP_HOME/.config/code-server/config.yaml" /etc/default/fundhub-backup; do
   [ -e "$f" ] && FILES+=("${f#/}") || echo "  (not present, skipped: $f)"
 done

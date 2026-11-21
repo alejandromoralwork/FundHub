@@ -23,12 +23,12 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
-import { documents, rcsFilings, type RoundScope } from "@fundhub/engine-db/schema";
+import { documents, filings, type RoundScope } from "@fundhub/engine-db/schema";
 import { withActor } from "@fundhub/engine-db/core/entity";
 import { nextSweepItems, planSweep, recordSearch, resetSkippedSweep, skipSweepTerm, sweepStats } from "@fundhub/engine-db/core/sweep";
 import { activeRound, closeRound, listRounds, nextItems, recordDocument, recordVisit, resetSkipped, roundStats, skipItem, startRound } from "@fundhub/engine-db/core/rounds";
 import { config } from "./config";
-import { ingest } from "./core/ingest";
+import { ingest } from "./pipeline/ingest";
 import { normalizeRcs } from "./core/normalize";
 import type { ParsedRecord, RawCapture, SourceAdapter } from "./core/types";
 import { blobKey, makeBlobStore, sha256 } from "./storage";
@@ -157,7 +157,7 @@ let backgroundStore: Promise<unknown> = Promise.resolve();
 async function storeListAndSweep(list: { total: number | null; items: RcsListItem[] }, url: string, blobs: ReturnType<typeof makeBlobStore>, background = false) {
   const numbers = [...new Set(list.items.map((i) => i.rcs))];
   const known = numbers.length
-    ? new Set((await db.execute<{ value: string }>(sql`select value from entity_identifiers where scheme = 'rcs' and value in ${numbers}`)).rows.map((r) => r.value))
+    ? new Set((await db.execute<{ value: string }>(sql`select value from core.company_identifiers where scheme = 'rcs' and value in ${numbers}`)).rows.map((r) => r.value))
     : new Set<string>();
   const newRcs = new Set(numbers.filter((n) => !known.has(n) && !pendingNumbers.has(n)));
   const newNumbers = newRcs.size;
@@ -188,11 +188,11 @@ export async function nextNumbers(skip: Set<string>, n = 5): Promise<string[]> {
   const rows = (
     await db.execute<{ rcs: string }>(sql`
       select i.value as rcs
-      from entity_identifiers i
-      join entities e on e.id = i.entity_id
+      from core.company_identifiers i
+      join core.companies e on e.id = i.company_id
       where i.scheme = 'rcs'
-        and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
-      order by e.tier desc, e.is_service_provider desc, (e.entity_kind = 'asset_manager') desc, i.value
+        and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
+      order by e.tier desc, e.is_service_provider desc, (e.company_kind = 'asset_manager') desc, i.value
       limit ${n + skip.size}`)
   ).rows;
   return rows.map((r) => r.rcs).filter((r) => !skip.has(r)).slice(0, n);
@@ -210,17 +210,17 @@ export type QueueItem = { rcs: string; name: string; kind: string; serviceProvid
 export async function nextCompanies(skip: Set<string>, n = 10, filter = ""): Promise<QueueItem[]> {
   const f = filter.trim();
   const where =
-    f === "sp" ? sql`and e.is_service_provider` : f === "am" ? sql`and e.entity_kind = 'asset_manager'` : f ? sql`and (e.canonical_name ilike ${"%" + f + "%"} or i.value ilike ${f + "%"})` : sql``;
+    f === "sp" ? sql`and e.is_service_provider` : f === "am" ? sql`and e.company_kind = 'asset_manager'` : f ? sql`and (e.canonical_name ilike ${"%" + f + "%"} or i.value ilike ${f + "%"})` : sql``;
   const rows = (
     await db.execute<{ rcs: string; name: string; kind: string; sp: boolean; category: string | null; status: string }>(sql`
-      select i.value as rcs, e.canonical_name as name, e.entity_kind as kind, e.is_service_provider as sp, e.status,
-             (select label from activity_categories c where c.id = e.activity_category_id) as category
-      from entity_identifiers i
-      join entities e on e.id = i.entity_id
+      select i.value as rcs, e.canonical_name as name, e.company_kind as kind, e.is_service_provider as sp, e.status,
+             (select label from core.activity_categories c where c.id = e.activity_category_id) as category
+      from core.company_identifiers i
+      join core.companies e on e.id = i.company_id
       where i.scheme = 'rcs'
-        and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
+        and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
         ${where}
-      order by e.tier desc, e.is_service_provider desc, (e.entity_kind = 'asset_manager') desc, i.value
+      order by e.tier desc, e.is_service_provider desc, (e.company_kind = 'asset_manager') desc, i.value
       limit ${n + skip.size}`)
   ).rows;
   return rows
@@ -234,16 +234,16 @@ export async function captureStats() {
   const [s] = (
     await db.execute<{ captured: number; today: number; filings: number; docs_saved: number; docs_today: number; remaining: number; remaining_sp: number; known: number }>(sql`
       select
-        (select count(*) from source_records where source = 'rcs' and state = 'found')::int as captured,
-        (select count(*) from source_records where source = 'rcs' and state = 'found' and last_changed_at >= current_date)::int as today,
-        (select count(*) from rcs_filings)::int as filings,
-        (select count(*) from rcs_filings where document_sha256 is not null)::int as docs_saved,
-        (select count(*) from documents where downloaded_at >= current_date)::int as docs_today,
-        (select count(distinct i.value) from entity_identifiers i where i.scheme = 'rcs'
-           and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found')))::int as remaining,
-        (select count(distinct i.value) from entity_identifiers i join entities e on e.id = i.entity_id where i.scheme = 'rcs' and e.is_service_provider
-           and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found')))::int as remaining_sp,
-        (select count(distinct value) from entity_identifiers where scheme = 'rcs')::int as known`)
+        (select count(*) from staging.source_records where source = 'rcs' and state = 'found')::int as captured,
+        (select count(*) from staging.source_records where source = 'rcs' and state = 'found' and last_changed_at >= current_date)::int as today,
+        (select count(*) from clean.filings)::int as filings,
+        (select count(*) from clean.filings where document_sha256 is not null)::int as docs_saved,
+        (select count(*) from raw.documents where downloaded_at >= current_date)::int as docs_today,
+        (select count(distinct i.value) from core.company_identifiers i where i.scheme = 'rcs'
+           and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found')))::int as remaining,
+        (select count(distinct i.value) from core.company_identifiers i join core.companies e on e.id = i.company_id where i.scheme = 'rcs' and e.is_service_provider
+           and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found')))::int as remaining_sp,
+        (select count(distinct value) from core.company_identifiers where scheme = 'rcs')::int as known`)
   ).rows;
   return s;
 }
@@ -254,15 +254,15 @@ export async function companyStatus(rcs: string) {
     await db.execute<{ name: string | null; captured_at: string | null; filings: number; with_docs: number; docs_saved: number; sp: boolean | null; kind: string | null; category: string | null; sources: string[] | null }>(sql`
       select e.canonical_name as name,
              s.last_changed_at as captured_at,
-             (select count(*) from rcs_filings f where f.source_record_id = s.id)::int as filings,
-             (select count(*) from rcs_filings f where f.source_record_id = s.id and f.has_documents)::int as with_docs,
-             (select count(*) from rcs_filings f where f.source_record_id = s.id and f.document_sha256 is not null)::int as docs_saved,
-             e.is_service_provider as sp, e.entity_kind as kind,
-             (select label from activity_categories c where c.id = e.activity_category_id) as category,
-             (select array_agg(distinct x.source) from source_records x where x.entity_id = e.id and x.state = 'found') as sources
-      from entity_identifiers i
-      join entities e on e.id = i.entity_id
-      left join source_records s on s.source = 'rcs' and s.external_id = ${rcs}
+             (select count(*) from clean.filings f where f.source_record_id = s.id)::int as filings,
+             (select count(*) from clean.filings f where f.source_record_id = s.id and f.has_documents)::int as with_docs,
+             (select count(*) from clean.filings f where f.source_record_id = s.id and f.document_sha256 is not null)::int as docs_saved,
+             e.is_service_provider as sp, e.company_kind as kind,
+             (select label from core.activity_categories c where c.id = e.activity_category_id) as category,
+             (select array_agg(distinct x.source) from staging.source_records x where x.company_id = e.id and x.state = 'found') as sources
+      from core.company_identifiers i
+      join core.companies e on e.id = i.company_id
+      left join staging.source_records s on s.source = 'rcs' and s.external_id = ${rcs}
       where i.scheme = 'rcs' and i.value = ${rcs}
       limit 1`)
   ).rows;
@@ -295,11 +295,11 @@ export async function storeCapture(body: CaptureBody, dir: string, blobs = makeB
     const before = new Date();
     const res = await ingest(personRcs, raw, { blobs });
     const parsed = parseRcs(raw);
-    const filings = parsed.rcsFilings?.length ?? 0;
+    const filings = parsed.filings?.length ?? 0;
     // Filings first seen in this capture (for an update round: the new filings since the last pass).
     const [{ n: newFilings }] = (
       await db.execute<{ n: number }>(sql`
-        select count(*)::int as n from rcs_filings f join source_records s on s.id = f.source_record_id
+        select count(*)::int as n from clean.filings f join staging.source_records s on s.id = f.source_record_id
         where s.source = 'rcs' and s.external_id = ${rcs} and f.first_seen_at >= ${before}`)
     ).rows;
     // PDFs opened before the page was saved can be linked now that their filings exist.
@@ -322,10 +322,10 @@ export async function storeCapture(body: CaptureBody, dir: string, blobs = makeB
  */
 export async function linkPendingDocuments(rcs?: string) {
   const res = await db.execute(sql`
-    update rcs_filings f set document_sha256 = d.sha256
-    from documents d
+    update clean.filings f set document_sha256 = d.sha256
+    from raw.documents d
     where d.filing_number = f.filing_number and f.document_sha256 is null
-      ${rcs ? sql`and f.source_record_id in (select id from source_records where source = 'rcs' and external_id = ${rcs})` : sql``}`);
+      ${rcs ? sql`and f.source_record_id in (select id from staging.source_records where source = 'rcs' and external_id = ${rcs})` : sql``}`);
   return res.rowCount ?? 0;
 }
 
@@ -334,7 +334,7 @@ type DocumentBody = { url: string; contentType?: string; data: string; filingNum
 
 /**
  * Kind: async function. Stores a filing PDF you opened on LBR: object storage (docs/<sha256>.pdf, stored once),
- * a `documents` row, and the link from its filing (rcs_filings.document_sha256) when the filing number is known
+ * a `documents` row, and the link from its filing (clean.filings.document_sha256) when the filing number is known
  * (from the document URL, or from the filing row you clicked — sent by the extension).
  */
 export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(config().storage)) {
@@ -356,12 +356,12 @@ export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(co
   let linked = false;
   let alreadySaved = false;
   if (filingNumber) {
-    const [f] = await db.select({ doc: rcsFilings.documentSha256 }).from(rcsFilings).where(eq(rcsFilings.filingNumber, filingNumber));
+    const [f] = await db.select({ doc: filings.documentSha256 }).from(filings).where(eq(filings.filingNumber, filingNumber));
     if (f?.doc) {
       alreadySaved = true;
       linked = true;
     } else if (f) {
-      await db.update(rcsFilings).set({ documentSha256: hash }).where(eq(rcsFilings.filingNumber, filingNumber));
+      await db.update(filings).set({ documentSha256: hash }).where(eq(filings.filingNumber, filingNumber));
       linked = true;
     }
   }
@@ -370,7 +370,7 @@ export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(co
   const rcs =
     normalizeRcs(body.rcs) ??
     (filingNumber
-      ? ((await db.execute<{ rcs: string }>(sql`select s.external_id as rcs from rcs_filings f join source_records s on s.id = f.source_record_id where f.filing_number = ${filingNumber}`)).rows[0]?.rcs ?? null)
+      ? ((await db.execute<{ rcs: string }>(sql`select s.external_id as rcs from clean.filings f join staging.source_records s on s.id = f.source_record_id where f.filing_number = ${filingNumber}`)).rows[0]?.rcs ?? null)
       : null);
   if (rcs && linked) await recordDocument(rcs);
   return { ok: true, sha256: hash, bytes: bytes.length, filingNumber, linked };
@@ -461,7 +461,7 @@ export async function startCaptureServer() {
         const rows = (
           await db.execute<{ filing_number: string; has_documents: boolean; saved: boolean }>(sql`
             select f.filing_number, f.has_documents, f.document_sha256 is not null as saved
-            from rcs_filings f join source_records s on s.id = f.source_record_id
+            from clean.filings f join staging.source_records s on s.id = f.source_record_id
             where s.source = 'rcs' and s.external_id = ${rcs}`)
         ).rows;
         return reply(200, { ok: true, rcs, filings: rows });

@@ -3,13 +3,13 @@
  * PART: shared package (packages/engine-db) — engine core, used by the engine workers and the admin console
  * WHAT IT DOES: Decides an entity's classification — isServiceProvider, entity kind, activity category and
  *   subcategory, and tier — from the facts the registers give us (CSSF entity types and active activity
- *   codes, RCS legal form) and the `classification_rules` table. For each output field the highest-priority
+ *   codes, RCS legal form) and the `core.classification_rules` table. For each output field the highest-priority
  *   matching rule wins; the subcategory must belong to the winning category. Pure function.
  * WHERE IT RUNS: called by core/ingest.ts and by the `reclassify` job.
  * TYPESCRIPT YOU WILL SEE HERE: `Pick<T, K>`, `filter` + `sort`, `??`.
  */
 
-import type { ClassificationRule, EntityKind } from "../schema";
+import type { ClassificationRule, CompanyKind } from "../schema";
 
 /** Kind: type alias. What classification looks at. */
 export type ClassifyInput = {
@@ -22,10 +22,10 @@ export type ClassifyInput = {
   hasRcs: boolean;
 };
 
-/** Kind: type alias. The result written to `entities`. */
+/** Kind: type alias. The result written to `companies`. */
 export type Classification = {
   isServiceProvider: boolean;
-  entityKind: EntityKind;
+  companyKind: CompanyKind;
   activityCategoryId: number | null;
   activitySubcategoryId: number | null;
   tier: number;
@@ -33,13 +33,13 @@ export type Classification = {
   ruleIds: number[];
 };
 
-type Rule = Pick<ClassificationRule, "id" | "kind" | "match" | "isServiceProvider" | "entityKind" | "categoryId" | "subcategoryId" | "tier" | "priority" | "enabled">;
+type Rule = Pick<ClassificationRule, "id" | "kind" | "match" | "isServiceProvider" | "companyKind" | "categoryId" | "subcategoryId" | "tier" | "priority" | "enabled">;
 
 /**
  * Kind: function. Applies the rules.
  * @param input        type `ClassifyInput`.
  * @param rules        type `Rule[]` — all rules (disabled ones are ignored).
- * @param defaults     `corporateCategoryId` — category for entities no rule matched but that are in the RCS.
+ * @param defaults     `corporateCategoryId` — category for companies no rule matched but that are in the RCS.
  * @returns `Classification`.
  */
 export function classify(input: ClassifyInput, rules: Rule[], defaults: { corporateCategoryId: number | null } = { corporateCategoryId: null }): Classification {
@@ -60,14 +60,14 @@ export function classify(input: ClassifyInput, rules: Rule[], defaults: { corpor
   const categoryId = catRule?.categoryId ?? null;
   const subRule = hits.find((r) => r.subcategoryId !== null && (r.categoryId === null || r.categoryId === categoryId));
   const spRule = first("isServiceProvider");
-  const kindRule = first("entityKind");
+  const kindRule = first("companyKind");
   // Tier: the deepest any matching rule asks for.
   const tier = Math.max(0, ...hits.map((r) => r.tier ?? 0));
 
   const noRule = hits.length === 0;
   return {
     isServiceProvider: spRule?.isServiceProvider ?? false,
-    entityKind: (kindRule?.entityKind as EntityKind | undefined) ?? (input.hasRcs ? "corporate" : "other"),
+    companyKind: (kindRule?.companyKind as CompanyKind | undefined) ?? (input.hasRcs ? "corporate" : "other"),
     activityCategoryId: categoryId ?? (noRule && input.hasRcs ? defaults.corporateCategoryId : null),
     activitySubcategoryId: subRule?.subcategoryId ?? null,
     tier,

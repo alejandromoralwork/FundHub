@@ -1,0 +1,18 @@
+[Unit]
+Description=FundHub Intelligence pipeline scheduler (cron schedules of the engine jobs)
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+ConditionPathExists=@REPO@/services/engine/.env
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@/services/engine
+EnvironmentFile=@REPO@/services/engine/.env
+Environment=PATH=@NODE_DIR@:/usr/bin:/bin
+ExecStart=@NODE_DIR@/node --import tsx src/cli.ts scheduler
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

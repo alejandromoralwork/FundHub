@@ -8,7 +8,7 @@
  *   rcs_sweep {prefix, batch?}  — backfill: walks 1…max_known in batches, skipping numbers already known,
  *                                then queues the next batch (self-chaining) until the whole range is done.
  *   rcs_refresh {limit?}     — queues `rcs_fetch` for records whose refresh date has passed (tier decides
- *                                how often: weekly / monthly / yearly, see core/ingest.ts refreshDays()).
+ *                                how often: weekly / monthly / yearly, see ops.sources.refresh_days).
  *   Every RCS request passes `gate()`: session healthy, inside active hours, under the daily cap. When the
  *   gate is closed, work is re-queued for later instead of failing. Bot checks / logouts mark the session
  *   unhealthy and stop RCS work until `engine rcs:login` is done again.
@@ -18,8 +18,8 @@
 
 import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
-import { entities, rcsNumberSpace, sourceRecords } from "@fundhub/engine-db/schema";
-import { ingest, recordFailure, type IngestResult } from "../core/ingest";
+import { companies, lbrNumberSpace, sourceRecords } from "@fundhub/engine-db/schema";
+import { ingest, recordFailure, type IngestResult } from "../pipeline/ingest";
 import { normalizeRcs, splitRcs } from "../core/normalize";
 import { bumpCounter, finishRun, getCursor, getSessionHealth, setSessionHealth, snapshotScope, startRun, today } from "../core/ops";
 import { log } from "../log";
@@ -66,7 +66,7 @@ async function fetchOne(rcs: string, ctx: JobContext): Promise<IngestResult> {
     const res = await ingest(adapter, raw, { blobs: ctx.blobs });
     if (res.status !== "not_found") {
       const [prefix, n] = splitRcs(rcs);
-      await db.update(rcsNumberSpace).set({ maxKnown: sql`greatest(${rcsNumberSpace.maxKnown}, ${n})`, updatedAt: new Date() }).where(eq(rcsNumberSpace.prefix, prefix));
+      await db.update(lbrNumberSpace).set({ maxKnown: sql`greatest(${lbrNumberSpace.maxKnown}, ${n})`, updatedAt: new Date() }).where(eq(lbrNumberSpace.prefix, prefix));
     }
     log.info("rcs ingested", { rcs, status: res.status, changes: res.changes });
     return res;
@@ -96,7 +96,7 @@ export async function rcsFetch(data: { rcs: string }, ctx: JobContext) {
 /** Kind: async function. Job "rcs_frontier": probe above the highest known number. */
 export async function rcsFrontier(data: { prefix?: string; from?: number }, ctx: JobContext) {
   const prefix = data.prefix ?? "B";
-  const [space] = await db.select().from(rcsNumberSpace).where(eq(rcsNumberSpace.prefix, prefix));
+  const [space] = await db.select().from(lbrNumberSpace).where(eq(lbrNumberSpace.prefix, prefix));
   if (!space) throw new Error(`Unknown RCS prefix ${prefix} (run engine:db:seed)`);
   let n = data.from ?? space.maxKnown + 1;
   if (n <= 1) throw new Error(`No frontier yet for ${prefix}: run once with --from <a recent number>, e.g. --from 290000`);
@@ -133,7 +133,7 @@ export async function rcsFrontier(data: { prefix?: string; from?: number }, ctx:
 export async function rcsSweep(data: { prefix?: string; batch?: number }, ctx: JobContext) {
   const prefix = data.prefix ?? "B";
   const batch = data.batch ?? 200;
-  const [space] = await db.select().from(rcsNumberSpace).where(eq(rcsNumberSpace.prefix, prefix));
+  const [space] = await db.select().from(lbrNumberSpace).where(eq(lbrNumberSpace.prefix, prefix));
   if (!space?.enabled) return { skipped: "prefix disabled" };
   if (space.sweptTo >= space.maxKnown) return { done: true };
 
@@ -158,7 +158,7 @@ export async function rcsSweep(data: { prefix?: string; batch?: number }, ctx: J
         stats.probed++;
       }
       n = next;
-      await db.update(rcsNumberSpace).set({ sweptTo: n, updatedAt: new Date() }).where(eq(rcsNumberSpace.prefix, prefix));
+      await db.update(lbrNumberSpace).set({ sweptTo: n, updatedAt: new Date() }).where(eq(lbrNumberSpace.prefix, prefix));
     }
     if (n === end && n < space.maxKnown) await ctx.enqueue("rcs_sweep", { prefix, batch }, { singletonKey: `rcs_sweep:${prefix}` });
     await finishRun(runId, "succeeded", stats);
@@ -171,7 +171,7 @@ export async function rcsSweep(data: { prefix?: string; batch?: number }, ctx: J
 
 /**
  * Kind: async function. Job "rcs_refresh". Queues, within the daily budget:
- *   1. entities we know an RCS number for (from GLEIF / CSSF) but never fetched from the RCS — highest tier
+ *   1. companies we know an RCS number for (from GLEIF / CSSF) but never fetched from the RCS — highest tier
  *      first, so service providers and asset managers get their filings before the blind sweep reaches them;
  *   2. RCS records whose refresh date has passed, highest tier first.
  */
@@ -179,19 +179,19 @@ export async function rcsRefresh(data: { limit?: number }, ctx: JobContext) {
   const limit = data.limit ?? ctx.cfg.rcs.dailyCap;
   const missing = (
     await db.execute<{ rcs: string }>(sql`
-      select i.value as rcs from entity_identifiers i
-      join entities e on e.id = i.entity_id
+      select i.value as rcs from core.company_identifiers i
+      join core.companies e on e.id = i.company_id
       where i.scheme = 'rcs'
-        and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value)
+        and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value)
       order by e.tier desc, e.is_service_provider desc
       limit ${limit}`)
   ).rows;
   const due = await db
     .select({ rcs: sourceRecords.externalId })
     .from(sourceRecords)
-    .leftJoin(entities, eq(entities.id, sourceRecords.entityId))
+    .leftJoin(companies, eq(companies.id, sourceRecords.companyId))
     .where(and(eq(sourceRecords.source, "rcs"), eq(sourceRecords.state, "found"), lte(sourceRecords.nextFetchAt, new Date())))
-    .orderBy(desc(entities.tier), asc(sourceRecords.nextFetchAt))
+    .orderBy(desc(companies.tier), asc(sourceRecords.nextFetchAt))
     .limit(Math.max(0, limit - missing.length));
   for (const d of [...missing, ...due]) await ctx.enqueue("rcs_fetch", { rcs: d.rcs }, { singletonKey: `rcs:${d.rcs}` });
   return { queuedKnown: missing.length, queuedDue: due.length };

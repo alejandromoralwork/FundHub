@@ -124,7 +124,7 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
   const status = /struck off|deregistered|radi[ée]e/i.test(header) ? "struck_off" : /liquidation/i.test(header) ? "in_liquidation" : "active";
 
   const filingsStart = lines.findIndex((l) => /^consult the filing$/i.test(l));
-  const rcsFilings = parseFilings(filingsStart >= 0 ? lines.slice(filingsStart + 1) : lines.slice(h));
+  const filings = parseFilings(filingsStart >= 0 ? lines.slice(filingsStart + 1) : lines.slice(h));
 
   return {
     source: "rcs",
@@ -141,11 +141,11 @@ export function parseRcsText(text: string, externalId: string): ParsedRecord {
       legalForm: after(top, "Legal form"),
       status,
       rcsLastFilingDate: dmyToIso(lastFiling?.[1]),
-      rcsFilingCount: rcsFilings.length,
+      rcsFilingCount: filings.length,
     },
     identifiers: rcsNumber ? [{ scheme: "rcs", value: rcsNumber }] : [],
     names: [{ name, kind: "legal", validFrom: null }],
-    rcsFilings,
+    filings,
   };
 }
 

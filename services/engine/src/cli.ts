@@ -39,7 +39,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db, pool } from "@fundhub/engine-db/client";
-import { censusSnapshots, crawlRuns, entities, entityIdentifiers, entityRelations, sessionHealth, sourceRecords } from "@fundhub/engine-db/schema";
+import { censusSnapshots, runs, companies, companyIdentifiers, companyRelations, sessionHealth, sourceRecords } from "@fundhub/engine-db/schema";
 import { makeContext, type JobContext } from "./jobs/context";
 import { GROUPS, inlineEnqueue, isJob, JOBS, type Group, type JobDef } from "./jobs/index";
 import { setSessionHealth } from "./core/ops";
@@ -93,14 +93,14 @@ async function waitForEnter(prompt: string) {
 
 /** Kind: async function. `engine status`. */
 async function status() {
-  const latest = await db.select().from(censusSnapshots).where(sql`${censusSnapshots.takenOn} = (select max(taken_on) from census_snapshots)`).orderBy(censusSnapshots.source, censusSnapshots.scope);
+  const latest = await db.select().from(censusSnapshots).where(sql`${censusSnapshots.takenOn} = (select max(taken_on) from ops.census_snapshots)`).orderBy(censusSnapshots.source, censusSnapshots.scope);
   console.log("\nCensus (latest day):");
   console.table(latest.map((c) => ({ day: c.takenOn, source: c.source, scope: c.scope, expected: c.expectedTotal, seen: c.seen, new: c.added, gone: c.gone })));
   const sessions = await db.select().from(sessionHealth);
   console.log("Sessions:", sessions.length ? sessions.map((s) => `${s.source}=${s.state}${s.message ? ` (${s.message})` : ""}`).join(", ") : "none");
-  const runs = await db.select().from(crawlRuns).orderBy(desc(crawlRuns.startedAt)).limit(10);
+  const recent = await db.select().from(runs).orderBy(desc(runs.startedAt)).limit(10);
   console.log("\nRecent runs:");
-  console.table(runs.map((r) => ({ id: r.id, job: r.job, status: r.status, started: r.startedAt.toISOString().slice(0, 16), stats: JSON.stringify(r.stats) })));
+  console.table(recent.map((r) => ({ id: r.id, job: r.job, status: r.status, started: r.startedAt.toISOString().slice(0, 16), stats: JSON.stringify(r.stats) })));
   try {
     const q = await pool.query<{ name: string; state: string; n: number }>("select name, state, count(*)::int as n from pgboss.job group by 1, 2 order by 1, 2");
     console.log("Queue:");
@@ -114,18 +114,18 @@ async function status() {
 async function showEntity(q: string) {
   const rcs = normalizeRcs(q);
   const lei = normalizeLei(q);
-  const byId = rcs || lei ? await db.select({ id: entityIdentifiers.entityId }).from(entityIdentifiers).where(eq(entityIdentifiers.value, (rcs ?? lei)!)) : [];
+  const byId = rcs || lei ? await db.select({ id: companyIdentifiers.companyId }).from(companyIdentifiers).where(eq(companyIdentifiers.value, (rcs ?? lei)!)) : [];
   const rows = byId.length
-    ? await db.select().from(entities).where(eq(entities.id, byId[0].id))
-    : await db.select().from(entities).where(or(ilike(entities.canonicalName, `%${q}%`))).limit(5);
+    ? await db.select().from(companies).where(eq(companies.id, byId[0].id))
+    : await db.select().from(companies).where(or(ilike(companies.canonicalName, `%${q}%`))).limit(5);
   for (const e of rows) {
     console.log(JSON.stringify(e, null, 2));
-    const ids = await db.select({ scheme: entityIdentifiers.scheme, value: entityIdentifiers.value, source: entityIdentifiers.source }).from(entityIdentifiers).where(eq(entityIdentifiers.entityId, e.id));
-    const recs = await db.select({ source: sourceRecords.source, id: sourceRecords.externalId, state: sourceRecords.state, scope: sourceRecords.scope, lastChanged: sourceRecords.lastChangedAt }).from(sourceRecords).where(eq(sourceRecords.entityId, e.id));
+    const ids = await db.select({ scheme: companyIdentifiers.scheme, value: companyIdentifiers.value, source: companyIdentifiers.source }).from(companyIdentifiers).where(eq(companyIdentifiers.companyId, e.id));
+    const recs = await db.select({ source: sourceRecords.source, id: sourceRecords.externalId, state: sourceRecords.state, scope: sourceRecords.scope, lastChanged: sourceRecords.lastChangedAt }).from(sourceRecords).where(eq(sourceRecords.companyId, e.id));
     const rels = await db
-      .select({ kind: entityRelations.kind, client: entityRelations.objectName, linked: entityRelations.objectEntityId, source: entityRelations.source })
-      .from(entityRelations)
-      .where(and(eq(entityRelations.subjectEntityId, e.id), isNull(entityRelations.validTo)));
+      .select({ kind: companyRelations.kind, client: companyRelations.objectName, linked: companyRelations.objectCompanyId, source: companyRelations.source })
+      .from(companyRelations)
+      .where(and(eq(companyRelations.subjectCompanyId, e.id), isNull(companyRelations.validTo)));
     console.table(ids);
     console.table(recs);
     if (rels.length) {
@@ -334,7 +334,7 @@ async function main(): Promise<number> {
           await writeFile(join(browser.debugDir, `page-${n}.html`), cap.html);
           try {
             const parsed = parseRcsText(cap.text, n);
-            console.log(JSON.stringify({ rcs: n, url: cap.url, state: parsed.state, facts: parsed.facts, filings: parsed.rcsFilings?.length ?? 0, firstFilings: parsed.rcsFilings?.slice(0, 2) }, null, 2));
+            console.log(JSON.stringify({ rcs: n, url: cap.url, state: parsed.state, facts: parsed.facts, filings: parsed.filings?.length ?? 0, firstFilings: parsed.filings?.slice(0, 2) }, null, 2));
           } catch (err) {
             console.log(`${n}: captured (${cap.url}) but the parser does not recognise it yet: ${err instanceof Error ? err.message : err}`);
           }
@@ -375,7 +375,7 @@ async function main(): Promise<number> {
       console.log(`✔ Saved ${url}\n  ${join(out, `rcs-${name}.txt`)}\n  ${join(out, `rcs-${name}.html`)}`);
       try {
         const p = parseRcsText(text, rcs ?? "B0");
-        console.log(`Parsed: ${p.state} · ${p.facts.name} · ${p.rcsFilings?.length ?? 0} filings`);
+        console.log(`Parsed: ${p.state} · ${p.facts.name} · ${p.filings?.length ?? 0} filings`);
       } catch (err) {
         console.log(`Parser could not read it yet: ${err instanceof Error ? err.message : err}`);
       }

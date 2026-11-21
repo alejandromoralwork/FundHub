@@ -26,12 +26,15 @@ import { revalidatePath } from "next/cache";
 // Zod: validation library.
 import { z } from "zod";
 // Allowed values for provider fields and for scrape sources (shared lists in our core package).
-import { ASSET_CLASSES, CERTIFICATIONS, INGEST_SOURCES, LICENCES, REGULATORY_SCOPES } from "@fundhub/core/enums";
+import { ASSET_CLASSES, CERTIFICATIONS, LICENCES, REGULATORY_SCOPES } from "@fundhub/core/enums";
 // Every known service name across all categories.
 import { ALL_SERVICES } from "@fundhub/core/taxonomy";
 // Database connection; tables: scrape jobs, scraped records, providers.
 import { db } from "@fundhub/db/client";
-import { ingestJobs, ingestRecords, providers } from "@fundhub/db/schema";
+import { ingestRecords, providers } from "@fundhub/db/schema";
+import { db as engineDb } from "@fundhub/engine-db/client";
+import { companies } from "@fundhub/engine-db/schema";
+import { sendEngineJob } from "./engine-queue";
 // Audit log and permission checks.
 import { audit } from "./audit";
 import { CAN, requireStaff } from "./auth";
@@ -59,6 +62,7 @@ const enumList = (allowed: readonly string[]) => z.array(z.string()).refine((l) 
  * This is an allow-list: any key not listed here can never reach a provider row, whatever the scraper sends.
  */
 const ACCEPTABLE: Record<string, z.ZodType> = {
+  website: z.string().trim().url().max(300),
   description: z.string().trim().min(10).max(1200),
   headquarters: z.string().trim().min(2).max(160),
   // Luxembourg business register (RCS) number.
@@ -77,21 +81,32 @@ const ACCEPTABLE: Record<string, z.ZodType> = {
 
 /**
  * Kind: server action.
- * Adds a scrape job to the queue. The data module on the VM checks the queue every 5 minutes
- * (fundhub-scraper-jobs.timer, see infra/vm/README.md).
- * @param source      `string` — which source to scrape (must be one of `INGEST_SOURCES`).
- * @param providerId  `number | null` — one provider to scrape, or `null` for a general run.
- * @returns           `Promise<ActionResult>` — confirms the job is queued.
+ * Asks the Intelligence pipeline (services/engine) to work now, through its job queue:
+ *   "website"  crawl the website of one listed provider (its linked company), or queue every company that is due;
+ *   "fundhub"  re-read FundHub listings, claims and self-edits into the pipeline;
+ *   "publish"  compare golden records with listings and write proposals into this review queue.
+ * @param action      one of the three above.
+ * @param providerId  for "website": one provider, or `null` for all due companies.
  */
-export async function queueScrape(source: string, providerId: number | null): Promise<ActionResult> {
+export async function queueScrape(action: string, providerId: number | null): Promise<ActionResult> {
   // `CAN.pipeline` = owner, operations and analyst.
   const staff = await requireStaff(CAN.pipeline);
-  const s = z.enum(INGEST_SOURCES).parse(source);
-  // Record the job; the scraper picks up queued jobs when it runs.
-  const [job] = await db.insert(ingestJobs).values({ source: s, providerId, requestedBy: staff.id }).returning({ id: ingestJobs.id });
-  await audit(staff, "queue", "ingest_jobs", job.id, { source: s, providerId });
-  revalidatePath("/pipeline");
-  return { ok: "Queued. The data module picks it up within 5 minutes; results then appear in the review queue." };
+  const a = z.enum(["website", "fundhub", "publish"]).parse(action);
+  try {
+    let data: Record<string, unknown> = {};
+    if (a === "website" && providerId) {
+      const [c] = await engineDb.select({ id: companies.id }).from(companies).where(eq(companies.websiteProviderId, providerId));
+      if (!c) return { error: "This provider is not linked to a company yet. Run “Sync FundHub accounts” and approve its record in Company intelligence → Review." };
+      data = { companyId: c.id };
+    }
+    const job = a === "website" ? "website_crawl" : a === "fundhub" ? "fundhub_sync" : "publish_proposals";
+    await sendEngineJob(job, data);
+    await audit(staff, "queue", "engine-job", null, { job, data });
+    revalidatePath("/pipeline");
+    return { ok: "Queued. An engine worker runs it within a minute; proposals then appear in the review queue." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /**

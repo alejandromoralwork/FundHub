@@ -37,7 +37,11 @@ export type EngineConfig = {
     entityUrlTemplate?: string;
     frontierMisses: number;
   };
-  anthropic: { model: string };
+  anthropic: { model: string; effort: "low" | "medium" | "high" | "xhigh" | "max" };
+  website: { maxPages: number; maxChars: number; delayMs: number; batch: number };
+  news: { delayMs: number; searchBatch: number; searchLanguage: string };
+  /** Website database (read-only role for the FundHub source; publish role for proposals). */
+  websiteDb: { readUrl?: string; publishUrl?: string };
   scheduleTz: string;
 };
 
@@ -83,7 +87,10 @@ export function config(): EngineConfig {
       entityUrlTemplate: process.env.RCS_ENTITY_URL_TEMPLATE || undefined,
       frontierMisses: num("RCS_FRONTIER_MISSES", 30),
     },
-    anthropic: { model: process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5" },
+    anthropic: { model: process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5", effort: (process.env.EXTRACTION_EFFORT as EngineConfig["anthropic"]["effort"]) ?? "medium" },
+    website: { maxPages: num("WEBSITE_MAX_PAGES", 8), maxChars: num("WEBSITE_MAX_CHARS", 60_000), delayMs: num("WEBSITE_DELAY_MS", 800), batch: num("WEBSITE_BATCH", 25) },
+    news: { delayMs: num("NEWS_DELAY_MS", 1500), searchBatch: num("NEWS_SEARCH_BATCH", 40), searchLanguage: process.env.NEWS_SEARCH_LANGUAGE ?? "en" },
+    websiteDb: { readUrl: process.env.WEBSITE_DATABASE_URL_RO || undefined, publishUrl: process.env.WEBSITE_DATABASE_URL_PUBLISH || undefined },
     scheduleTz: process.env.ENGINE_TZ ?? "Europe/Luxembourg",
   };
 }

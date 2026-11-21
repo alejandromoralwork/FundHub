@@ -14,7 +14,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { sourceRecords } from "@fundhub/engine-db/schema";
-import { ingest, markMissing, recordFailure } from "../core/ingest";
+import { ingest, markMissing, recordFailure } from "../pipeline/ingest";
 import { finishRun, snapshotScope, startRun } from "../core/ops";
 import { log } from "../log";
 import { CENSUS_TYPES } from "../sources/cssf/adapter";

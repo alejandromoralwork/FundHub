@@ -9,7 +9,7 @@
  *   - Logged out: it waits for the person to log in again in the same window, then retries that company.
  *   - Interrupt any time with Ctrl+C (or create .engine-data/stop-rcs, or close the browser window): it finishes
  *     the current company and stops.
- *   - Resume: the next run skips every RCS number already captured (source_records), so it continues where
+ *   - Resume: the next run skips every RCS number already captured (staging.source_records), so it continues where
  *     the previous run stopped. Work order: numbers known from GLEIF / CSSF / imports, highest tier first,
  *     service providers and asset managers first.
  *   - Pages the parser cannot read are logged with a screenshot (.engine-data/rcs-debug/session-…/errors) and
@@ -23,9 +23,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
-import { rcsNumberSpace } from "@fundhub/engine-db/schema";
+import { lbrNumberSpace } from "@fundhub/engine-db/schema";
 import { config } from "./config";
-import { ingest } from "./core/ingest";
+import { ingest } from "./pipeline/ingest";
 import { normalizeRcs, splitRcs } from "./core/normalize";
 import { bumpCounter, finishRun, getCursor, setSessionHealth, startRun, today } from "./core/ops";
 import { makeBlobStore } from "./storage";
@@ -81,11 +81,11 @@ async function workList(limit: number): Promise<string[]> {
   const rows = (
     await db.execute<{ rcs: string }>(sql`
       select i.value as rcs
-      from entity_identifiers i
-      join entities e on e.id = i.entity_id
+      from core.company_identifiers i
+      join core.companies e on e.id = i.company_id
       where i.scheme = 'rcs'
-        and not exists (select 1 from source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
-      order by e.tier desc, e.is_service_provider desc, (e.entity_kind = 'asset_manager') desc, i.value
+        and not exists (select 1 from staging.source_records s where s.source = 'rcs' and s.external_id = i.value and s.state in ('found', 'not_found'))
+      order by e.tier desc, e.is_service_provider desc, (e.company_kind = 'asset_manager') desc, i.value
       limit ${limit}`)
   ).rows;
   return rows.map((r) => r.rcs);
@@ -148,7 +148,7 @@ export async function runRcsSession(opts: SessionOptions): Promise<number> {
           stats[res.status as keyof typeof stats] = (stats[res.status as keyof typeof stats] ?? 0) + 1;
           if (res.status !== "not_found") {
             const [prefix, n] = splitRcs(rcs);
-            await db.update(rcsNumberSpace).set({ maxKnown: sql`greatest(${rcsNumberSpace.maxKnown}, ${n})`, updatedAt: new Date() }).where(eq(rcsNumberSpace.prefix, prefix));
+            await db.update(lbrNumberSpace).set({ maxKnown: sql`greatest(${lbrNumberSpace.maxKnown}, ${n})`, updatedAt: new Date() }).where(eq(lbrNumberSpace.prefix, prefix));
           }
           console.log(`[${i + 1}/${todo.length}] ${rcs} ✓ ${res.status}${res.changes ? ` (${res.changes} changes)` : ""}`);
           break;

@@ -11,11 +11,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { db, pool } from "@fundhub/engine-db/client";
 import { activeRound, closeRound, listRounds, nextItems, recordDocument, recordVisit, resetSkipped, roundStats, skipItem, startRound } from "@fundhub/engine-db/core/rounds";
-import { captureRounds, entities, entityIdentifiers, sourceRecords } from "@fundhub/engine-db/schema";
+import { lbrCaptureRounds, companies, companyIdentifiers, sourceRecords } from "@fundhub/engine-db/schema";
 
 async function dbReady() {
   try {
-    const r = await pool.query("select to_regclass('public.capture_rounds') as t");
+    const r = await pool.query("select to_regclass('ops.lbr_capture_rounds') as t");
     return r.rows[0].t !== null;
   } catch {
     return false;
@@ -28,11 +28,11 @@ test("capture rounds: initial snapshot, visits, skip/reset, update round, one ac
   try {
     await db.transaction(async (tx) => {
       // Two fake companies known from another source, the first one a service provider.
-      const [a] = await tx.insert(entities).values({ canonicalName: "Roundtest Alpha SA", normalizedName: "roundtest alpha", isServiceProvider: true, entityKind: "service_provider", tier: 2 }).returning({ id: entities.id });
-      const [b] = await tx.insert(entities).values({ canonicalName: "Roundtest Beta SARL", normalizedName: "roundtest beta" }).returning({ id: entities.id });
-      await tx.insert(entityIdentifiers).values([
-        { entityId: a.id, scheme: "rcs", value: "B9999901", source: "gleif" },
-        { entityId: b.id, scheme: "rcs", value: "B9999902", source: "gleif" },
+      const [a] = await tx.insert(companies).values({ canonicalName: "Roundtest Alpha SA", normalizedName: "roundtest alpha", isServiceProvider: true, companyKind: "service_provider", tier: 2 }).returning({ id: companies.id });
+      const [b] = await tx.insert(companies).values({ canonicalName: "Roundtest Beta SARL", normalizedName: "roundtest beta" }).returning({ id: companies.id });
+      await tx.insert(companyIdentifiers).values([
+        { companyId: a.id, scheme: "rcs", value: "B9999901", source: "gleif" },
+        { companyId: b.id, scheme: "rcs", value: "B9999902", source: "gleif" },
       ]);
 
       // 1. Initial round limited to these numbers: both, service provider first.
@@ -57,10 +57,10 @@ test("capture rounds: initial snapshot, visits, skip/reset, update round, one ac
       assert.deepEqual([s.total, s.done, s.captured, s.pending, s.new_filings, s.new_documents], [2, 1, 1, 1, 3, 2]);
 
       // 4. Only one active round (database rule).
-      await assert.rejects(tx.transaction((sp) => sp.insert(captureRounds).values({ name: "second active", kind: "initial", scope: { filter: "all" } })));
+      await assert.rejects(tx.transaction((sp) => sp.insert(lbrCaptureRounds).values({ name: "second active", kind: "initial", scope: { filter: "all" } })));
 
       // 5. Update round: only companies already captured from the RCS (here: the first one).
-      await tx.insert(sourceRecords).values({ source: "rcs", externalId: "B9999901", entityId: a.id, state: "found" });
+      await tx.insert(sourceRecords).values({ source: "rcs", externalId: "B9999901", companyId: a.id, state: "found" });
       const r2 = await startRound({ kind: "update", scope: { filter: "text", text: "B99999" }, actor: "test" }, tx);
       assert.equal(r2.items, 1);
       assert.equal((await activeRound(tx))!.id, r2.round.id);

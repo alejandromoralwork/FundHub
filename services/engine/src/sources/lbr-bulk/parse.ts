@@ -1,7 +1,7 @@
 /**
  * FILE: services/engine/src/sources/lbr-bulk/parse.ts
  * PART: scraping engine (services/engine) — source "lbr_bulk"
- * WHAT IT DOES: Reads an official LBR data extract (the complete list of RCS entities, obtained under LBR's
+ * WHAT IT DOES: Reads an official LBR data extract (the complete list of RCS companies, obtained under LBR's
  *   data-reuse licence) given as CSV, and turns each row into a ParsedRecord keyed by RCS number. Column
  *   names differ between extracts, so a COLUMN MAP says which header holds what
  *   (default guesses cover common FR/EN headers). XLSX extracts: save as CSV (UTF-8) first.
