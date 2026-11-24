@@ -28,7 +28,7 @@ Deploys happen on push to `main` (Vercel). Migrations run in the admin build.
 
 ## 3. The Azure VM
 
-Ubuntu 24.04, Standard B2als v2 (2 vCPU, 4 GB RAM), public DNS `alejandro-code.centralindia.cloudapp.azure.com`. Only ports 22, 80 and 443 are open; everything else listens on `127.0.0.1` behind Caddy.
+Ubuntu 24.04, Standard D2as v5 (2 vCPU, 8 GB RAM; resized in place from B2als v2 for Metabase), public DNS `alejandro-code.centralindia.cloudapp.azure.com`. Only ports 22, 80 and 443 are open; everything else listens on `127.0.0.1` behind Caddy.
 
 | URL path | Service | systemd unit |
 |---|---|---|
@@ -36,9 +36,10 @@ Ubuntu 24.04, Standard B2als v2 (2 vCPU, 4 GB RAM), public DNS `alejandro-code.c
 | `/` | code-server (VS Code in the browser), behind Authelia 2FA | code-server |
 | `/engine/*` | Capture receiver for the extension (Bearer token) | `fundhub-capture` |
 | `/drive/*` | Internal drive, FileBrowser Quantum, behind Authelia 2FA (see 4) | `fundhub-drive` |
-| — | PostgreSQL 18, `fundhub_engine` | `postgresql` |
-| — | Nightly engine DB backup, 03:30 UTC | `fundhub-engine-backup.timer` |
-| — | Data module: queued jobs every 5 min, AI extraction Mon 03:00 UTC | `fundhub-scraper-jobs.timer`, `fundhub-scraper-weekly.timer` |
+| `/bi/*` | Data intelligence (Metabase): editor behind Authelia 2FA + Metabase login; signed embeds public ([data-intelligence.md](data-intelligence.md)) | `fundhub-metabase` |
+| — | PostgreSQL 18: `fundhub_engine` (Intelligence DB), `metabase` (Data intelligence app data) | `postgresql` |
+| — | Intelligence pipeline worker and cron scheduler | `fundhub-engine-worker`, `fundhub-engine-scheduler` |
+| — | Nightly DB backup (`fundhub_engine`, `metabase`), 03:30 UTC | `fundhub-engine-backup.timer` |
 
 Day-to-day commands, restore, importing a database and moving to a data disk: [infra/vm/README.md](../infra/vm/README.md). Extension setup (URL + token): [browser-extension/README.md](../services/engine/browser-extension/README.md).
 
@@ -70,7 +71,7 @@ It cannot run on Vercel: a drive needs a server with a permanent disk.
 | Data | Backup | Restore |
 |---|---|---|
 | Website DB | Neon point-in-time restore | Neon console |
-| Engine DB | `pg_dump` nightly → `/var/backups/fundhub-engine`, 14 days, verified with `pg_restore --list`; optional off-VM copy with rclone (`RCLONE_REMOTE`) | [deploy/README.md](../infra/vm/README.md#restore-a-backup) |
+| Engine DB + Metabase DB | `pg_dump` nightly → `/var/backups/fundhub-engine`, 14 days, verified with `pg_restore --list`; optional off-VM copy with rclone (`RCLONE_REMOTE`) | [deploy/README.md](../infra/vm/README.md#restore-a-backup) |
 | Engine files (captures, PDFs) | none yet — move to object storage | — |
 | Drive files (`/srv/fundhub-drive`) | none yet — add an off-VM copy before storing real documents | — |
 | Self-hosted tools | `infra/tools/backup.sh` nightly | [infra/tools/README.md](../infra/tools/README.md) |

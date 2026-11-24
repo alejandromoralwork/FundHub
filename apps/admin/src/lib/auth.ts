@@ -257,6 +257,10 @@ export const CAN = {
   engineJobs: ["owner", "operations"],
   /** Drive page (the drive tool has its own accounts and folder permissions on top). */
   drive: ["owner", "operations", "analyst", "sales"],
+  /** Data intelligence (Metabase reports embedded in the console). */
+  bi: ["owner", "operations", "analyst", "sales"],
+  /** Data intelligence: restricted reports (finance). */
+  biRestricted: ["owner"],
 } as const satisfies Record<string, readonly StaffRole[]>;
 
 /**

@@ -51,6 +51,7 @@ import {
   TeamOutlined,
   ApartmentOutlined,
   FolderOpenOutlined,
+  FundProjectionScreenOutlined,
 } from "@ant-design/icons";
 // Next.js link component: changes page without a full reload.
 import Link from "next/link";
@@ -127,6 +128,10 @@ const RESOURCES = [
   { name: "billing", list: "/billing", meta: { label: "Billing & invoices", icon: <DollarOutlined /> } },
   { name: "finance", list: "/finance", meta: { label: "Finance", icon: <WalletOutlined /> } },
   { name: "analytics", list: "/analytics", meta: { label: "Analytics", icon: <BarChartOutlined /> } },
+  // Data intelligence (Metabase on the VM): system and team reports embedded here, plus the query workspace.
+  { name: "bi", meta: { label: "Data intelligence", icon: <FundProjectionScreenOutlined /> } },
+  { name: "bi-reports", list: "/intelligence", meta: { label: "Reports", parent: "bi" } },
+  { name: "bi-query", list: "/intelligence/query", meta: { label: "Query workspace", parent: "bi" } },
   // Company intelligence (the Intelligence DB): every Luxembourg company, cross-checked across sources.
   { name: "engine", meta: { label: "Company intelligence", icon: <ApartmentOutlined /> } },
   { name: "engine-overview", list: "/engine", meta: { label: "Pipeline", parent: "engine" } },

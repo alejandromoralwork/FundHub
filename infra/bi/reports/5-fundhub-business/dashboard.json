@@ -1,0 +1,6 @@
+{
+  "name": "FundHub business",
+  "description": "The website: listed providers, accounts, claims, client reviews and requests (RFIs, advisory).",
+  "database": "website",
+  "collection": "system"
+}

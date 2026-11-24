@@ -10,7 +10,8 @@
     "vercel-build": "npm run db:migrate -w @fundhub/db && next build",
     "start": "next start -p 3001",
     "typecheck": "tsc --noEmit",
-    "staff": "tsx scripts/staff.ts"
+    "staff": "tsx scripts/staff.ts",
+    "test": "node --conditions=react-server --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

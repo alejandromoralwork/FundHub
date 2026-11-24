@@ -17,6 +17,11 @@ for u in caddy authelia "code-server@$APP_USER" postgresql@18-main fundhub-captu
   if systemctl is-active --quiet "$u"; then ok "$u running"
   else bad "$u is $(systemctl is-active "$u")" "sudo systemctl restart $u; journalctl -u $u -n 50 --no-pager"; lastlog "$u"; fi
 done
+# Data Intelligence (Metabase): checked only once installed (infra/vm/bin/metabase-install.sh).
+if [ -f /opt/metabase/metabase.jar ]; then
+  if systemctl is-active --quiet fundhub-metabase && curl -fsS -m 5 http://127.0.0.1:3010/api/health 2>/dev/null | grep -q ok; then ok "fundhub-metabase running (/api/health ok)"
+  else bad "fundhub-metabase is $(systemctl is-active fundhub-metabase), health not ok" "sudo systemctl restart fundhub-metabase; journalctl -u fundhub-metabase -n 80 --no-pager (OutOfMemory → free memory or resize the VM)"; lastlog fundhub-metabase; fi
+fi
 for t in fundhub-engine-backup.timer; do
   systemctl is-active --quiet "$t" && ok "$t scheduled" || bad "$t not scheduled" "sudo systemctl enable --now $t"
 done
@@ -42,6 +47,10 @@ code() { curl -sS -o /dev/null -m 10 -w '%{http_code}' "https://$DOMAIN$1" 2>/de
 c=$(code /authelia/); [ "$c" = 200 ] && ok "/authelia/ login page ($c)" || bad "/authelia/ answers $c" "authelia down or Caddy broken: check both above; caddy validate --config /etc/caddy/Caddyfile"
 c=$(code /);          [ "$c" = 302 ] && ok "/ code-server requires login ($c)" || bad "/ answers $c (expected 302 to the login)" "Caddyfile or Authelia: sudo bash infra/vm/install.sh --diff"
 c=$(code /drive/);    [ "$c" = 302 ] && ok "/drive/ requires login ($c)" || bad "/drive/ answers $c (expected 302)" "Caddyfile or Authelia"
+if [ -f /opt/metabase/metabase.jar ]; then
+  c=$(code /bi/);            [ "$c" = 302 ] && ok "/bi/ requires login ($c)" || bad "/bi/ answers $c (expected 302)" "Caddyfile or Authelia rule for /bi"
+  c=$(code /bi/api/health);  [ "$c" = 200 ] && ok "/bi embeds reachable ($c)" || bad "/bi/api/health answers $c (expected 200)" "fundhub-metabase down (502) or Caddy /bi route"
+fi
 c=$(code /engine/stats); [ "$c" = 401 ] && ok "/engine requires the token ($c)" || bad "/engine/stats answers $c (expected 401)" "fundhub-capture down (502) or token check broken"
 exp=$(echo | timeout 10 openssl s_client -servername "$DOMAIN" -connect "$DOMAIN:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
 if [ -n "$exp" ]; then

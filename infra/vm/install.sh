@@ -173,6 +173,8 @@ systemctl enable fundhub-capture fundhub-engine-worker fundhub-engine-scheduler 
 systemctl restart fundhub-capture
 [ -f "$REPO/services/engine/.env" ] && systemctl restart fundhub-engine-worker fundhub-engine-scheduler || echo "  engine worker/scheduler not started: create services/engine/.env (template .env.example)"
 systemctl start fundhub-engine-backup.timer
+# Data Intelligence (Metabase) is installed separately (infra/vm/bin/metabase-install.sh); keep it enabled once there.
+if [ -f /opt/metabase/metabase.jar ]; then systemctl enable --now fundhub-metabase >/dev/null 2>&1 || true; fi
 
 say "Drive (FileBrowser Quantum)"
 DRIVE_VERSION="v2.0.2-stable"

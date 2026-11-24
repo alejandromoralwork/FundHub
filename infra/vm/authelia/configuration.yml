@@ -20,6 +20,10 @@ access_control:
     - domain: '@DOMAIN@'
       resources: ['^/drive([/?].*)?$']
       policy: two_factor
+    # Data Intelligence (Metabase query editor and reports): any VM user (2FA), then the Metabase login.
+    - domain: '@DOMAIN@'
+      resources: ['^/bi([/?].*)?$']
+      policy: two_factor
     # Everything else (code-server = a root shell on the VM): only the "admins" group (2FA).
     - domain: '@DOMAIN@'
       subject: 'group:admins'

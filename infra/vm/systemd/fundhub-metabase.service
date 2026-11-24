@@ -1,0 +1,30 @@
+[Unit]
+Description=FundHub Data Intelligence (Metabase) on 127.0.0.1:3010, published by Caddy at /bi
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+# Installed by infra/vm/bin/metabase-install.sh; inert until then.
+ConditionPathExists=/opt/metabase/metabase.jar
+ConditionPathExists=/etc/metabase/metabase.env
+
+[Service]
+User=metabase
+Group=metabase
+WorkingDirectory=/opt/metabase
+# MB_DB_* (application DB), MB_ENCRYPTION_SECRET_KEY, MB_SITE_URL, MB_JETTY_HOST/PORT. Mode 640 root:metabase.
+EnvironmentFile=/etc/metabase/metabase.env
+# Heap 1.5 GB; the whole service is capped so a heavy report cannot starve Postgres or the engine.
+ExecStart=/usr/bin/java -Xms256m -Xmx1536m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -jar /opt/metabase/metabase.jar
+MemoryMax=2200M
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=300
+Nice=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/metabase
+
+[Install]
+WantedBy=multi-user.target

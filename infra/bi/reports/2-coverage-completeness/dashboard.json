@@ -1,0 +1,6 @@
+{
+  "name": "Coverage & completeness",
+  "description": "How much of Luxembourg each source covers, how many records are linked to a company, and which golden fields are filled.",
+  "database": "intelligence",
+  "collection": "system"
+}

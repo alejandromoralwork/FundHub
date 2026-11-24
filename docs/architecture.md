@@ -29,6 +29,7 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
 │                (Bearer token)         ├─▶ INTELLIGENCE DB  PostgreSQL 18 :5432 (localhost only)    │
 │  services/engine worker + scheduler ──┘     schemas raw · staging · clean · match · core · mart · ops│
 │  /drive/*   ─▶ internal drive (file manager)          /var/backups ◀─ nightly pg_dump              │
+│  /bi/*      ─▶ Metabase :3010 (Data intelligence; reads both DBs read-only; embeds in /admin)      │
 │  /          ─▶ code-server (VS Code in the browser), behind Authelia 2FA (/authelia)              │
 └────────────────────────────────────────────────────────────────────────────────────────────────────┘
         ▲ HTTPS
@@ -45,6 +46,7 @@ How FundHub is put together: the parts, where each runs, which data each holds, 
 | **Website** | `apps/web` | Vercel (`fund-hub` project) | Public comparator of Luxembourg fund service providers: search, compare, profiles, FundHub Score, reviews, claims, RFIs, Data Intelligence reports, advisory, legal/GDPR pages, AI advisor widget |
 | **Admin console** | `apps/admin` | Vercel (`fund-hub-admin`), mounted at `fundhub.lu/admin` | Everything staff do: moderation, inbox, email, content studio, billing (Stripe), finance, analytics, data pipeline review, scraping-engine pages, Drive, reports, DB browser, GDPR, staff, audit |
 | **Intelligence pipeline** ("engine") | `services/engine` | Azure VM: `fundhub-engine-worker` + `fundhub-engine-scheduler` (or Docker anywhere) | The most complete database of Luxembourg companies: LBR, GLEIF, CSSF, FundHub accounts, company websites (AI extraction — the former `services/scraper`) and news, through raw → staging → approval gate → clean → match → golden records, with full history; publishes proposals to the website. See [data-pipeline.md](data-pipeline.md) |
+| **Data intelligence** | Metabase (`infra/bi`, `infra/vm/bin/metabase-install.sh`) | Azure VM (`fundhub-metabase`, `/bi`) | Query manager, system reports (versioned in `infra/bi/reports`) and team reports over both databases, read-only; dashboards embedded in the admin at `/admin/intelligence`. See [data-intelligence.md](data-intelligence.md) |
 | **LBR capture extension** | `services/engine/browser-extension` | Staff Chrome | Saves the LBR pages and filing PDFs a person opens into the engine (LBR blocks automated browsing) |
 | **Shared code** | `packages/core`, `packages/db`, `packages/engine-db`, `packages/email` | Imported by the above | Taxonomy and rules, the two database schemas and clients, email templates |
 | **VM setup** | `infra/vm` | Azure VM (`install.sh`) | Every config the VM runs outside the repo: Caddy, Authelia 2FA, PostgreSQL, systemd units, backups |
@@ -120,6 +122,7 @@ One-way: the `publish_proposals` job writes proposals into the website's `ingest
 | Visitor login | Own `users` / `sessions`, rate-limited (`rate_limits`) |
 | Admin exposure | `X-Frame-Options: DENY`, `noindex`; only reachable through login |
 | VM access | SSH by key only; every browser path except `/engine/*` requires an Authelia session (password + TOTP, lockout after 3 failures); the Drive is open to any VM user, code-server (a root shell) only to group `admins` |
+| Data intelligence | Metabase on `127.0.0.1` behind Caddy; editor needs Authelia 2FA + a Metabase account; the admin shows dashboards through signed 10-minute embed tokens and lists them with an API key limited by Caddy to two GET endpoints; data sources use read-only roles (`fundhub_bi_ro`: read-only transactions, 30 s timeout; `fundhub_analyst_ro`) |
 | Engine on the VM | Postgres and the receiver listen on `127.0.0.1` only; Caddy terminates HTTPS; the receiver requires `Authorization: Bearer <CAPTURE_TOKEN>` and refuses proxied requests without a configured token |
 | Secrets | `.env*` files are git-ignored; production values live in Vercel and the VM's `.env` files (mode 600) |
 | Untrusted content | Scraped pages and LBR captures are data, never instructions; the AI extractor uses a strict schema |

@@ -15,13 +15,14 @@ cannot change what runs as root until `install.sh` is run with sudo.
 
 | Folder / file | Installed to | What |
 |---|---|---|
-| `caddy/Caddyfile` | `/etc/caddy/Caddyfile` | HTTPS; `/authelia*` → login portal, `/engine/*` → receiver (token), everything else → code-server behind 2FA |
+| `caddy/Caddyfile` | `/etc/caddy/Caddyfile` | HTTPS; `/authelia*` → login portal, `/engine/*` → receiver (token), `/drive/*` and `/bi/*` behind 2FA (signed `/bi` embeds public), everything else → code-server behind 2FA |
 | `authelia/configuration.yml`, `authelia/override.conf` | `/etc/authelia/`, `/etc/systemd/system/authelia.service.d/` | 2FA portal (apt.authelia.com). Secrets in `/etc/authelia-secrets/*` (outside `/etc/authelia`: the package resets that folder to 0640 at every boot), users in `/etc/authelia/users.yml` |
 | `postgres/fundhub.conf` | `/etc/postgresql/18/main/conf.d/` | PostgreSQL 18 (apt.postgresql.org) tuning; database and role `fundhub_engine`, `127.0.0.1:5432` |
 | `code-server/config.yaml.example` | `~/.config/code-server/config.yaml` (first install only) | code-server on `127.0.0.1:8080` |
 | `systemd/fundhub-capture.service` | `/etc/systemd/system/` | Receiver for the browser extension (`engine capture-server`, `127.0.0.1:4477`) |
 | `systemd/fundhub-engine-backup.{service,timer}`, `bin/backup-engine-db.sh` | `/etc/systemd/system/`, `/usr/local/lib/fundhub/` | Nightly `pg_dump` 03:30 UTC → `/var/backups/fundhub-engine/`, 14 days |
-| `systemd/fundhub-scraper-{jobs,weekly}.{service,timer}` | `/etc/systemd/system/` | Data module: queued "Run scrape" jobs every 5 min; AI extraction Mondays 03:00 UTC. Skipped until `services/scraper/.env` exists |
+| `systemd/fundhub-engine-{worker,scheduler}.service` | `/etc/systemd/system/` | Intelligence pipeline worker and scheduler. Skipped until `services/engine/.env` exists |
+| `systemd/fundhub-metabase.service`, `bin/metabase-install.sh` | `/etc/systemd/system/`, `/opt/metabase` | Data intelligence (Metabase, pinned + checksum) on `127.0.0.1:3010`, published at `/bi`; installed by `sudo bash infra/vm/bin/metabase-install.sh`, see [docs/data-intelligence.md](../../docs/data-intelligence.md) |
 | `drive/config.yaml`, `systemd/fundhub-drive.service` | `/etc/fundhub-drive/`, `/etc/systemd/system/` | Drive (FileBrowser Quantum, pinned + checksum) on `127.0.0.1:8090`, files in `/srv/fundhub-drive`; see [docs/operations.md → Drive](../../docs/operations.md#4-drive) |
 
 Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are filled in by `install.sh`; override with
@@ -35,6 +36,7 @@ Placeholders in these files (`@DOMAIN@`, `@USER@`, `@REPO@`, `@NODE_DIR@`) are f
 | Data module | `services/scraper/.env` (you create it from `.env.example`) |
 | Authelia | `/etc/authelia-secrets/*`, `/etc/authelia/users.yml`; after a new install the first password is in `/etc/authelia/initial-credentials` (deleted by the first password change) |
 | code-server password | `~/.config/code-server/config.yaml` |
+| Data intelligence | `/etc/metabase/metabase.env` (app DB password, encryption key — never change it), `~/.fundhub-secrets/bi-ro-db-url`, `~/.fundhub-secrets/metabase-embed-secret` |
 | Drive | `/etc/fundhub-drive/secrets.env` (JWT key — never change it, TOTP key, bootstrap password); logins go through Authelia |
 
 Not managed here: Azure itself (VM size, disks, network security group: ports 22/80/443 only), SSH keys, and the

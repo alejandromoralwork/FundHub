@@ -1,0 +1,6 @@
+{
+  "name": "Pipeline health",
+  "description": "Intelligence pipeline: rows per layer, job runs, approval backlog and the data-quality checks.",
+  "database": "intelligence",
+  "collection": "system"
+}

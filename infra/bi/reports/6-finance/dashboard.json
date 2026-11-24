@@ -1,0 +1,6 @@
+{
+  "name": "Finance",
+  "description": "Subscriptions, recurring revenue, invoices and expenses against budget. Amounts in euros. Owners only.",
+  "database": "website",
+  "collection": "restricted"
+}

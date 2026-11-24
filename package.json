@@ -32,7 +32,8 @@
     "capture:restart": "bash infra/vm/bin/capture.sh restart",
     "capture:stop": "bash infra/vm/bin/capture.sh stop",
     "capture:status": "bash infra/vm/bin/capture.sh status",
-    "capture:token": "bash infra/vm/bin/capture.sh token"
+    "capture:token": "bash infra/vm/bin/capture.sh token",
+    "bi:provision": "tsx infra/bi/provision.ts"
   },
   "devDependencies": {
     "turbo": "^2.11.8",

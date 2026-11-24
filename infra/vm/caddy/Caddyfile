@@ -22,6 +22,33 @@
 			reverse_proxy 127.0.0.1:8090
 		}
 	}
+	# FundHub Data Intelligence (Metabase on 127.0.0.1:3010, MB_SITE_URL=https://@DOMAIN@/bi).
+	# The signed dashboards the admin console embeds (fundhub.lu/admin/intelligence) must load without a VM login:
+	# their JWT, signed by the console with the embedding secret, is the authorization. Everything else under /bi
+	# (the query editor, collections, admin) needs Authelia 2FA first, then the Metabase login.
+	# The console also lists the dashboards (GET /api/search, /api/dashboard/embeddable) with its Metabase API key:
+	# only those two read endpoints, only GET, only with an X-Api-Key header; Metabase itself checks the key.
+	@biPrivate {
+		path /bi/*
+		not path /bi/embed/* /bi/api/embed/* /bi/app/* /bi/api/session/properties /bi/api/health
+		not {
+			method GET
+			path /bi/api/search /bi/api/dashboard/embeddable
+			header X-Api-Key *
+		}
+	}
+	redir /bi /bi/ 308
+	handle /bi/* {
+		route {
+			request_header -Remote-User
+			forward_auth @biPrivate 127.0.0.1:9091 {
+				uri /authelia/api/authz/forward-auth
+				copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
+			}
+			uri strip_prefix /bi
+			reverse_proxy 127.0.0.1:3010
+		}
+	}
 	# Everything else (code-server) requires an Authelia 2FA session.
 	handle {
 		route {

@@ -1,0 +1,6 @@
+{
+  "name": "Luxembourg companies",
+  "description": "The golden company records: kinds, legal forms, status, registrations over time, CSSF licences and service-provider categories.",
+  "database": "intelligence",
+  "collection": "system"
+}

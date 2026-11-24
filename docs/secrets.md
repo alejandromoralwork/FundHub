@@ -20,6 +20,7 @@ Every password, key and token FundHub depends on, where it lives, and what happe
 | VM login password + authenticator (Authelia) | `/etc/authelia/users.yml` (hash) + phone | Reset over SSH ([§3](access-and-recovery.md#3-vm-login-authelia-2fa)) |
 | **SSH private key** (+ its passphrase) | Your computer `~/.ssh/id_ed25519` | Azure portal → Reset SSH public key; keep a second key on another device |
 | **Authelia storage key** `/etc/authelia-secrets/storage_encryption_key` | VM only | Registered authenticators can no longer be read: everyone re-registers (delete `/var/lib/authelia/db.sqlite3`) |
+| **Metabase encryption key** `MB_ENCRYPTION_SECRET_KEY` in `/etc/metabase/metabase.env` | VM only | Stored data-source passwords can no longer be read: re-enter them (re-run `npm run bi:provision`) |
 | **Drive JWT key** `FILEBROWSER_JWT_TOKEN_SECRET` in `/etc/fundhub-drive/secrets.env` | VM only | Drive refuses to start until its user database is reset (files are safe) |
 | Cloud accounts + their **recovery codes**: Azure, Vercel, Neon, GitHub, domain registrar, Stripe, Resend, Anthropic | Each provider | Provider's own recovery; without recovery codes this can take days |
 | Authenticator app backup | Phone | Enable cloud backup in the app, or register a second device everywhere |
@@ -34,6 +35,9 @@ Every password, key and token FundHub depends on, where it lives, and what happe
 | Data module keys | `services/scraper/.env` | New key in the Anthropic console; role password as above |
 | Stripe / Resend / Anthropic API keys, webhook secrets | Vercel env vars | Provider dashboard, then Vercel + redeploy |
 | Authelia session and JWT secrets | `/etc/authelia-secrets/` | Any new random value (everyone logs in again) |
+| Metabase embedding secret | `~/.fundhub-secrets/metabase-embed-secret` + Vercel `METABASE_EMBED_SECRET` | Delete the file, re-run `npm run bi:provision`, update Vercel |
+| Metabase API key (`fundhub-console`) | Password manager + Vercel `METABASE_API_KEY` | Metabase → Admin → Authentication → API keys → regenerate, update Vercel |
+| Metabase app DB / `fundhub_bi_ro` passwords | `/etc/metabase/metabase.env`, `~/.fundhub-secrets/bi-ro-db-url` | `ALTER ROLE …`, update the file (and re-run `bi:provision` for `fundhub_bi_ro`) |
 | code-server password | `~/.config/code-server/config.yaml` | Edit, restart `code-server@alejandro` |
 
 **Not secrets, but irreplaceable data** (back up off the VM): the engine database (nightly dumps in `/var/backups/fundhub-engine`), the Drive files (`/srv/fundhub-drive`), LBR captures and PDFs (`services/engine/.engine-data/`). The website database is protected by Neon's point-in-time restore.

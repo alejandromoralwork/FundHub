@@ -1,0 +1,6 @@
+{
+  "name": "News & mentions",
+  "description": "Luxembourg press coverage collected by the news source and the companies it mentions.",
+  "database": "intelligence",
+  "collection": "system"
+}
