@@ -72,7 +72,8 @@ export class FundhubAdapter {
                 p.certifications, p.regulatory_scope, p.tech_stack, p.footprint, p.top_clients, p.rcs_number, p.founded_year,
                 p.headquarters, p.website, p.description, p.verified, p.status,
                 exists (select 1 from provider_claims c where c.provider_id = p.id and c.status = 'approved') as claimed,
-                (select max(e.reviewed_at) from profile_edits e where e.provider_id = p.id and e.status = 'approved') as last_self_edit_at,
+                -- profile_edits is the log of self-edits already applied to the listing (no review status): latest one.
+                (select max(e.created_at) from profile_edits e where e.provider_id = p.id) as last_self_edit_at,
                 p.provider_updated_at as updated_at
          from providers p
          where ($1::timestamptz is null or greatest(p.provider_updated_at, p.last_verified_at) >= $1::timestamptz)
