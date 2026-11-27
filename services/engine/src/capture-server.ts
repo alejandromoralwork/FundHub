@@ -25,6 +25,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { documents, filings, type RoundScope } from "@fundhub/engine-db/schema";
 import { withActor } from "@fundhub/engine-db/core/entity";
+import { documentScopeSql, DOCUMENT_SCOPE_LABEL } from "@fundhub/engine-db/core/document-scope";
 import { nextSweepItems, planSweep, recordSearch, resetSkippedSweep, skipSweepTerm, sweepStats } from "@fundhub/engine-db/core/sweep";
 import { activeRound, closeRound, listRounds, nextItems, recordDocument, recordVisit, resetSkipped, roundStats, skipItem, startRound } from "@fundhub/engine-db/core/rounds";
 import { config } from "./config";
@@ -251,8 +252,9 @@ export async function captureStats() {
 /** Kind: async function. What the engine holds for one company (for the panel on its page). */
 export async function companyStatus(rcs: string) {
   const [row] = (
-    await db.execute<{ name: string | null; captured_at: string | null; filings: number; with_docs: number; docs_saved: number; sp: boolean | null; kind: string | null; category: string | null; sources: string[] | null }>(sql`
+    await db.execute<{ name: string | null; captured_at: string | null; filings: number; with_docs: number; docs_saved: number; sp: boolean | null; kind: string | null; category: string | null; sources: string[] | null; docs_wanted: boolean; docs_scope: string }>(sql`
       select e.canonical_name as name,
+             ${documentScopeSql("e")} as docs_wanted, ${DOCUMENT_SCOPE_LABEL}::text as docs_scope,
              s.last_changed_at as captured_at,
              (select count(*) from clean.filings f where f.source_record_id = s.id)::int as filings,
              (select count(*) from clean.filings f where f.source_record_id = s.id and f.has_documents)::int as with_docs,
@@ -342,6 +344,17 @@ export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(co
   const mime = (body.contentType ?? "application/pdf").split(";")[0].trim();
   if (!bytes.length) return { ok: false, error: "empty document" };
   if (mime === "text/html") return { ok: false, error: "got a web page, not a document (logged out?)" };
+  // Only service providers and fund GPs keep their PDFs (core/document-scope.ts): find the company first.
+  const fnum = body.filingNumber ?? body.url.match(/L\d{9}/)?.[0] ?? null;
+  const [scope] = (
+    await db.execute<{ name: string; wanted: boolean }>(sql`
+      select e.canonical_name as name, ${documentScopeSql("e")} as wanted from core.companies e
+      where e.id = coalesce(
+        (select i.company_id from core.company_identifiers i where i.scheme = 'rcs' and i.value = ${normalizeRcs(body.rcs) ?? ""} limit 1),
+        (select s.company_id from clean.filings f join staging.source_records s on s.id = f.source_record_id where f.filing_number = ${fnum ?? ""} limit 1))`)
+  ).rows;
+  if (!scope) return { ok: false, error: "Not saved: capture the company page first (documents are kept only for " + DOCUMENT_SCOPE_LABEL + ")." };
+  if (!scope.wanted) return { ok: false, skipped: true, error: `Not saved: ${scope.name} is not in the document scope (${DOCUMENT_SCOPE_LABEL}).` };
   const hash = sha256(bytes);
   const key = blobKey("docs", hash, mime === "application/pdf" ? "pdf" : "bin");
   await blobs.put(key, bytes, mime);

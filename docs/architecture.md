@@ -80,7 +80,7 @@ FundHub keeps **two databases on purpose**:
 | Publish review (proposals from the pipeline) | `ingest_runs`, `ingest_jobs` (retired), `ingest_records` |
 | Compliance | `gdpr_requests` |
 
-**Intelligence DB** (47 tables + 12 views), one Postgres schema per pipeline layer: `raw` (fetches, documents), `staging` (source_records, parsed_records + approval gate), `clean` (claims, rejects, licences, filings, web_pages, articles), `match` (candidates, conflicts), `core` (companies with their fund profile, identifiers, names, relations, company groups + members, service mandates + evidence, fund events, people, positions, web_presence, news_mentions, review_summaries, field_lineage, changes, row_history, categories, rules), `mart` (views) and `ops` (sources, attribute_precedence, review_policies, runs, quality, census, LBR tooling, news feeds). Table by table: [data-pipeline.md](data-pipeline.md).
+**Intelligence DB** (48 tables + 14 views), one Postgres schema per pipeline layer: `raw` (fetches, documents), `staging` (source_records, parsed_records + approval gate), `clean` (claims, rejects, licences, filings, web_pages, articles), `match` (candidates, conflicts), `core` (companies with their fund profile, identifiers, names, relations, company groups + members, services offered, service mandates + evidence (incl. domiciliation by address), fund events, people, positions, web_presence, news_mentions, review_summaries, field_lineage, changes, row_history, categories, rules), `mart` (views) and `ops` (sources, attribute_precedence, review_policies, runs, quality, census, LBR tooling, news feeds). Table by table: [data-pipeline.md](data-pipeline.md).
 
 **Files** live outside the databases:
 
@@ -133,7 +133,7 @@ One-way: the `publish_proposals` job writes proposals into the website's `ingest
 In order of importance:
 
 1. **Data location.** The website DB is in Neon `us-east-1` and the VM in Azure Central India. FundHub handles EU personal data (directors, accounts): move both to an EU region (Frankfurt / West Europe).
-2. **Engine files** are on the VM disk. Move them to S3-compatible storage (`STORAGE_DRIVER=s3`) and put the database on a separate Azure data disk ([infra/vm/README.md](../infra/vm/README.md)).
+2. **Engine files** (filing PDFs, kept only for service providers and fund GPs) go on a separate Azure data disk ([infra/vm/README.md → Data disk for filing PDFs](../infra/vm/README.md#data-disk-for-filing-pdfs)). Snapshot it regularly. Later, consider object storage (`STORAGE_DRIVER=s3`) and putting the database on its own data disk too.
 3. **Social and people sources** (LinkedIn, Glassdoor, Instagram, Facebook, X) are registered but disabled: schema and review policies exist, adapters are phase 2. Their terms forbid scraping; keep to public pages, human pace, and the GDPR minimization in [data-pipeline.md](data-pipeline.md).
 4. **Internal data separation.** Finance, CRM, staff and audit tables share the website DB, separated by roles. Next step: move them to an `internal` schema the `fundhub_web` role cannot reach; a separate database later if needed.
 5. **Dev and prod on one VM.** The engine runs from the development checkout. Later, run it from a fixed release (the existing `services/engine/Dockerfile`).

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FundHub LBR Capture",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Saves the LBR (RCS) pages and filing documents you open into your FundHub engine (Azure VM or local). It never browses LBR on its own.",
   "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
   "permissions": ["storage", "tabs"],

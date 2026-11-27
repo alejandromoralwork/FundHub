@@ -43,6 +43,20 @@
       "when": 1795787971061,
       "tag": "0005_mandate_marts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795798647225,
+      "tag": "0006_company_services",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795798648335,
+      "tag": "0007_company_services_views",
+      "breakpoints": true
     }
   ]
 }

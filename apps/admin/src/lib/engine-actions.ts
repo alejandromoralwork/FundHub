@@ -22,6 +22,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db as engineDb } from "@fundhub/engine-db/client";
 import { applyManualEdit, endRelation, mergeCompanies, setManualRelation, withActor } from "@fundhub/engine-db/core/entity";
+import { setManualServices } from "@fundhub/engine-db/core/services";
 import { parseLuAddress } from "@fundhub/engine-db/core/normalize";
 import { closeRound, resetSkipped, startRound } from "@fundhub/engine-db/core/rounds";
 import { DISABLED_SCHEDULES_KEY, JOB_CATALOG, isJobName, type JobInfo } from "@fundhub/engine-db/jobs-catalog";
@@ -712,4 +713,29 @@ export async function decideConflicts(ids: unknown, status: "resolved" | "ignore
 /** Kind: server action. About it / not about it, for several news mentions. */
 export async function decideMentions(ids: unknown, accept: boolean): Promise<ActionResult> {
   return bulk(ids, (id) => decideMention(id, accept), accept ? "linked" : "dismissed");
+}
+
+// ------------------------------------------------------------------ services offered (staff)
+
+const servicesInput = z.object({ categoryIds: z.array(z.coerce.number().int().positive()).max(100), freeText: z.array(z.string().trim().min(2).max(200)).max(50).default([]) });
+
+/**
+ * Kind: server action. Sets the services a company offers as staff knows them (source "manual"). The services
+ * the sources state (licences, FundHub account, website) stay alongside; staff entries are never overwritten.
+ */
+export async function saveServices(companyId: string, input: unknown): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  const v = servicesInput.safeParse(input);
+  if (!v.success) return { error: `${v.error.issues[0]?.path.join(".")}: ${v.error.issues[0]?.message}` };
+  try {
+    await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      await setManualServices(tx, companyId, v.data.categoryIds, v.data.freeText);
+    });
+    await audit(staff, "update", "engine-services", companyId, v.data);
+    revalidatePath(`/engine/companies/${companyId}`);
+    return { ok: "Services saved" };
+  } catch (err) {
+    return fail(err);
+  }
 }

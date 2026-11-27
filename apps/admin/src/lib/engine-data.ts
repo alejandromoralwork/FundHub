@@ -146,7 +146,16 @@ export async function registryList(f: RegistryFilters) {
   if (f.kind && (COMPANY_KINDS as readonly string[]).includes(f.kind)) conds.push(eq(companies.companyKind, f.kind as (typeof COMPANY_KINDS)[number]));
   if (f.sp === "yes") conds.push(eq(companies.isServiceProvider, true));
   if (f.sp === "no") conds.push(eq(companies.isServiceProvider, false));
-  if (f.category && Number(f.category)) conds.push(or(eq(companies.activityCategoryId, Number(f.category)), eq(companies.activitySubcategoryId, Number(f.category)))!);
+  // A category / service matches the primary classification or any service the company offers (core.company_services).
+  if (f.category && Number(f.category))
+    conds.push(
+      or(
+        eq(companies.activityCategoryId, Number(f.category)),
+        eq(companies.activitySubcategoryId, Number(f.category)),
+        sql`exists (select 1 from core.company_services s left join core.activity_categories a on a.id = s.category_id
+                    where s.company_id = companies.id and s.valid_to is null and (s.category_id = ${Number(f.category)} or a.parent_id = ${Number(f.category)}))`,
+      )!,
+    );
   if (f.status && (COMPANY_STATUSES as readonly string[]).includes(f.status)) conds.push(eq(companies.status, f.status as (typeof COMPANY_STATUSES)[number]));
   if (f.tier && /^[012]$/.test(f.tier)) conds.push(eq(companies.tier, Number(f.tier)));
   if (f.regime && (FUND_REGIMES as readonly string[]).includes(f.regime)) conds.push(eq(companies.fundRegime, f.regime as (typeof FUND_REGIMES)[number]));
@@ -284,9 +293,20 @@ export async function entityDetail(id: string) {
     engineDb.select().from(mandateRoles).orderBy(mandateRoles.sort),
   ]);
   void mandateEvidence;
+  const services = (
+    await engineDb.execute<{ key: string; category_id: number | null; label: string; level: number | null; parent: string | null; sources: string[]; manual: boolean }>(sql`
+      select s.key, s.category_id, coalesce(a.label, max(s.label)) as label, a.level, p.label as parent,
+             array_agg(distinct s.source order by s.source) as sources, bool_or(s.source = 'manual') as manual
+      from core.company_services s
+      left join core.activity_categories a on a.id = s.category_id
+      left join core.activity_categories p on p.id = a.parent_id
+      where s.company_id = ${id} and s.valid_to is null
+      group by s.key, s.category_id, a.label, a.level, p.label, a.sort
+      order by coalesce(p.label, a.label, max(s.label)), a.level nulls last, a.sort`)
+  ).rows;
   // Which source "won" each golden attribute: recorded by the consolidate stage (core.field_lineage).
   const winners = Object.fromEntries(lineage.map((l) => [l.attribute, l.source]));
-  return plain({ entity, identifiers, names, records, open, history, relations, events, rowHistory: rows, details, filings: filingRows, clientOf, winners, lineage, conflicts: openConflicts, team, presence, news, groups, served, serving, lifecycle, roles });
+  return plain({ entity, identifiers, names, records, open, history, relations, events, rowHistory: rows, details, filings: filingRows, clientOf, winners, lineage, conflicts: openConflicts, team, presence, news, groups, served, serving, lifecycle, roles, services });
 }
 
 /** Kind: async function. Companies whose name matches (for linking a client to a company). */

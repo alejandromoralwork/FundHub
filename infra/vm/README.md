@@ -104,6 +104,26 @@ Its LBR captures and filing PDFs are re-sent through the capture receiver instea
 follow [docs/import-old-pc-data.md](../../docs/import-old-pc-data.md) (written so a Claude session on the old PC can
 run it end to end).
 
+## Data disk for filing PDFs
+
+Filing PDFs and raw captures (the engine's "blobs") live on their own Azure data disk, not on the 30 GB OS disk. The database stores only each file's SHA-256 and its key (`docs/ab/ab12….pdf`), never the bytes. Identical files are stored once.
+
+**Only two groups of companies keep their PDFs:** service providers and fund general partners (`fund_role = general_partner`). The rule is in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for other companies, and the browser extension shows "Save all documents" only for those two groups. Every company still keeps its filings list.
+
+**Size:** about 1,200 companies in scope × about 60 filings × about 0.6 MB per PDF comes to at most about 45 GB. 128 GB leaves room.
+
+1. Azure portal → VM → **Disks** → *Create and attach a new disk*: Standard SSD (E10), **128 GB**, same region, LUN 0 → **Save**. The disk can be attached while the VM runs.
+2. On the VM: `sudo bash infra/vm/bin/data-disk-setup.sh`. The script:
+   - formats the empty disk (label `fundhub-data`);
+   - mounts it at `/srv/fundhub-data` at every boot;
+   - moves `services/engine/.engine-data/blobs` there (the old folder is kept as `blobs.old-<date>`; delete it after checking);
+   - sets `STORAGE_ROOT=/srv/fundhub-data/engine/blobs` in `services/engine/.env`;
+   - restarts the engine.
+3. **Back up the disk:** Azure portal → the disk → *Create snapshot* (or set up Azure Backup / a daily snapshot policy). The nightly `pg_dump` does not include the files.
+4. **More space later:** Azure portal → the disk → *Size + performance* → enlarge it, then on the VM run `sudo resize2fs $(blkid -L fundhub-data)`. No downtime.
+
+`sudo bash infra/vm/bin/health.sh` reports the disk's usage.
+
 ## Move the database to a data disk
 
 1. Azure portal → VM → **Disks** → *Create and attach a new disk* (Standard SSD, 64 GB, same region). Then:

@@ -1,0 +1,6 @@
+{
+  "name": "Fund administrators & domiciliation",
+  "description": "Who domiciles which funds and entities (inferred from a shared registered address with a fund administrator or domiciliation agent, plus staff entries), and how clients move between administrators.",
+  "database": "intelligence",
+  "collection": "system"
+}

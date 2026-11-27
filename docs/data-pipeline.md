@@ -187,6 +187,52 @@ A switch ends the old episode and starts a new one (`core.changes`: `mandate_sta
 
 The Metabase dashboard **Fund launches & managers** reads these.
 
+## Who is a service provider
+
+A **service provider** is any company providing services to funds or corporates. The classification rules (`core.classification_rules`, editable in the Database module) set the flag from four kinds of evidence:
+- **CSSF licences:** specialised and support PFS, banks (depositary, banking), investment firms, ManCos and AIFMs (management services).
+- **Names**, for firms the CSSF does not license (rule kind `keyword`: a regular expression on the plain name):
+  - law firms (avocats, Rechtsanwälte, and the Luxembourg law-firm brands such as Arendt & Medernach, Elvinger Hoss Prussen, Loyens & Loeff…);
+  - audit and accounting firms (Deloitte, PwC, KPMG, EY, Grant Thornton, BDO, RSM…);
+  - tax advisers;
+  - fiduciaries, domiciliation and corporate services, and fund administrators (Alter Domus, TMF, Vistra, IQ-EQ, JTC…);
+  - consulting and advisory firms.
+
+  Name rules never apply to funds, fund vehicles or managers. The generic word rules also skip names that read as investment vehicles (SCSp, lending, investments, holding, fund…).
+- **The FundHub directory:** every provider listed on fundhub.lu, through the `fundhub` source. This needs `WEBSITE_DATABASE_URL_RO` on the VM (see [operations.md](operations.md)).
+- **Staff:** the company page → Classification → Change.
+
+`reclassify` (Mondays, or on demand) re-applies the rules to every company that is not struck off; `--all` includes struck-off ones.
+
+## Services offered and domiciliation by address
+
+**Services offered** (`core.company_services`): a company can offer several categories and services. They follow the website's taxonomy (fundhub.lu/services: category → services, the same list as `core.activity_categories`), plus free-text services the taxonomy does not have. Each row records its source and period:
+- `rule`: every category and service the classification rules give, from CSSF licences;
+- `fundhub` and `website`: the services those sources state in words, matched to the taxonomy by label;
+- `manual`: staff, set from the company page ("Services offered" → Edit). Sources never overwrite staff rows.
+
+The primary category stays on `core.companies`. The Companies list's category filter matches any service a company offers. View: `mart.company_services`.
+
+**Domiciliation by shared address:** the job `domiciliation_match` (daily 14:45) works like this:
+- **Who counts as a provider:** a service provider offering Fund Administration (the category or any of its services) or Domiciliation & Registered Office.
+- **The address key:** Luxembourg postcode + house number, e.g. `L-2520|5`. A postcode covers one street, so spelling doesn't matter.
+- **The match:** an active entity at a provider's address is recorded as its **domiciliation client**: a `core.mandates` episode, role `domiciliation_agent`, decided by `address_match`, confidence 0.8. The start date is when the address was first seen ("on or before").
+- **Not counted as clients:**
+  - the provider's own group companies;
+  - other service providers;
+  - entities at a building shared by two unrelated providers (counted as ambiguous; nothing is recorded).
+- **History:** the episodes form each company's register of administrators. A move to another administrator's address ends one episode and starts the next (`mandate_switched`); leaving ends it.
+- **Who wins:** domiciliation mandates from staff or documents always win.
+- **Views:** `mart.domiciliation_clients` and `mart.mandate_switches`; the Metabase dashboard is "Fund administrators & domiciliation".
+
+## Filing documents (PDFs)
+
+The LBR filings list is kept for every captured company. The filing PDFs themselves are kept only for two groups:
+- **service providers**;
+- **general partners of funds** (`fund_role = general_partner`).
+
+The rule lives in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for any other company, and the browser extension offers "Save all documents" (and the automatic download) only for the two groups. Files sit on the VM's data disk (`STORAGE_ROOT`, see [infra/vm/README.md](../infra/vm/README.md#data-disk-for-filing-pdfs)). The database stores only their hash and storage key.
+
 ## Where a person decides
 
 Everything a person decides is under **Admin → Company intelligence → Review**:
@@ -205,7 +251,7 @@ Everything a person decides is under **Admin → Company intelligence → Review
 | registers (`cssf`, `gleif`, `rcs`) | `cssf_census`, `cssf_fetch`, `gleif_sync`, `rcs_*` |
 | `web` | `fundhub_sync` (hourly), `website_crawl` (nightly batch of due companies, or one company) |
 | `news` | `news_poll` (every 30 minutes), `news_search` (daily batch) |
-| `maintenance` | `staging_release`, `build_groups` (daily 14:00, includes manager mandates), `fund_lifecycle` (daily 14:30), `quality_run` (daily), `publish_proposals` (daily 16:00), `reprocess`, `retention_purge`, `reclassify` (Mondays), `census_snapshot` |
+| `maintenance` | `staging_release`, `build_groups` (daily 14:00, includes manager mandates), `fund_lifecycle` (daily 14:30), `domiciliation_match` (daily 14:45), `quality_run` (daily), `publish_proposals` (daily 16:00), `reprocess`, `retention_purge`, `reclassify` (Mondays), `census_snapshot` |
 
 All schedules are in the daytime (Luxembourg time) because the VM is switched off at night (auto-shutdown 21:30):
 - `cssf_census` 10:30;

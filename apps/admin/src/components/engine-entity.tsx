@@ -20,7 +20,7 @@ import { EditOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { COMPANY_KINDS, COMPANY_STATUSES, RELATION_KINDS } from "@fundhub/engine-db/enums";
 import type { categoryOptions, entityDetail } from "@/lib/engine-data";
-import { addMandate, addRelation, endMandate, endRelationAction, findCompanies, saveEntityEdit } from "@/lib/engine-actions";
+import { addMandate, addRelation, endMandate, endRelationAction, findCompanies, saveEntityEdit, saveServices } from "@/lib/engine-actions";
 import { fmt, short, STATE_COLOR } from "./engine-overview";
 import { STATUS_COLOR } from "./engine-registry";
 import { useAction } from "./use-action";
@@ -173,6 +173,51 @@ function AddRelation({ companyId }: { companyId: string }) {
   );
 }
 
+/**
+ * Kind: React component. "Services offered": every category / service the company offers (several), with where
+ * each comes from (rules = CSSF licences, fundhub, website, manual); staff can set their own list.
+ */
+function ServicesCard({ d, categories, canEdit }: { d: Detail; categories: Categories; canEdit: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm();
+  const { run, pending } = useAction();
+  const manualIds = d.services.filter((x) => x.manual && x.category_id).map((x) => x.category_id!);
+  const manualText = d.services.filter((x) => x.manual && !x.category_id).map((x) => x.label);
+  // Service-provider categories (level 1) with their services (level 2) as a grouped picker.
+  const options = categories
+    .filter((c) => c.level === 1)
+    .map((c) => ({ label: c.label, options: [{ value: c.id, label: `${c.label} (whole category)` }, ...categories.filter((x) => x.parentId === c.id).map((x) => ({ value: x.id, label: x.label }))] }));
+  const byParent = new Map<string, Detail["services"]>();
+  for (const x of d.services) byParent.set(x.parent ?? (x.level === 1 ? x.label : "Other services"), [...(byParent.get(x.parent ?? (x.level === 1 ? x.label : "Other services")) ?? []), x]);
+  return (
+    <Card size="small" title={`Services offered (${d.services.filter((x) => x.level !== 1).length})`} extra={canEdit && <Button size="small" onClick={() => setOpen(true)}>Edit</Button>}>
+      {d.services.length === 0 ? (
+        <Typography.Text type="secondary">None known yet (from CSSF licences, the FundHub account, the website, or staff).</Typography.Text>
+      ) : (
+        <Space direction="vertical" size={6} style={{ width: "100%" }}>
+          {[...byParent.entries()].map(([cat, list]) => (
+            <div key={cat}>
+              <Typography.Text strong>{cat}</Typography.Text>{" "}
+              {list.filter((x) => x.level !== 1).map((x) => (
+                <Tag key={x.key} color={x.manual ? "purple" : undefined} title={`from: ${x.sources.join(", ")}`}>{x.label}</Tag>
+              ))}
+              {list.every((x) => x.level === 1) && <Typography.Text type="secondary"> (category, no detail)</Typography.Text>}
+            </div>
+          ))}
+        </Space>
+      )}
+      <Modal title="Services offered (staff)" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={pending} width={640} destroyOnHidden>
+        <Form form={form} layout="vertical" initialValues={{ categoryIds: manualIds, freeText: manualText }}
+          onFinish={(v) => run(async () => { const r = await saveServices(d.entity.id, { categoryIds: v.categoryIds ?? [], freeText: v.freeText ?? [] }); if (!r.error) setOpen(false); return r; })}>
+          <Form.Item name="categoryIds" label="Categories and services (the website's list)"><Select mode="multiple" allowClear showSearch optionFilterProp="label" options={options} /></Form.Item>
+          <Form.Item name="freeText" label="Other services (free text, press Enter after each)"><Select mode="tags" tokenSeparators={[";"]} /></Form.Item>
+          <Typography.Text type="secondary">Your list is kept as "manual" next to what the sources state; the sources never overwrite it.</Typography.Text>
+        </Form>
+      </Modal>
+    </Card>
+  );
+}
+
 /** Kind: function. A real-world date with its precision ("2021", "2021-03", "2021-03-04", "?"). */
 const fmtDay = (d: string | null, p?: string | null) => (!d ? "?" : p === "year" ? d.slice(0, 4) : p === "month" ? d.slice(0, 7) : p === "unknown" ? `${d.slice(0, 10)} (≈)` : d.slice(0, 10));
 
@@ -300,6 +345,8 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
           </Card>
         </Col>
       </Row>
+
+      <ServicesCard d={d} categories={categories} canEdit={canEdit} />
 
       <Card size="small" title={`Clients & relations (${d.relations.filter((r) => !r.validTo).length} current)`} extra={canEdit && <AddRelation companyId={e.id} />}>
         <Table size="small" rowKey="id" dataSource={d.relations} pagination={{ pageSize: 20 }}

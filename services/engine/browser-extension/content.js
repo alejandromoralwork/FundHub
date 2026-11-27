@@ -127,7 +127,9 @@
           ${
             bulk
               ? `<div class="row"><span>📄 Saving documents ${bulk.done}/${bulk.total}…</span><button class="btn ghost" id="stop">Stop</button></div>`
-              : c.with_docs > c.docs_saved
+              : c.docs_wanted === false
+                ? `<span class="muted">Documents not kept for this company (only ${esc(c.docs_scope || "service providers and fund GPs")})</span>`
+                : c.with_docs > c.docs_saved
                 ? `<button class="btn" id="bulk">Save all documents of this company</button>`
                 : c.with_docs
                   ? `<span class="ok">All documents saved</span>`
@@ -339,7 +341,8 @@
     // An interrupted "Save all documents" for this company? Continue it (already-saved documents are skipped).
     if (kind === "company" && r.ok) await maybeResumeBulk();
     // Optional: save this company's documents straight away (only for the page you opened, once).
-    if (settings.autoDocs && kind === "company" && r.ok && autoDocsDoneFor !== rcsOfPage() && ui.company && ui.company.with_docs > ui.company.docs_saved) {
+    // Automatic documents only for companies in the document scope (service providers and fund GPs).
+    if (settings.autoDocs && kind === "company" && r.ok && autoDocsDoneFor !== rcsOfPage() && ui.company && ui.company.docs_wanted !== false && ui.company.with_docs > ui.company.docs_saved) {
       autoDocsDoneFor = rcsOfPage();
       saveAllDocuments();
     }
@@ -451,6 +454,7 @@
   async function saveAllDocuments() {
     const rcs = rcsOfPage();
     if (!rcs || bulk) return;
+    if (ui.company && ui.company.docs_wanted === false) return; // not in the document scope
     let known = await send({ type: "filings", rcs });
     if (!known.filings || !known.filings.length) {
       // The company page is not saved yet: save it first, so documents are linked to their filings.

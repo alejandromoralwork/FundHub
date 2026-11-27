@@ -9,7 +9,7 @@
  * TYPESCRIPT YOU WILL SEE HERE: keyset pagination (`where id > last order by id limit n`).
  */
 
-import { and, asc, eq, gt, lte } from "drizzle-orm";
+import { and, asc, eq, gt, lte, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { companies, sourceRecords } from "@fundhub/engine-db/schema";
 import { clearRulesCache, linkRelations, recomputeCompany } from "@fundhub/engine-db/core/entity";
@@ -18,15 +18,18 @@ import { snapshotRcsKnown } from "./rcs-list";
 import { log } from "../log";
 import { buildGroups } from "../pipeline/groups";
 import { fundLifecycle } from "../pipeline/lifecycle";
+import { domiciliationMatch } from "../pipeline/domiciliation";
 import type { JobContext } from "./context";
 
 /** Kind: async function. Job "reclassify". */
-export async function reclassify() {
+export async function reclassify(data: { all?: boolean } = {}) {
   clearRulesCache();
   let last = "00000000-0000-0000-0000-000000000000";
   let done = 0;
+  // Struck-off companies are skipped (faster): their classification no longer matters. --all includes them.
+  const alive = data.all ? sql`true` : sql`${companies.status} <> 'struck_off'`;
   for (;;) {
-    const page = await db.select({ id: companies.id }).from(companies).where(gt(companies.id, last)).orderBy(asc(companies.id)).limit(500);
+    const page = await db.select({ id: companies.id }).from(companies).where(and(gt(companies.id, last), alive)).orderBy(asc(companies.id)).limit(500);
     if (!page.length) break;
     for (const e of page) await db.transaction((tx) => recomputeCompany(tx, e.id));
     done += page.length;
@@ -64,4 +67,9 @@ export async function buildGroupsJob(data: { skipGleif?: boolean }, ctx: JobCont
 /** Kind: async function. Job "fund_lifecycle" (see pipeline/lifecycle.ts). */
 export async function fundLifecycleJob() {
   return fundLifecycle();
+}
+
+/** Kind: async function. Job "domiciliation_match" (see pipeline/domiciliation.ts). */
+export async function domiciliationJob() {
+  return domiciliationMatch();
 }

@@ -12,7 +12,7 @@ import { JOB_CATALOG, type JobInfo, type JobName as CatalogName } from "@fundhub
 import type { JobContext } from "./context";
 import { cssfCensus, cssfFetch } from "./cssf";
 import { gleifFetch, gleifSync } from "./gleif";
-import { buildGroupsJob, censusSnapshot, cssfRefresh, fundLifecycleJob, reclassify } from "./maintenance";
+import { buildGroupsJob, censusSnapshot, cssfRefresh, domiciliationJob, fundLifecycleJob, reclassify } from "./maintenance";
 import { rcsFetch, rcsFrontier, rcsRefresh, rcsSweep } from "./rcs";
 import { rcsImportFile, rcsSeedFrontier } from "./rcs-list";
 import { newsPoll, newsSearch } from "./news";
@@ -60,6 +60,7 @@ export const JOBS: Record<CatalogName, JobDef> = {
   reclassify: job("reclassify", reclassify, 1, 3 * 3600),
   build_groups: job("build_groups", buildGroupsJob, 1, 4 * 3600),
   fund_lifecycle: job("fund_lifecycle", fundLifecycleJob, 1, 3600),
+  domiciliation_match: job("domiciliation_match", domiciliationJob, 1, 3600),
   census_snapshot: job("census_snapshot", censusSnapshot, 2, 600),
   fundhub_sync: job("fundhub_sync", fundhubSync, 2, 1800),
   website_crawl: job("website_crawl", websiteCrawl, 2, 900),

@@ -152,7 +152,8 @@ test("classify: Arendt (SPP with admin-agent status) → service provider in Fun
   assert.deepEqual([corp.isServiceProvider, corp.companyKind, corp.activityCategoryId, corp.tier], [false, "corporate", 99, 0]);
 
   const manco = classify({ cssfTypes: ["C15"], cssfCodes: [], hasRcs: true }, rules);
-  assert.deepEqual([manco.isServiceProvider, manco.companyKind, manco.activityCategoryId], [false, "asset_manager", slugIds.get("aifm-manco")]);
+  // A ManCo / AIFM provides management services to funds: a service provider (kind stays asset_manager).
+  assert.deepEqual([manco.isServiceProvider, manco.companyKind, manco.activityCategoryId], [true, "asset_manager", slugIds.get("aifm-manco")]);
 });
 
 test("countries: names, codes and French spellings become ISO codes", () => {

@@ -106,17 +106,19 @@ const each = (codes: string[], r: Omit<RuleSeed, "match" | "kind">, kind: RuleKi
 /**
  * Kind: constant. The starting rule set. Priority: for each output field, the highest-priority rule that
  * sets it wins. CSSF *type* rules (10) give the baseline; *activity* rules (12–25) refine the category.
- * Conservative on purpose: ManCos and banks are not all third-party providers, so they are NOT flagged as
- * service providers here — the web agent or a person decides (tier 2 makes sure they get looked at).
+ * Service provider = any company providing services to funds or corporates: CSSF-licensed PFS, banks (depositary,
+ * banking), investment firms, ManCos / AIFMs (management services), and — by name (kind "keyword", regex on
+ * the plain name, used only when the company is not a fund / fund vehicle) — law, audit, tax, fiduciary /
+ * domiciliation, fund-services and advisory firms, which the CSSF does not license.
  */
 export const RULES: RuleSeed[] = [
   // --- CSSF entity types (baseline)
   { kind: "cssf_type", match: "SPP", isServiceProvider: true, companyKind: "service_provider", tier: 2, priority: 10, note: "Specialised PFS" },
   { kind: "cssf_type", match: "SUP", isServiceProvider: true, companyKind: "service_provider", category: "professional-support", tier: 2, priority: 10, note: "Support PFS" },
-  { kind: "cssf_type", match: "IF", companyKind: "financial_institution", category: "financial-institutions", subcategory: "financial-institutions--investment-firms", tier: 1, priority: 10 },
-  { kind: "cssf_type", match: "B", companyKind: "bank", category: "financial-institutions", subcategory: "financial-institutions--banks", tier: 2, priority: 10 },
-  ...each(["C15", "C16", "AIFM_AUT"], { companyKind: "asset_manager", category: "aifm-manco", tier: 2, priority: 10 }, "cssf_type"),
-  ...each(["AIFM_REG", "AIFM_REG_LU_OTHER_EU_MEMBER_STATE"], { companyKind: "asset_manager", category: "aifm-manco", tier: 1, priority: 10 }, "cssf_type"),
+  { kind: "cssf_type", match: "IF", isServiceProvider: true, companyKind: "financial_institution", category: "financial-institutions", subcategory: "financial-institutions--investment-firms", tier: 1, priority: 10 },
+  { kind: "cssf_type", match: "B", isServiceProvider: true, companyKind: "bank", category: "financial-institutions", subcategory: "financial-institutions--banks", tier: 2, priority: 10 },
+  ...each(["C15", "C16", "AIFM_AUT"], { isServiceProvider: true, companyKind: "asset_manager", category: "aifm-manco", tier: 2, priority: 10 }, "cssf_type"),
+  ...each(["AIFM_REG", "AIFM_REG_LU_OTHER_EU_MEMBER_STATE"], { isServiceProvider: true, companyKind: "asset_manager", category: "aifm-manco", tier: 1, priority: 10 }, "cssf_type"),
   { kind: "cssf_type", match: "OPC", companyKind: "fund", category: "funds", subcategory: "funds--ucis-2010", tier: 0, priority: 10 },
   { kind: "cssf_type", match: "FIS", companyKind: "fund", category: "funds", subcategory: "funds--sif", tier: 0, priority: 10 },
   { kind: "cssf_type", match: "SIC", companyKind: "fund", category: "funds", subcategory: "funds--sicar", tier: 0, priority: 10 },
@@ -126,6 +128,21 @@ export const RULES: RuleSeed[] = [
   ...each(["CASP", "VAP", "EMONEY_TOKEN", "REFERENCE_TOKEN"], { companyKind: "financial_institution", category: "financial-institutions", subcategory: "financial-institutions--crypto", tier: 0, priority: 10 }, "cssf_type"),
   ...each(["IHC", "CFI"], { companyKind: "financial_institution", category: "financial-institutions", subcategory: "financial-institutions--holdings", tier: 0, priority: 10 }, "cssf_type"),
   ...each(["CRF", "DCT", "MR", "MTF", "OTF", "AGT", "ICI", "LM"], { companyKind: "financial_institution", category: "financial-institutions", subcategory: "financial-institutions--other", tier: 0, priority: 10 }, "cssf_type"),
+
+  // --- Names (kind "keyword": a regular expression on the plain name — lower case, no accents, punctuation as
+  //     spaces). Below the CSSF rules (priority 5–6), so a licence decides kind and category; they mark firms the
+  //     CSSF does not license. Never applied to funds and fund vehicles. The generic word rules also skip names
+  //     that read as investment vehicles (SCSp, lending, investments, holding, fund…); brand rules do not.
+  //     Edit / add in the Database module.
+  { kind: "keyword", match: "^(?!.*\\b(scsp|lending|finance|financing|investments?|invest|opportunit\\w*|partnership|holdings?|fund|funds|properties|real estate|capital)\\b).*\\b(avocats?|avocat a la cour|law firm|lawyers?|rechtsanw\\w*|attorneys?|solicitors?|legal)\\b", isServiceProvider: true, companyKind: "service_provider", category: "governance-domiciliation", priority: 6, note: "Law firms (legal advisers)" },
+  { kind: "keyword", match: "\\b(arendt|elvinger|loyens|linklaters|clifford chance|allen overy|a o shearman|ogier|maples|walkers|dentons|dla piper|baker mckenzie|stibbe|nautadutilh|bonn steichen|gsk stockmann|kleyr grasso|molitor|wildgen|harney|carey olsen|mourant|simmons simmons|hogan lovells|white case|freshfields|pinsent masons|eversheds|osborne clarke|vandenbulke|castegnaro|schiltz schiltz)\\b", isServiceProvider: true, companyKind: "service_provider", category: "governance-domiciliation", priority: 5, note: "Luxembourg law-firm brands" },
+  { kind: "keyword", match: "^(?!.*\\b(scsp|lending|finance|financing|investments?|invest|opportunit\\w*|partnership|holdings?|fund|funds|properties|real estate|capital)\\b).*\\b(audit\\w*|revision|reviseurs?|wirtschaftsprufung\\w*|chartered accountants?|expert comptables?|experts comptables)\\b", isServiceProvider: true, companyKind: "service_provider", category: "corporate-accounting", priority: 6, note: "Audit / accounting firms" },
+  { kind: "keyword", match: "\\b(deloitte|pricewaterhousecoopers|pwc|kpmg|ernst young|grant thornton|bdo|forvis|mazars|rsm|baker tilly|kreston|crowe|nexia|atwell|ecovis)\\b|^ey\\b", isServiceProvider: true, companyKind: "service_provider", category: "corporate-accounting", priority: 5, note: "Audit / advisory brands" },
+  { kind: "keyword", match: "^(?!.*\\b(scsp|lending|finance|financing|investments?|invest|opportunit\\w*|partnership|holdings?|fund|funds|properties|real estate|capital)\\b).*\\b(tax|taxes|fiscal|fiscalite|steuerberat\\w*)\\b", isServiceProvider: true, companyKind: "service_provider", category: "tax", priority: 5, note: "Tax advisers" },
+  { kind: "keyword", match: "^(?!.*\\b(scsp|lending|finance|financing|investments?|invest|opportunit\\w*|partnership|holdings?|fund|funds|properties|real estate|capital)\\b).*\\b(fiduciaire|fiduciary|trust company|trust services|trustees?|corporate services|domiciliation|management services|business services|company services|accounting|comptab\\w*)\\b", isServiceProvider: true, companyKind: "service_provider", category: "governance-domiciliation", priority: 5, note: "Fiduciaries, domiciliation and corporate services" },
+  { kind: "keyword", match: "\\b(alter domus|intertrust|csc global|tmf|vistra|iq eq|ocorian|jtc|aztec|sanne|apex fund services|apex group|citco|centralis|lux business management)\\b", isServiceProvider: true, companyKind: "service_provider", category: "fund-administration", priority: 5, note: "Fund & corporate administrators (brands)" },
+  { kind: "keyword", match: "\\b(fund services|fund administration|fund admin|investor services|transfer agen\\w*|fund solutions|fund partners|registrar)\\b", isServiceProvider: true, companyKind: "service_provider", category: "fund-administration", priority: 6, note: "Fund administration" },
+  { kind: "keyword", match: "^(?!.*\\b(scsp|lending|finance|financing|investments?|invest|opportunit\\w*|partnership|holdings?|fund|funds|properties|real estate|capital)\\b).*\\b(consulting|consultants?|conseils?|advisory|regulatory|compliance|governance)\\b", isServiceProvider: true, companyKind: "service_provider", category: "professional-support", priority: 4, note: "Consulting / advisory / compliance" },
 
   // --- CSSF activity / status codes (refine the category)
   ...each(["OST_SPP_AA", "ACT_SUP_AA", "OST_IF_AA", "OST_PI_AA"], { isServiceProvider: true, category: "fund-administration", subcategory: FA("Fund Accounting & NAV Calculation"), tier: 2, priority: 21 }),
@@ -189,6 +206,7 @@ export const SOURCES: SourceSeed[] = [
   { code: "facebook", system: "Facebook", name: "Facebook pages", kind: "social", acquisition: "crawl", homepage: "https://www.facebook.com", description: "Company page, followers, contact details.", trust: 8, enabled: false, rateLimitPerMin: 2, complianceNote: "Phase 2. Public page data only." },
   { code: "x", system: "X", name: "X profiles", kind: "social", acquisition: "crawl", homepage: "https://x.com", description: "Company profile, followers, activity.", trust: 8, enabled: false, rateLimitPerMin: 2, complianceNote: "Phase 2. Public profile data only." },
   { code: "manual", system: "FundHub staff", name: "Staff edits", kind: "staff", acquisition: "manual", description: "Corrections made by FundHub staff in the console. Always wins; clearing an edit hands the field back to the sources.", trust: 0, enabled: true },
+  { code: "engine", system: "FundHub engine", name: "Inferred by the engine", kind: "derived", acquisition: "database", description: "Facts the engine infers from other data, e.g. a fund administrator's domiciliation clients from a shared registered address (job domiciliation_match). Lower confidence; staff and documents win.", trust: 9, enabled: true },
 ];
 
 /**

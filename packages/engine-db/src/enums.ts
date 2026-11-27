@@ -19,6 +19,8 @@
  *   website · news                          the company's own website, newspapers
  *   linkedin · glassdoor · instagram · facebook · x   social / people / reviews (phase 2, disabled)
  *   manual                                  an edit by FundHub staff in the admin console (always wins)
+ *   engine                                  inferred by the engine from other data (e.g. domiciliation from a
+ *                                           shared registered address); never a primary source of facts
  */
 export const ENGINE_SOURCES = [
   "rcs",
@@ -34,11 +36,12 @@ export const ENGINE_SOURCES = [
   "facebook",
   "x",
   "manual",
+  "engine",
 ] as const;
 export type EngineSource = (typeof ENGINE_SOURCES)[number];
 
 /** Kind: constant. What kind of source it is (drives the diagram grouping and default trust). */
-export const SOURCE_KINDS = ["register", "secondary_register", "regulator", "self_declared", "web", "news", "social", "people", "reviews", "staff"] as const;
+export const SOURCE_KINDS = ["register", "secondary_register", "regulator", "self_declared", "web", "news", "social", "people", "reviews", "staff", "derived"] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
 /** Kind: constant. How data is acquired from a source. */

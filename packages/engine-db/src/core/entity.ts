@@ -47,6 +47,7 @@ import {
 } from "../schema";
 import { classify } from "./classify";
 import { fundProfile, mergeKind } from "./fund-profile";
+import { loadCategories, serviceRowsFromIds, serviceRowsFromLabels, syncServices } from "./services";
 import { consolidate, PRECEDENCE, type Precedence } from "./golden";
 import { normalizeCountries, normalizeName, sameValue } from "./normalize";
 
@@ -200,12 +201,13 @@ export async function recomputeCompany(tx: EngineTx, companyId: string): Promise
       .where(and(eq(sourceRecords.companyId, companyId), eq(licences.detailType, "ACTIVITY_CODE"), isNull(licences.endDate)));
     const { rules, corporateId } = await loadRules(tx);
     const cssfTypes = types.map((t) => t.scope!).filter(Boolean);
+    // Fund profile first: name rules ("… Advisory", "… Services") never apply to funds, fund vehicles, managers.
+    const fp = fundProfile(await fundProfileInput(tx, companyId, next.canonicalName, next.legalForm, cssfTypes, current));
     const c = classify(
-      { cssfTypes, cssfCodes: codes.map((c) => c.code), legalForm: next.legalForm, hasRcs: !!rcsNumber },
+      { cssfTypes, cssfCodes: codes.map((c) => c.code), legalForm: next.legalForm, hasRcs: !!rcsNumber, name: next.canonicalName, allowNameRules: !fp.kind },
       rules,
       { corporateCategoryId: corporateId },
     );
-    const fp = fundProfile(await fundProfileInput(tx, companyId, next.canonicalName, next.legalForm, cssfTypes, current));
     classification = {
       isServiceProvider: c.isServiceProvider,
       companyKind: mergeKind(c.companyKind, fp),
@@ -220,6 +222,24 @@ export async function recomputeCompany(tx: EngineTx, companyId: string): Promise
       classificationSource: "rule" as const,
       classifiedAt: new Date(),
     };
+  }
+
+  // Services offered (several per company): from the rules (even when a person froze the classification, the
+  // licences still say what the company offers) and from each source that states services in words.
+  {
+    const types = await tx.selectDistinct({ scope: sourceRecords.scope }).from(sourceRecords)
+      .where(and(eq(sourceRecords.companyId, companyId), eq(sourceRecords.source, "cssf"), eq(sourceRecords.state, "found")));
+    const codes = await tx.selectDistinct({ code: licences.code }).from(licences)
+      .innerJoin(sourceRecords, eq(sourceRecords.id, licences.sourceRecordId))
+      .where(and(eq(sourceRecords.companyId, companyId), eq(licences.detailType, "ACTIVITY_CODE"), isNull(licences.endDate)));
+    const { rules } = await loadRules(tx);
+    const isFundWorld = ["fund", "fund_vehicle"].includes(String(company.companyKind)) || !!company.fundRole;
+    const c = classify({ cssfTypes: types.map((t) => t.scope!).filter(Boolean), cssfCodes: codes.map((x) => x.code), legalForm: next.legalForm, hasRcs: !!rcsNumber, name: next.canonicalName, allowNameRules: !isFundWorld }, rules);
+    await syncServices(tx, companyId, "rule", serviceRowsFromIds(c.serviceIds));
+    const cats = await loadCategories(tx);
+    const stated = new Map<string, unknown>();
+    for (const cl of current) if (cl.attribute === "services" && cl.source !== "manual") stated.set(cl.source, cl.value);
+    for (const src of ["fundhub", "website"]) await syncServices(tx, companyId, src, serviceRowsFromLabels(stated.get(src), cats));
   }
 
   const changed = (Object.keys(next) as (keyof typeof next)[]).some((k) => !sameValue(next[k], company[k]));

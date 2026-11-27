@@ -61,6 +61,13 @@ else bad "could not read the HTTPS certificate" "journalctl -u caddy -n 50"; fi
 echo "== Machine"
 disk=$(df --output=pcent / | tail -1 | tr -dc 0-9); [ "$disk" -lt 85 ] && ok "disk ${disk}% used" || bad "disk ${disk}% used" "sudo du -xh / --max-depth=2 | sort -h | tail; old backups: /var/backups/fundhub-engine"
 avail=$(free -m | awk '/^Mem:/{print $7}'); [ "$avail" -gt 300 ] && ok "memory: ${avail} MB available" || warn "memory low: ${avail} MB available" "close editor tabs / restart code-server@$APP_USER"
+# Data disk with the engine's files (filing PDFs), when set up (infra/vm/bin/data-disk-setup.sh).
+if grep -q "^LABEL=fundhub-data " /etc/fstab; then
+  if mountpoint -q /srv/fundhub-data; then
+    dd=$(df --output=pcent /srv/fundhub-data | tail -1 | tr -dc 0-9)
+    [ "$dd" -lt 85 ] && ok "data disk /srv/fundhub-data ${dd}% used" || warn "data disk ${dd}% used" "Azure portal → Disks → resize, then: sudo resize2fs \$(blkid -L fundhub-data)"
+  else bad "data disk not mounted at /srv/fundhub-data (PDFs unavailable)" "Azure portal → VM → Disks: is it attached? then sudo mount /srv/fundhub-data"; fi
+fi
 last=$(ls -t /var/backups/fundhub-engine/*.dump 2>/dev/null | head -1)
 if [ -n "$last" ] && [ "$(find "$last" -mmin -1560)" ]; then ok "latest DB backup: $(basename "$last")"; else warn "no engine DB backup in the last 26 h" "sudo systemctl start fundhub-engine-backup; journalctl -u fundhub-engine-backup -n 30"; fi
 up=$(uptime -s); ok "up since $up"

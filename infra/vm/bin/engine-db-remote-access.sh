@@ -102,7 +102,7 @@ exists=$(sudo -u postgres psql -qAt -c "select 1 from pg_roles where rolname = '
 if [ -z "$exists" ] || [ "${1:-}" = "--rotate" ] || [ ! -s "$URL_FILE" ]; then
   PW=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)
   [ -n "$exists" ] && verb=ALTER || verb=CREATE
-  sudo -u postgres psql -v ON_ERROR_STOP=1 -q -c "$verb ROLE $ROLE LOGIN PASSWORD '$PW' CONNECTION LIMIT 15 NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT"
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -q -c "$verb ROLE $ROLE LOGIN PASSWORD '$PW' CONNECTION LIMIT 30 NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT"
   install -d -o "$APP_USER" -g "$APP_USER" -m 700 "$SECRETS_DIR"
   umask 077
   echo "postgres://$ROLE:$PW@$DOMAIN:5432/$DB?sslmode=verify-full" >"$URL_FILE"
@@ -110,6 +110,11 @@ if [ -z "$exists" ] || [ "${1:-}" = "--rotate" ] || [ ! -s "$URL_FILE" ]; then
   unset PW
   echo "Password set; connection string written to $URL_FILE"
 fi
+
+# Vercel functions freeze with their connections open: the server closes console sessions idle for 60 s, and the
+# limit is applied on every run (also to an existing role).
+psql_db -c "ALTER ROLE $ROLE CONNECTION LIMIT 30"
+sudo -u postgres psql -v ON_ERROR_STOP=1 -q -c "ALTER ROLE $ROLE SET idle_session_timeout = '60s'"
 
 echo "== Privileges"
 grants="GRANT CONNECT ON DATABASE $DB TO $ROLE;"

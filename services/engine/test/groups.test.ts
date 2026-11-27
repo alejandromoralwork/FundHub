@@ -12,6 +12,7 @@ import { db, pool } from "@fundhub/engine-db/client";
 import { fundProfile, mergeKind, vehicleOf, type FundProfileInput } from "@fundhub/engine-db/core/fund-profile";
 import { companies, companyGroupMembers, companyGroups } from "@fundhub/engine-db/schema";
 import { managerRole, planManagerMandates, type CurrentMandate, type ManagerLink } from "../src/pipeline/mandates";
+import { addressKey, pickProvider, planDomiciliation, type Client, type Provider } from "../src/pipeline/domiciliation";
 import { brandOf, csvFields, persist, planGroups, stem, type CompanyLite, type GroupPlan, type Rel } from "../src/pipeline/groups";
 
 const base: FundProfileInput = { name: "", cssfTypes: [], cssfGroups: [], cssfSubGroups: [] };
@@ -239,4 +240,54 @@ test("planManagerMandates: start, keep, switch, end, staff wins, quiet first loa
   assert.deepEqual(plan.touch.map((t) => t.id), [1]);
   // First load: history, not news.
   assert.ok(planManagerMandates([link("x", "M1")], [], today, true).insert.every((n) => n.event === null));
+});
+
+// ------------------------------------------------------------------ domiciliation by shared address
+
+
+test("addressKey: postcode + house number, spelling-proof", () => {
+  assert.equal(addressKey({ street: "5, Allée Scheffer", postcode: "L-2520", raw: "5, Allée Scheffer, L-2520 Luxembourg" }), "L-2520|5");
+  assert.equal(addressKey({ raw: "5, ALLÉE SCHEFFER, L-2520 LUXEMBOURG, LU" }), "L-2520|5");
+  assert.equal(addressKey({ raw: "2-4, rue Eugène Ruppert, L-2453 Luxembourg" }), "L-2453|2");
+  assert.equal(addressKey({ raw: "1c, rue Gabriel Lippmann, L-5365 Munsbach" }), "L-5365|1c");
+  assert.equal(addressKey({ raw: "WestSide Village, Immeuble Daphné, 89D, Parc d'activités Cap L-8308 Capellen" }), "L-8308|89d");
+  assert.equal(addressKey({ street: "9, Rue de Bitbourg", postcode: "1273", raw: "9, Rue de Bitbourg, 1273 Luxembourg" }), "L-1273|9");
+  assert.equal(addressKey({ raw: "rue sans numéro, L-1111 Luxembourg" }), null, "no house number: no key");
+  assert.equal(addressKey({ raw: "1 Main St, Dublin", country: "IE" }), null, "only Luxembourg addresses");
+});
+
+test("planDomiciliation: start, keep, switch, end, own group excluded, ambiguous building, staff wins", () => {
+  const P = (id: string, key: string, groups: number[] = []): Provider => ({ id, name: `Admin ${id}`, key, groups });
+  const C = (id: string, key: string, groups: number[] = [], since: string | null = "2021-01-01"): Client => ({ id, key, groups, addressSince: since });
+  const providers = [P("A", "L-2520|5", [1]), P("B", "L-1855|49", [2]), P("X", "L-1111|1", [7]), P("Y", "L-1111|1", [8])];
+  const clients = [
+    C("new", "L-2520|5"), // at A → new mandate dated by its address
+    C("kept", "L-2520|5"), // already A's
+    C("moved", "L-1855|49"), // was A's, now at B's address → switch
+    C("sister", "L-2520|5", [1]), // A's own group → not a client
+    C("shared", "L-1111|1"), // two unrelated admins in one building → ambiguous
+    C("staff", "L-2520|5"), // a person set its domiciliation agent → untouched
+  ];
+  const current = [
+    { id: 1, clientId: "kept", providerId: "A", providerName: "Admin A" },
+    { id: 2, clientId: "moved", providerId: "A", providerName: "Admin A" },
+    { id: 3, clientId: "left", providerId: "B", providerName: "Admin B" }, // no longer at an admin's address
+  ];
+  const plan = planDomiciliation(providers, clients, current, new Set(["staff"]), "2026-11-27");
+  const ins = Object.fromEntries(plan.insert.map((n) => [n.clientId, n]));
+  assert.deepEqual(Object.keys(ins).sort(), ["moved", "new"]);
+  assert.deepEqual([ins.new.providerId, ins.new.validFrom, ins.new.event], ["A", "2021-01-01", "mandate_started"]);
+  assert.deepEqual([ins.moved.providerId, ins.moved.event, ins.moved.previous, ins.moved.validFrom], ["B", "mandate_switched", "Admin A", "2026-11-27"]);
+  assert.deepEqual(plan.end.map((e) => [e.id, e.reason]).sort(), [[2, "switched"], [3, "gone"]]);
+  assert.deepEqual(plan.touch, [1]);
+  assert.equal(plan.ambiguous, 1);
+});
+
+test("pickProvider: one firm (group or brand) → its best entity; several firms → the only one that domiciles", () => {
+  const P = (id: string, extra: Partial<Provider> = {}): Provider => ({ id, name: id, key: "k", groups: [], ...extra });
+  assert.equal(pickProvider([P("Alter Domus Luxembourg", { brand: "alter", domiciles: true }), P("Alter Domus Fund Services", { brand: "alter", fundAdmin: true })])?.id, "Alter Domus Luxembourg");
+  assert.equal(pickProvider([P("UBS Fund Services", { brand: "ubs", fundAdmin: true }), P("UBS Fund Administration", { brand: "ubs", fundAdmin: true })])?.id, "UBS Fund Administration", "same brand: by name");
+  assert.equal(pickProvider([P("A", { groups: [5] }), P("B", { groups: [5], domiciles: true })])?.id, "B", "same ownership group");
+  assert.equal(pickProvider([P("GPFS", { brand: "gpfs", domiciles: true }), P("Fisch Fund Services", { brand: "fisch" })])?.id, "GPFS", "only one firm domiciles");
+  assert.equal(pickProvider([P("X", { brand: "x" }), P("Y", { brand: "y" })]), null, "two unrelated firms: ambiguous");
 });

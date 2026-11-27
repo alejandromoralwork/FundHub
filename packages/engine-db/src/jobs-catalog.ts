@@ -89,7 +89,7 @@ export const JOB_CATALOG = {
     ],
   },
   rcs_refresh: { group: "maintenance", title: "RCS refresh queue", description: "Queues known-but-unfetched numbers (highest tier first), then due records, within the daily cap.", params: [{ name: "limit", kind: "number", label: "Limit" }], schedule: { cron: "45 9 * * *" } },
-  reclassify: { group: "maintenance", title: "Reclassify", description: "Re-applies classification rules to every company and links clients to companies.", params: [], schedule: { cron: "0 13 * * 1" } },
+  reclassify: { group: "maintenance", title: "Reclassify", description: "Re-applies classification rules (and services offered) to every company that is not struck off, and links clients to companies.", params: [{ name: "all", kind: "boolean", label: "Include struck-off companies" }], schedule: { cron: "0 13 * * 1" } },
   build_groups: {
     group: "maintenance",
     title: "Company groups",
@@ -104,6 +104,13 @@ export const JOB_CATALOG = {
     description: "Rebuilds the fund events (incorporated, authorised, sub-fund added / closed, manager appointed / changed, deregistered…) and each fund's launch and closure date, which feed the fund-launch statistics.",
     params: [],
     schedule: { cron: "30 14 * * *" },
+  },
+  domiciliation_match: {
+    group: "maintenance",
+    title: "Domiciliation by address",
+    description: "Matches entities registered at a fund administrator's (or domiciliation agent's) address and records them as its domiciliation clients, as dated episodes: a client moving to another administrator ends one episode and starts the next (mandate_switched). Staff and document mandates win.",
+    params: [],
+    schedule: { cron: "45 14 * * *" },
   },
   census_snapshot: { group: "maintenance", title: "Census snapshot", description: "Writes today's registry census.", params: [], schedule: { cron: "30 17 * * *" } },
   // ---- FundHub accounts, company websites (group "web")

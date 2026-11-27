@@ -22,7 +22,7 @@ const globalForBoss = globalThis as unknown as { engineBoss?: Promise<PgBoss> };
  */
 export function engineBoss(): Promise<PgBoss> {
   globalForBoss.engineBoss ??= (async () => {
-    const boss = new PgBoss({ connectionString: engineDirectUrl(), schema: "pgboss", schedule: false, supervise: false, migrate: false, max: 2 });
+    const boss = new PgBoss({ connectionString: engineDirectUrl(), schema: "pgboss", schedule: false, supervise: false, migrate: false, max: process.env.VERCEL ? 1 : 2 });
     boss.on("error", (err) => console.error("engine queue:", err));
     await boss.start();
     return boss;

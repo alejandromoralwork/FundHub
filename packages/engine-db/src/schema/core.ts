@@ -383,6 +383,41 @@ export const rowHistory = core.table(
   (t) => [index("row_history_row_idx").on(t.tableName, t.rowId, t.changedAt), index("row_history_changed_idx").on(t.changedAt)],
 );
 
+// ------------------------------------------------------------------ services offered (several per company)
+
+/**
+ * Kind: table "core.company_services". The categories and services a company offers, several per company, each
+ * with its source and period: the website taxonomy (packages/core/taxonomy.ts → core.activity_categories: level 1
+ * = category such as Fund Administration, level 2 = service such as "Transfer Agency & Shareholder Register"),
+ * or a free-text service the taxonomy does not have (`label`). The primary category stays on core.companies.
+ *   key = "cat:<category id>" or "txt:<normalised label>"; one row per (company, key, source).
+ * Sources: classification rules (CSSF licences), FundHub accounts and company websites (services they state),
+ * staff (manual). A service no longer stated gets valid_to (history is kept).
+ */
+export const companyServices = core.table(
+  "company_services",
+  {
+    id: bigId(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    categoryId: integer("category_id").references(() => activityCategories.id, { onDelete: "cascade" }),
+    /** Free-text service (when not in the taxonomy), or the source's wording. */
+    label: text("label"),
+    source: text("source").notNull(),
+    confidence: real("confidence").notNull().default(1),
+    evidence: text("evidence"),
+    validFrom: ts("valid_from").notNull().defaultNow(),
+    validTo: ts("valid_to"),
+    lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("company_services_uq").on(t.companyId, t.key, t.source),
+    index("company_services_category_idx").on(t.categoryId).where(sql`valid_to is null`),
+  ],
+);
+
 // ------------------------------------------------------------------ service mandates (who serves which fund, over time)
 
 /**
@@ -544,6 +579,7 @@ export const companyGroupMembers = core.table(
 export type Company = typeof companies.$inferSelect;
 export type CompanyGroup = typeof companyGroups.$inferSelect;
 export type Mandate = typeof mandates.$inferSelect;
+export type CompanyService = typeof companyServices.$inferSelect;
 export type MandateEvidence = typeof mandateEvidence.$inferSelect;
 export type FundEvent = typeof fundEvents.$inferSelect;
 export type CompanyGroupMember = typeof companyGroupMembers.$inferSelect;
