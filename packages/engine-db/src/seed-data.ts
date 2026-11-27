@@ -9,7 +9,7 @@
  * TYPESCRIPT YOU WILL SEE HERE: type aliases, `as const`, object literals.
  */
 
-import type { CompanyKind, EngineSource, Layer, ReviewMode, RuleKind, SourceKind, AcquisitionMethod } from "./enums";
+import type { MandateRole, CompanyKind, EngineSource, Layer, ReviewMode, RuleKind, SourceKind, AcquisitionMethod } from "./enums";
 import type { ReviewConditions } from "./schema/ops";
 
 /** Kind: type alias. A level-1 category with its level-2 subcategories ({ slug, label }). */
@@ -246,6 +246,30 @@ export const REVIEW_POLICIES: ReviewPolicySeed[] = [
  * Kind: constant. News feeds polled by `news_poll` (checked to answer with RSS in Nov 2026). Paperjam and
  * Delano publish no public feed; their articles arrive through the per-company news search.
  */
+/**
+ * Kind: constant. Service-mandate roles (ops.mandate_roles). `exclusive`: one provider at a time per fund — the
+ * database refuses overlapping episodes for these. Labels and flags are editable in the Database module.
+ */
+export const MANDATE_ROLE_SEED: { code: MandateRole; label: string; exclusive: boolean; regulated: boolean; appliesTo: "fund" | "sub_fund" | "both" }[] = [
+  { code: "management_company", label: "Management company (UCITS ManCo)", exclusive: true, regulated: true, appliesTo: "fund" },
+  { code: "aifm", label: "AIFM", exclusive: true, regulated: true, appliesTo: "fund" },
+  { code: "investment_manager", label: "Investment manager (delegated)", exclusive: false, regulated: true, appliesTo: "both" },
+  { code: "investment_adviser", label: "Investment adviser", exclusive: false, regulated: false, appliesTo: "both" },
+  { code: "depositary", label: "Depositary", exclusive: true, regulated: true, appliesTo: "fund" },
+  { code: "central_administration", label: "Central administration (fund administrator)", exclusive: true, regulated: true, appliesTo: "fund" },
+  { code: "transfer_agent", label: "Transfer agent", exclusive: false, regulated: true, appliesTo: "fund" },
+  { code: "registrar", label: "Registrar", exclusive: false, regulated: true, appliesTo: "fund" },
+  { code: "auditor", label: "Auditor (réviseur d'entreprises agréé)", exclusive: true, regulated: true, appliesTo: "fund" },
+  { code: "domiciliation_agent", label: "Domiciliation agent", exclusive: true, regulated: true, appliesTo: "fund" },
+  { code: "distributor", label: "Global distributor", exclusive: false, regulated: false, appliesTo: "both" },
+  { code: "paying_agent", label: "Paying agent", exclusive: false, regulated: false, appliesTo: "fund" },
+  { code: "legal_adviser", label: "Legal adviser", exclusive: false, regulated: false, appliesTo: "fund" },
+  { code: "prime_broker", label: "Prime broker", exclusive: false, regulated: false, appliesTo: "both" },
+  { code: "listing_agent", label: "Listing agent", exclusive: false, regulated: false, appliesTo: "both" },
+  { code: "director", label: "Board director (company)", exclusive: false, regulated: false, appliesTo: "fund" },
+  { code: "service_provider", label: "Service provider (role not stated)", exclusive: false, regulated: false, appliesTo: "both" },
+];
+
 export const NEWS_FEEDS: { name: string; url: string; language: string; enabled: boolean }[] = [
   { name: "Luxembourg Times", url: "https://www.luxtimes.lu/rss", language: "en", enabled: true },
   { name: "Luxemburger Wort", url: "https://www.wort.lu/rss", language: "de", enabled: true },

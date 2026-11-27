@@ -99,9 +99,17 @@ function ToolLinks({ tools, collapsed }: { tools: ShellTool[]; collapsed: boolea
       {!collapsed && <Typography.Text type="secondary" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>Open tools</Typography.Text>}
       {/* `.map` draws one link per tool. `key={t.href}` gives React a unique id per item in the list. */}
       {tools.map((t) => (
-        <a key={t.href} href={t.href} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 13, color: "inherit" }}>
-          <ExportOutlined />
-          {!collapsed && t.label}
+        // One line per tool: the icon never shrinks, a long label ends with "…" (full name in the tooltip).
+        <a
+          key={t.href}
+          href={t.href}
+          target="_blank"
+          rel="noreferrer"
+          title={t.label}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 13, color: "inherit", whiteSpace: "nowrap", minWidth: 0 }}
+        >
+          <ExportOutlined style={{ flexShrink: 0 }} />
+          {!collapsed && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</span>}
         </a>
       ))}
     </div>
@@ -136,6 +144,7 @@ const RESOURCES = [
   { name: "engine", meta: { label: "Company intelligence", icon: <ApartmentOutlined /> } },
   { name: "engine-overview", list: "/engine", meta: { label: "Pipeline", parent: "engine" } },
   { name: "engine-companies", list: "/engine/companies", meta: { label: "Companies", parent: "engine" } },
+  { name: "engine-groups", list: "/engine/groups", meta: { label: "Groups", parent: "engine" } },
   { name: "engine-review", list: "/engine/review", meta: { label: "Review", parent: "engine" } },
   { name: "engine-sources", list: "/engine/sources", meta: { label: "Sources", parent: "engine" } },
   { name: "engine-quality", list: "/engine/quality", meta: { label: "Data quality", parent: "engine" } },

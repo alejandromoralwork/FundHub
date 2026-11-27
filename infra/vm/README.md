@@ -99,26 +99,10 @@ sudo systemctl start fundhub-capture
 
 ## Import the database from the old PC
 
-The old PC's database is the embedded Postgres 18 folder `packages\engine-db\.pg-data` (the embedded server has no
-`pg_dump`, so the dump is made here on the VM).
-
-1. Old PC: **stop** `npm run engine:db:local` (Ctrl+C), then zip `packages\engine-db\.pg-data` and
-   `services\engine\.engine-data\captures` + `blobs` (not `rcs-profile`).
-2. Upload the zips to the VM (drag into code-server). Unzip so the folder is `packages/engine-db/.pg-data`, and the
-   captures/blobs under `services/engine/.engine-data/`.
-3. Start the old database on its own port, dump it, restore it into the VM's Postgres:
-
-```bash
-cd ~/projects/FundHub
-npm run engine:db:local &                       # serves the copied folder on 127.0.0.1:5434
-PGPASSWORD=postgres pg_dump -Fc -h 127.0.0.1 -p 5434 -U postgres -d fundhub_engine -f ~/engine-oldpc.dump
-kill %1
-# then "Restore a backup" above with ~/engine-oldpc.dump, then: npm run engine:db:migrate
-```
-
-If the copied folder does not start on Linux, dump it on the old PC instead: install the PostgreSQL 18
-"Command Line Tools" (EDB installer, uncheck the server), run the same `pg_dump` against port 5434, upload the
-`.dump`.
+The engine database now has a different, layered schema, so the old PC's database is **not** restored here.
+Its LBR captures and filing PDFs are re-sent through the capture receiver instead, and rebuilt by the new pipeline:
+follow [docs/import-old-pc-data.md](../../docs/import-old-pc-data.md) (written so a Claude session on the old PC can
+run it end to end).
 
 ## Move the database to a data disk
 

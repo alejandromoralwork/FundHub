@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { Card, Input, Select, Space, Table, Tag, Typography } from "antd";
 import { ENGINE_SOURCES, COMPANY_KINDS, COMPANY_STATUSES } from "@fundhub/engine-db/enums";
 import type { categoryOptions, registryList, RegistryFilters } from "@/lib/engine-data";
+import { FUND_ROLE_LABEL, LAW_LABEL, REGIME_COLOR, REGIME_LABEL, VEHICLE_LABEL, optionsOf } from "@/lib/fund-labels";
+import type { FundRegime, FundRole, LegalVehicle } from "@fundhub/engine-db/enums";
 import { fmt } from "./engine-overview";
 
 type List = Awaited<ReturnType<typeof registryList>>;
@@ -46,6 +48,9 @@ export function RegistryList({ list, filters, categories }: { list: List; filter
         <Select allowClear placeholder="Status" style={{ width: 140 }} value={filters.status} options={opts(COMPANY_STATUSES)} onChange={(status) => go({ status })} />
         <Select allowClear placeholder="Tier" style={{ width: 100 }} value={filters.tier} options={["0", "1", "2"].map((t) => ({ value: t, label: `Tier ${t}` }))} onChange={(tier) => go({ tier })} />
         <Select allowClear placeholder="Has source" style={{ width: 140 }} value={filters.source} options={opts(ENGINE_SOURCES)} onChange={(source) => go({ source })} />
+        <Select allowClear placeholder="UCITS / AIF" style={{ width: 130 }} value={filters.regime} options={optionsOf(REGIME_LABEL)} onChange={(regime) => go({ regime })} />
+        <Select allowClear placeholder="Fund law" style={{ width: 200 }} value={filters.law} options={optionsOf(LAW_LABEL)} onChange={(law) => go({ law })} />
+        <Select allowClear placeholder="Fund role" style={{ width: 180 }} value={filters.role} options={optionsOf(FUND_ROLE_LABEL)} onChange={(role) => go({ role })} />
         <Select allowClear placeholder="RCS number" style={{ width: 140 }} value={filters.rcs} options={[{ value: "yes", label: "Has RCS no." }, { value: "no", label: "No RCS no." }]} onChange={(rcs) => go({ rcs })} />
       </Space>
       <Table size="small" rowKey="id" dataSource={list.rows}
@@ -55,6 +60,20 @@ export function RegistryList({ list, filters, categories }: { list: List; filter
           { title: "RCS", dataIndex: "rcsNumber", render: (v: string | null) => <span className="mono">{v ?? "—"}</span>, width: 100 },
           { title: "Status", dataIndex: "status", render: (s: string) => <Tag color={STATUS_COLOR[s]}>{s.replace(/_/g, " ")}</Tag>, width: 110 },
           { title: "Kind", dataIndex: "kind", render: (k: string, r) => <Space size={2}>{r.sp && <Tag color="blue">SP</Tag>}<span>{k.replace(/_/g, " ")}</span></Space>, width: 170 },
+          {
+            title: "Fund profile",
+            width: 210,
+            render: (_, r) =>
+              r.fundRegime || r.fundRole ? (
+                <Space size={2} wrap>
+                  {r.fundRegime && <Tag color={REGIME_COLOR[r.fundRegime as FundRegime]}>{REGIME_LABEL[r.fundRegime as FundRegime]}</Tag>}
+                  {r.fundRole && <Tag>{FUND_ROLE_LABEL[r.fundRole as FundRole]}</Tag>}
+                  {r.legalVehicle && r.legalVehicle !== "sub_fund" && <Typography.Text type="secondary">{VEHICLE_LABEL[r.legalVehicle as LegalVehicle]}</Typography.Text>}
+                </Space>
+              ) : (
+                <Typography.Text type="secondary">{r.legalVehicle ? VEHICLE_LABEL[r.legalVehicle as LegalVehicle] : "—"}</Typography.Text>
+              ),
+          },
           { title: "Category", render: (_, r) => <span>{r.category ?? "—"}{r.subcategory && <Typography.Text type="secondary"> · {r.subcategory}</Typography.Text>}</span> },
           { title: "Tier", dataIndex: "tier", width: 60 },
           { title: "Sources", dataIndex: "sources", render: (s: string[]) => <Space size={2} wrap>{s.map((x) => <Tag key={x} color={x === "manual" ? "purple" : undefined}>{x}</Tag>)}</Space>, width: 200 },

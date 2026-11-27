@@ -16,6 +16,8 @@ import { clearRulesCache, linkRelations, recomputeCompany } from "@fundhub/engin
 import { snapshotRegistry } from "../core/ops";
 import { snapshotRcsKnown } from "./rcs-list";
 import { log } from "../log";
+import { buildGroups } from "../pipeline/groups";
+import { fundLifecycle } from "../pipeline/lifecycle";
 import type { JobContext } from "./context";
 
 /** Kind: async function. Job "reclassify". */
@@ -52,4 +54,14 @@ export async function cssfRefresh(data: { limit?: number }, ctx: JobContext) {
     .limit(data.limit ?? 1000);
   for (const d of due) await ctx.enqueue("cssf_fetch", { id: d.id }, { singletonKey: `cssf:${d.id}` });
   return { queued: due.length };
+}
+
+/** Kind: async function. Job "build_groups" (see pipeline/groups.ts). */
+export async function buildGroupsJob(data: { skipGleif?: boolean }, ctx: JobContext) {
+  return buildGroups({ http: ctx.http, gleifApiBase: ctx.cfg.gleif.apiBase, gleifDelayMs: ctx.cfg.gleif.delayMs, skipGleif: !!data.skipGleif });
+}
+
+/** Kind: async function. Job "fund_lifecycle" (see pipeline/lifecycle.ts). */
+export async function fundLifecycleJob() {
+  return fundLifecycle();
 }

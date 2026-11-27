@@ -18,14 +18,14 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db as engineDb } from "@fundhub/engine-db/client";
 import { applyManualEdit, endRelation, mergeCompanies, setManualRelation, withActor } from "@fundhub/engine-db/core/entity";
 import { parseLuAddress } from "@fundhub/engine-db/core/normalize";
 import { closeRound, resetSkipped, startRound } from "@fundhub/engine-db/core/rounds";
 import { DISABLED_SCHEDULES_KEY, JOB_CATALOG, isJobName, type JobInfo } from "@fundhub/engine-db/jobs-catalog";
-import { COMPANY_KINDS, COMPANY_STATUSES, ENGINE_SOURCES, REVIEW_MODES, RELATION_KINDS, settings, candidates, changes, conflicts, lbrNumberSpace, newsMentions, parsedRecords, reviewPolicies, sessionHealth, sourceRecords, sources } from "@fundhub/engine-db/schema";
+import { COMPANY_KINDS, COMPANY_STATUSES, ENGINE_SOURCES, FUND_LAWS, FUND_REGIMES, FUND_ROLES, GROUP_KINDS, GROUP_LAYERS, GROUP_ROLES, LEGAL_VEHICLES, MANAGER_TYPES, REVIEW_MODES, RELATION_KINDS, companies, companyGroupMembers, companyGroups, mandateRoles, mandates, MANDATE_ROLES, DATE_PRECISIONS, settings, candidates, changes, conflicts, lbrNumberSpace, newsMentions, parsedRecords, reviewPolicies, sessionHealth, sourceRecords, sources } from "@fundhub/engine-db/schema";
 import { audit } from "./audit";
 import { CAN, requireStaff, type Staff } from "./auth";
 import { engineBoss, sendEngineJob } from "./engine-queue";
@@ -157,6 +157,11 @@ const classificationInput = z.union([
     activityCategoryId: z.number().int().nullable(),
     activitySubcategoryId: z.number().int().nullable(),
     tier: z.number().int().min(0).max(2),
+    fundRegime: z.enum(FUND_REGIMES).nullish(),
+    fundLaw: z.enum(FUND_LAWS).nullish(),
+    legalVehicle: z.enum(LEGAL_VEHICLES).nullish(),
+    fundRole: z.enum(FUND_ROLES).nullish(),
+    managerType: z.enum(MANAGER_TYPES).nullish(),
   }),
 ]);
 
@@ -436,5 +441,235 @@ export async function savePolicy(input: z.input<typeof policyInput>): Promise<Ac
     return { ok: `Policy for ${p.source}${p.scope !== "*" ? ` / ${p.scope}` : ""} saved (applies within a minute).` };
   } catch (err) {
     return fail(err);
+  }
+}
+
+// ------------------------------------------------------------------ company groups (staff edits = source "manual")
+
+const groupInput = z.object({
+  name: z.string().trim().min(2).max(200),
+  layer: z.enum(GROUP_LAYERS),
+  kind: z.enum(GROUP_KINDS),
+  parentGroupId: z.number().int().positive().nullish(),
+  description: z.string().trim().max(1000).nullish(),
+});
+
+/** Kind: function. A group may not become its own ancestor. */
+async function wouldLoop(groupId: number, parentId: number | null | undefined) {
+  for (let id = parentId ?? null, n = 0; id && n < 20; n++) {
+    if (id === groupId) return true;
+    const [g] = await engineDb.select({ parent: companyGroups.parentGroupId }).from(companyGroups).where(eq(companyGroups.id, id));
+    id = g?.parent ?? null;
+  }
+  return false;
+}
+
+/** Kind: server action. Creates a staff group (never changed by the builder). @returns its id in `ok`. */
+export async function createGroup(input: unknown): Promise<ActionResult & { id?: number }> {
+  const staff = await requireStaff(CAN.engineEdit);
+  const g = groupInput.safeParse(input);
+  if (!g.success) return { error: `${g.error.issues[0]?.path.join(".")}: ${g.error.issues[0]?.message}` };
+  try {
+    const [row] = await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      return tx.insert(companyGroups).values({ key: `manual:${crypto.randomUUID()}`, source: "manual", name: g.data.name, layer: g.data.layer, kind: g.data.kind, parentGroupId: g.data.parentGroupId ?? null, description: g.data.description ?? null }).returning({ id: companyGroups.id });
+    });
+    await audit(staff, "create", "engine-group", row.id, g.data);
+    revalidatePath("/engine/groups");
+    return { ok: "Group created", id: row.id };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Kind: server action. Renames / re-parents / describes a group. Editing a generated group turns it into a
+ * staff group (source "manual"), so the builder keeps the edit.
+ */
+export async function updateGroup(groupId: number, input: unknown): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  const g = groupInput.partial().safeParse(input);
+  if (!g.success) return { error: `${g.error.issues[0]?.path.join(".")}: ${g.error.issues[0]?.message}` };
+  if (g.data.parentGroupId !== undefined && (await wouldLoop(groupId, g.data.parentGroupId))) return { error: "A group cannot sit under itself or its own sub-group." };
+  try {
+    await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      await tx.update(companyGroups).set({ ...g.data, source: "manual", updatedAt: new Date() }).where(eq(companyGroups.id, groupId));
+    });
+    await audit(staff, "update", "engine-group", groupId, g.data);
+    revalidatePath(`/engine/groups/${groupId}`);
+    return { ok: "Group saved" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Kind: server action. Deletes a staff group (generated groups are rebuilt; they cannot be deleted here). */
+export async function deleteGroup(groupId: number): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  const [g] = await engineDb.select({ source: companyGroups.source, name: companyGroups.name }).from(companyGroups).where(eq(companyGroups.id, groupId));
+  if (!g) return { error: "Group not found" };
+  if (g.source !== "manual") return { error: "Only staff groups can be deleted. Generated groups follow GLEIF / CSSF; remove members instead." };
+  try {
+    await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      await tx.delete(companyGroups).where(eq(companyGroups.id, groupId));
+    });
+    await audit(staff, "delete", "engine-group", groupId, { name: g.name });
+    revalidatePath("/engine/groups");
+    return { ok: "Group deleted" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const memberInput = z.object({ companyId: z.uuid(), role: z.enum(GROUP_ROLES), evidence: z.string().trim().max(500).nullish() });
+
+/** Kind: function. Keeps a group's member count right after a staff change. */
+async function recount(groupId: number) {
+  await engineDb.execute(sql`update core.company_groups set member_count = (select count(*) from core.company_group_members where group_id = ${groupId} and valid_to is null) where id = ${groupId}`);
+}
+
+/** Kind: server action. Adds a company to a group (or changes its role), as a staff membership. */
+export async function addGroupMember(groupId: number, input: unknown): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  const m = memberInput.safeParse(input);
+  if (!m.success) return { error: `${m.error.issues[0]?.path.join(".")}: ${m.error.issues[0]?.message}` };
+  try {
+    await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      await tx
+        .insert(companyGroupMembers)
+        .values({ groupId, companyId: m.data.companyId, role: m.data.role, source: "manual", evidence: m.data.evidence ?? `added by ${staff.email}` })
+        .onConflictDoUpdate({ target: [companyGroupMembers.groupId, companyGroupMembers.companyId], set: { role: m.data.role, source: "manual", confidence: 1, validTo: null, evidence: m.data.evidence ?? `set by ${staff.email}` } });
+    });
+    await recount(groupId);
+    await audit(staff, "update", "engine-group", groupId, { add: m.data });
+    revalidatePath(`/engine/groups/${groupId}`);
+    revalidatePath(`/engine/companies/${m.data.companyId}`);
+    return { ok: "Member saved (the company's fund profile updates at the next reclassify)" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Kind: server action. Removes a company from a group. The row is kept, ended and marked "manual", so the
+ * builder does not put it back.
+ */
+export async function removeGroupMember(groupId: number, companyId: string): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  try {
+    await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      await tx
+        .update(companyGroupMembers)
+        .set({ validTo: new Date(), source: "manual", evidence: `removed by ${staff.email}` })
+        .where(and(eq(companyGroupMembers.groupId, groupId), eq(companyGroupMembers.companyId, companyId)));
+    });
+    await recount(groupId);
+    await audit(staff, "update", "engine-group", groupId, { remove: companyId });
+    revalidatePath(`/engine/groups/${groupId}`);
+    return { ok: "Removed from the group" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Kind: server action. Company picker: companies whose name, RCS number or LEI matches. */
+export async function findCompanies(q: string) {
+  await requireStaff(CAN.engine);
+  const term = q.trim();
+  if (term.length < 2) return [];
+  const like = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return engineDb
+    .select({ id: companies.id, name: companies.canonicalName, rcsNumber: companies.rcsNumber, kind: companies.companyKind })
+    .from(companies)
+    .where(sql`${companies.canonicalName} ilike ${like} or ${companies.rcsNumber} ilike ${like} or ${companies.lei} ilike ${like}`)
+    .orderBy(companies.canonicalName)
+    .limit(20);
+}
+
+/** Kind: server action. Group picker. */
+export async function findGroups(q: string) {
+  await requireStaff(CAN.engine);
+  const term = q.trim();
+  if (term.length < 2) return [];
+  const like = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return engineDb
+    .select({ id: companyGroups.id, name: companyGroups.name, layer: companyGroups.layer, kind: companyGroups.kind, memberCount: companyGroups.memberCount })
+    .from(companyGroups)
+    .where(sql`${companyGroups.name} ilike ${like}`)
+    .orderBy(sql`${companyGroups.memberCount} desc`)
+    .limit(20);
+}
+
+// ------------------------------------------------------------------ service mandates (staff edits win over sources)
+
+const mandateInput = z.object({
+  role: z.enum(MANDATE_ROLES),
+  providerCompanyId: z.uuid().nullish(),
+  providerName: z.string().trim().min(2).max(300),
+  validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  validFromPrecision: z.enum(DATE_PRECISIONS).default("day"),
+  validTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  note: z.string().trim().max(500).nullish(),
+});
+
+/**
+ * Kind: server action. Records a service mandate by hand (e.g. "depositary: X since 2021-03"). For a role that is
+ * exclusive (one provider at a time), the current episode of that role ends where the new one starts.
+ */
+export async function addMandate(clientCompanyId: string, input: unknown): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  const m = mandateInput.safeParse(input);
+  if (!m.success) return { error: `${m.error.issues[0]?.path.join(".")}: ${m.error.issues[0]?.message}` };
+  const d = m.data;
+  try {
+    await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      const [role] = await tx.select().from(mandateRoles).where(eq(mandateRoles.code, d.role));
+      const exclusive = role?.exclusive ?? false;
+      if (exclusive && !d.validTo) {
+        const open = await tx.select().from(mandates).where(and(eq(mandates.clientCompanyId, clientCompanyId), eq(mandates.role, d.role), eq(mandates.status, "current")));
+        for (const o of open) {
+          const end = d.validFrom ?? new Date().toISOString().slice(0, 10);
+          await tx.update(mandates).set({ status: "ended", validTo: end, validToPrecision: d.validFrom ? d.validFromPrecision : "month", lastSeenAt: new Date() }).where(eq(mandates.id, o.id));
+        }
+      }
+      await tx.insert(mandates).values({
+        clientCompanyId, role: d.role, exclusive, providerCompanyId: d.providerCompanyId ?? null, providerName: d.providerName,
+        validFrom: d.validFrom ?? null, validFromPrecision: d.validFrom ? d.validFromPrecision : "unknown", validTo: d.validTo ?? null, validToPrecision: d.validTo ? "day" : null,
+        status: d.validTo ? "ended" : "current", decidedBy: actorOf(staff),
+      });
+      await tx.insert(changes).values({ companyId: clientCompanyId, source: "manual", kind: "mandate_started", attribute: d.role, newValue: d.providerName, actor: actorOf(staff) });
+    });
+    await audit(staff, "create", "engine-mandate", clientCompanyId, d);
+    revalidatePath(`/engine/companies/${clientCompanyId}`);
+    return { ok: "Mandate saved" };
+  } catch (err) {
+    const msg = fail(err).error ?? "";
+    return { error: /mandates_no_overlap/.test(msg) ? "This overlaps another episode of the same role: adjust the dates." : msg };
+  }
+}
+
+/** Kind: server action. Ends a current mandate on a date (staff: the builders keep it ended). */
+export async function endMandate(mandateId: number, validTo: string): Promise<ActionResult> {
+  const staff = await requireStaff(CAN.engineEdit);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(validTo)) return { error: "Date as YYYY-MM-DD" };
+  try {
+    const [m] = await engineDb.transaction(async (tx) => {
+      await withActor(tx, actorOf(staff));
+      const rows = await tx.update(mandates).set({ status: "ended", validTo, validToPrecision: "day", decidedBy: actorOf(staff), lastSeenAt: new Date() }).where(eq(mandates.id, mandateId)).returning();
+      if (rows[0]) await tx.insert(changes).values({ companyId: rows[0].clientCompanyId, source: "manual", kind: "mandate_ended", attribute: rows[0].role, oldValue: rows[0].providerName, actor: actorOf(staff) });
+      return rows;
+    });
+    if (!m) return { error: "Mandate not found" };
+    await audit(staff, "update", "engine-mandate", mandateId, { validTo });
+    revalidatePath(`/engine/companies/${m.clientCompanyId}`);
+    return { ok: "Mandate ended" };
+  } catch (err) {
+    const msg = fail(err).error ?? "";
+    return { error: /mandates_no_overlap/.test(msg) ? "That end date overlaps the next episode." : msg };
   }
 }

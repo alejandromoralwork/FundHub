@@ -1,0 +1,6 @@
+{
+  "name": "Fund launches & managers",
+  "description": "Luxembourg fund and sub-fund launches over time, who launches them (ManCo / AIFM at launch), manager momentum, and manager changes (which ManCos / AIFMs win funds). Built by the fund_lifecycle and build_groups jobs.",
+  "database": "intelligence",
+  "collection": "system"
+}

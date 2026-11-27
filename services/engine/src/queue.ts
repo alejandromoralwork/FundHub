@@ -73,14 +73,20 @@ export async function startWorker(groups: Group[]) {
   for (const [name, def] of Object.entries(JOBS) as [JobName, JobDef][]) {
     if (!groups.includes(def.group)) continue;
     // One job at a time per queue: politeness delays are per process, and RCS is one browser.
-    await boss.work(name, { batchSize: 1, pollingIntervalSeconds: 5 }, async ([job]) => {
+    // Per-record jobs (cssf_fetch, gleif_fetch, staging_release…) poll every second: they come in thousands after
+    // a census, and a 5 s poll would cap them at 12 a minute. The source's own delay still spaces the requests.
+    const fast = name.endsWith("_fetch") && name !== "rcs_fetch" || name === "staging_release";
+    await boss.work(name, { batchSize: 1, pollingIntervalSeconds: fast ? 1 : 5 }, async ([job]) => {
       const started = Date.now();
       try {
         const result = await def.handler(job.data, ctx);
         log.info("job done", { job: name, id: job.id, ms: Date.now() - started, result: result as Record<string, unknown> });
         return result;
       } catch (err) {
-        log.error("job failed", { job: name, id: job.id, data: job.data, error: err instanceof Error ? err.message : String(err) });
+        // Database errors arrive wrapped ("Failed query: …" + the whole SQL); the real reason is in `cause`.
+        const e = err as Error & { cause?: { message?: string; code?: string; detail?: string } };
+        const error = e.cause?.message ? `${e.cause.message}${e.cause.detail ? ` (${e.cause.detail})` : ""}` : e instanceof Error ? e.message.slice(0, 2000) : String(err);
+        log.error("job failed", { job: name, id: job.id, data: job.data, error, code: e.cause?.code });
         throw err;
       }
     });

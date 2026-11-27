@@ -47,6 +47,16 @@ import {
   COMPANY_KINDS,
   COMPANY_STATUSES,
   ENGINE_SOURCES,
+  companyGroups,
+  companyGroupMembers,
+  fundEvents,
+  mandateEvidence,
+  mandateRoles,
+  mandates,
+  FUND_LAWS,
+  FUND_REGIMES,
+  FUND_ROLES,
+  GROUP_LAYERS,
 } from "@fundhub/engine-db/schema";
 
 /** Kind: type alias. What a value looks like after a JSON round-trip: Dates become strings, recursively. */
@@ -109,6 +119,10 @@ export type RegistryFilters = {
   tier?: string;
   source?: string;
   rcs?: string;
+  /** Fund profile: UCITS / AIF, product law, role in a fund structure. */
+  regime?: string;
+  law?: string;
+  role?: string;
   page?: string;
 };
 
@@ -135,6 +149,9 @@ export async function registryList(f: RegistryFilters) {
   if (f.category && Number(f.category)) conds.push(or(eq(companies.activityCategoryId, Number(f.category)), eq(companies.activitySubcategoryId, Number(f.category)))!);
   if (f.status && (COMPANY_STATUSES as readonly string[]).includes(f.status)) conds.push(eq(companies.status, f.status as (typeof COMPANY_STATUSES)[number]));
   if (f.tier && /^[012]$/.test(f.tier)) conds.push(eq(companies.tier, Number(f.tier)));
+  if (f.regime && (FUND_REGIMES as readonly string[]).includes(f.regime)) conds.push(eq(companies.fundRegime, f.regime as (typeof FUND_REGIMES)[number]));
+  if (f.law && (FUND_LAWS as readonly string[]).includes(f.law)) conds.push(eq(companies.fundLaw, f.law as (typeof FUND_LAWS)[number]));
+  if (f.role && (FUND_ROLES as readonly string[]).includes(f.role)) conds.push(eq(companies.fundRole, f.role as (typeof FUND_ROLES)[number]));
   if (f.rcs === "yes") conds.push(sql`${companies.rcsNumber} is not null`);
   if (f.rcs === "no") conds.push(isNull(companies.rcsNumber));
   if (f.source && (ENGINE_SOURCES as readonly string[]).includes(f.source)) {
@@ -157,6 +174,10 @@ export async function registryList(f: RegistryFilters) {
         kind: companies.companyKind,
         sp: companies.isServiceProvider,
         tier: companies.tier,
+        fundRegime: companies.fundRegime,
+        fundLaw: companies.fundLaw,
+        fundRole: companies.fundRole,
+        legalVehicle: companies.legalVehicle,
         category: cat,
         subcategory: sub,
         sources,
@@ -228,9 +249,44 @@ export async function entityDetail(id: string) {
       .innerJoin(companies, eq(companies.id, companyRelations.subjectCompanyId))
       .where(eq(companyRelations.objectCompanyId, id)),
   ]);
+  const groups = (
+    await engineDb.execute<{ id: number; name: string; layer: string; kind: string; path: string; role: string; source: string; confidence: number; evidence: string | null; valid_to: string | null }>(sql`
+      select g.id, g.name, g.layer, g.kind, coalesce(t.path, g.name) as path, m.role, m.source, m.confidence, m.evidence, m.valid_to
+      from core.company_group_members m join core.company_groups g on g.id = m.group_id left join mart.group_tree t on t.id = g.id
+      where m.company_id = ${id} order by m.valid_to nulls first, g.layer, g.name`)
+  ).rows;
+  // Service mandates: who serves this fund (all episodes), and whom this company serves (current, as provider).
+  const [served, serving, lifecycle, roles] = await Promise.all([
+    engineDb
+      .select({
+        id: mandates.id, role: mandates.role, providerCompanyId: mandates.providerCompanyId, providerName: mandates.providerName, providerLei: mandates.providerLei,
+        validFrom: mandates.validFrom, validFromPrecision: mandates.validFromPrecision, validTo: mandates.validTo, validToPrecision: mandates.validToPrecision,
+        status: mandates.status, decidedBy: mandates.decidedBy, confidence: mandates.confidence, lastSeenAt: mandates.lastSeenAt,
+        evidence: sql<string | null>`(select string_agg(coalesce(e.quote, e.source) || coalesce(' (' || e.document_date || ')', ''), ' · ') from core.mandate_evidence e where e.mandate_id = "mandates"."id")`, // named explicitly: an interpolated column renders bare ("id") = the inner table's
+      })
+      .from(mandates)
+      .where(eq(mandates.clientCompanyId, id))
+      .orderBy(mandates.role, desc(sql`coalesce(${mandates.validFrom}, '0001-01-01')`)),
+    engineDb
+      .select({ id: mandates.id, role: mandates.role, clientId: mandates.clientCompanyId, client: companies.canonicalName, fundRole: companies.fundRole, validFrom: mandates.validFrom, validFromPrecision: mandates.validFromPrecision, decidedBy: mandates.decidedBy })
+      .from(mandates)
+      .innerJoin(companies, eq(companies.id, mandates.clientCompanyId))
+      .where(and(eq(mandates.providerCompanyId, id), eq(mandates.status, "current")))
+      .orderBy(desc(sql`coalesce(${mandates.validFrom}, '0001-01-01')`))
+      .limit(1000),
+    engineDb
+      .select({ id: fundEvents.id, kind: fundEvents.kind, eventDate: fundEvents.eventDate, datePrecision: fundEvents.datePrecision, relatedCompanyId: fundEvents.relatedCompanyId, source: fundEvents.source, evidence: fundEvents.evidence,
+        related: sql<string | null>`(select r.canonical_name from core.companies r where r.id = "fund_events"."related_company_id")` })
+      .from(fundEvents)
+      .where(eq(fundEvents.companyId, id))
+      .orderBy(desc(sql`coalesce(${fundEvents.eventDate}, '9999-12-31')`))
+      .limit(500),
+    engineDb.select().from(mandateRoles).orderBy(mandateRoles.sort),
+  ]);
+  void mandateEvidence;
   // Which source "won" each golden attribute: recorded by the consolidate stage (core.field_lineage).
   const winners = Object.fromEntries(lineage.map((l) => [l.attribute, l.source]));
-  return plain({ entity, identifiers, names, records, open, history, relations, events, rowHistory: rows, details, filings: filingRows, clientOf, winners, lineage, conflicts: openConflicts, team, presence, news });
+  return plain({ entity, identifiers, names, records, open, history, relations, events, rowHistory: rows, details, filings: filingRows, clientOf, winners, lineage, conflicts: openConflicts, team, presence, news, groups, served, serving, lifecycle, roles });
 }
 
 /** Kind: async function. Companies whose name matches (for linking a client to a company). */
@@ -419,4 +475,90 @@ export async function qualityPage() {
     engineDb.execute<{ attribute: string; filled: number; total: number; ratio: number }>(sql`select attribute, filled::int, total::int, ratio from mart.field_completeness`),
   ]);
   return plain({ latest, history: history.rows, completeness: completeness.rows });
+}
+
+// ------------------------------------------------------------------ company groups
+
+/** Kind: type alias. Filters of the groups page. */
+export type GroupFilters = { layer?: string; q?: string; source?: string };
+
+/**
+ * Kind: async function. Groups of one layer as a tree: the top-level groups matching the search, with their
+ * descendants (from mart.group_tree), and per-layer / per-kind counts for the tabs.
+ */
+export async function groupsPage(f: GroupFilters) {
+  const layer = (GROUP_LAYERS as readonly string[]).includes(f.layer ?? "") ? f.layer! : "corporate";
+  const q = f.q?.trim() ? `%${f.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+  const source = f.source && ["gleif", "cssf", "name_rule", "manual"].includes(f.source) ? f.source : null;
+  const [counts, rows] = await Promise.all([
+    engineDb.execute<{ layer: string; kind: string; groups: number; members: number }>(sql`
+      select layer, kind, count(*)::int as groups, coalesce(sum(member_count), 0)::int as members from core.company_groups group by 1, 2 order by 1, 2`),
+    // A tab shows one layer as its own tree: a group whose parent is in another layer (a fund platform under a
+    // corporate group, a provider group under its corporate group) is a top-level entry here. Top-level groups
+    // (largest first) that match, or contain a descendant that matches; then their whole subtree in this layer.
+    engineDb.execute<{ id: number; parent_group_id: number | null; name: string; kind: string; source: string; member_count: number; depth: number; root_id: number; head_company_id: string | null }>(sql`
+      with recursive base as (
+        select g.id, g.parent_group_id, g.name, g.kind, g.source, g.member_count, g.head_company_id, p.layer as parent_layer
+        from core.company_groups g left join core.company_groups p on p.id = g.parent_group_id
+        where g.layer = ${layer}
+      ), t as (
+        select b.id, b.parent_group_id, b.name, b.kind, b.source, b.member_count, b.head_company_id, 1 as depth, b.id as root_id
+        from base b where b.parent_group_id is null or b.parent_layer is distinct from ${layer}
+        union all
+        select b.id, b.parent_group_id, b.name, b.kind, b.source, b.member_count, b.head_company_id, t.depth + 1, t.root_id
+        from base b join t on b.parent_group_id = t.id and b.parent_layer = ${layer}
+        where t.depth < 10
+      ), roots as (
+        select distinct t.root_id from t
+        where (${q}::text is null or t.name ilike ${q} or exists (
+                select 1 from core.company_group_members m join core.companies c on c.id = m.company_id
+                where m.group_id = t.id and m.valid_to is null and c.canonical_name ilike ${q}))
+          and (${source}::text is null or t.source = ${source})
+      ), top as (
+        select r.root_id from roots r join core.company_groups g on g.id = r.root_id
+        order by g.member_count desc, g.name limit 200
+      )
+      select t.id, t.parent_group_id, t.name, t.kind, t.source, t.member_count, t.depth, t.root_id, t.head_company_id
+      from t where t.root_id in (select root_id from top)
+      order by t.depth, t.member_count desc, t.name`),
+  ]);
+  return plain({ layer, counts: counts.rows, groups: rows.rows });
+}
+
+/** Kind: async function. One group: itself, its path, parent and children, and its members (current first). */
+export async function groupDetail(id: number) {
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const [group] = await engineDb.select().from(companyGroups).where(eq(companyGroups.id, id));
+  if (!group) return null;
+  const [path, children, members, parentOptions] = await Promise.all([
+    engineDb.execute<{ path: string; depth: number }>(sql`select path, depth from mart.group_tree where id = ${id}`),
+    engineDb.select({ id: companyGroups.id, name: companyGroups.name, kind: companyGroups.kind, memberCount: companyGroups.memberCount, source: companyGroups.source }).from(companyGroups).where(eq(companyGroups.parentGroupId, id)).orderBy(desc(companyGroups.memberCount)).limit(500),
+    engineDb
+      .select({
+        id: companyGroupMembers.id, companyId: companyGroupMembers.companyId, role: companyGroupMembers.role, source: companyGroupMembers.source, confidence: companyGroupMembers.confidence,
+        evidence: companyGroupMembers.evidence, validFrom: companyGroupMembers.validFrom, validTo: companyGroupMembers.validTo,
+        name: companies.canonicalName, kind: companies.companyKind, fundRegime: companies.fundRegime, fundLaw: companies.fundLaw, fundRole: companies.fundRole, rcsNumber: companies.rcsNumber, lei: companies.lei, sp: companies.isServiceProvider,
+      })
+      .from(companyGroupMembers)
+      .innerJoin(companies, eq(companies.id, companyGroupMembers.companyId))
+      .where(eq(companyGroupMembers.groupId, id))
+      .orderBy(sql`${companyGroupMembers.validTo} is not null`, sql`case ${companyGroupMembers.role} when 'head' then 0 when 'umbrella_fund' then 0 when 'master_fund' then 0 else 1 end`, companies.canonicalName)
+      .limit(2000),
+    group.parentGroupId ? engineDb.select({ id: companyGroups.id, name: companyGroups.name, kind: companyGroups.kind, layer: companyGroups.layer }).from(companyGroups).where(eq(companyGroups.id, group.parentGroupId)) : [],
+  ]);
+  return plain({ group, path: path.rows[0]?.path ?? group.name, depth: path.rows[0]?.depth ?? 1, children, members, parent: parentOptions[0] ?? null });
+}
+
+/** Kind: async function. Groups whose name matches (to pick a parent or a group to add a company to). */
+export async function searchGroups(q: string) {
+  const term = q.trim();
+  if (term.length < 2) return [];
+  return plain(
+    await engineDb
+      .select({ id: companyGroups.id, name: companyGroups.name, layer: companyGroups.layer, kind: companyGroups.kind, memberCount: companyGroups.memberCount })
+      .from(companyGroups)
+      .where(ilike(companyGroups.name, `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`))
+      .orderBy(desc(companyGroups.memberCount))
+      .limit(20),
+  );
 }

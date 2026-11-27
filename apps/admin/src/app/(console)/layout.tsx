@@ -57,7 +57,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     base(process.env.LISTMONK_URL) && { label: "Newsletter (Listmonk)", href: `${base(process.env.LISTMONK_URL)}/admin/` },
     base(process.env.POSTIZ_URL) && { label: "Social scheduler (Postiz)", href: base(process.env.POSTIZ_URL)! },
     // Data intelligence: Metabase on the Azure VM (query editor, team reports; VM 2FA + Metabase login).
-    can(staff, "bi") && { label: "Data intelligence (Metabase)", href: `${metabaseUrl()}/` },
+    can(staff, "bi") && { label: "Metabase", href: `${metabaseUrl()}/` },
     // The internal drive (FileBrowser Quantum on the Azure VM), opened on the shared FundHub folder.
     { label: "Drive", href: driveFilesUrl() },
     // The code editor on the Azure VM (code-server, its own password). Owners only: it is a full shell on the server.

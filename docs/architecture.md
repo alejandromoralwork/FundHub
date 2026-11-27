@@ -80,7 +80,7 @@ FundHub keeps **two databases on purpose**:
 | Publish review (proposals from the pipeline) | `ingest_runs`, `ingest_jobs` (retired), `ingest_records` |
 | Compliance | `gdpr_requests` |
 
-**Intelligence DB** (41 tables + 5 views), one Postgres schema per pipeline layer: `raw` (fetches, documents), `staging` (source_records, parsed_records + approval gate), `clean` (claims, rejects, licences, filings, web_pages, articles), `match` (candidates, conflicts), `core` (companies, identifiers, names, relations, people, positions, web_presence, news_mentions, review_summaries, field_lineage, changes, row_history, categories, rules), `mart` (views) and `ops` (sources, attribute_precedence, review_policies, runs, quality, census, LBR tooling, news feeds). Table by table: [data-pipeline.md](data-pipeline.md).
+**Intelligence DB** (47 tables + 12 views), one Postgres schema per pipeline layer: `raw` (fetches, documents), `staging` (source_records, parsed_records + approval gate), `clean` (claims, rejects, licences, filings, web_pages, articles), `match` (candidates, conflicts), `core` (companies with their fund profile, identifiers, names, relations, company groups + members, service mandates + evidence, fund events, people, positions, web_presence, news_mentions, review_summaries, field_lineage, changes, row_history, categories, rules), `mart` (views) and `ops` (sources, attribute_precedence, review_policies, runs, quality, census, LBR tooling, news feeds). Table by table: [data-pipeline.md](data-pipeline.md).
 
 **Files** live outside the databases:
 

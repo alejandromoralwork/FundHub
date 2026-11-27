@@ -16,9 +16,22 @@ import {
   CHANGE_KINDS,
   CLASSIFICATION_SOURCES,
   COMPANY_KINDS,
+  DATE_PRECISIONS,
+  FUND_EVENT_KINDS,
+  MANDATE_STATUSES,
+  REGISTER_SCOPES,
   COMPANY_STATUSES,
   ENGINE_SOURCES,
+  FUND_LAWS,
+  FUND_REGIMES,
+  FUND_ROLES,
+  GROUP_KINDS,
+  GROUP_LAYERS,
+  GROUP_ROLES,
+  GROUP_SOURCES,
   ID_SCHEMES,
+  LEGAL_VEHICLES,
+  MANAGER_TYPES,
   MATCH_DECISIONS,
   PLATFORMS,
   POSITION_ROLES,
@@ -108,6 +121,26 @@ export const companies = core.table(
     classificationSource: text("classification_source", { enum: CLASSIFICATION_SOURCES }),
     classifiedAt: ts("classified_at"),
     tier: integer("tier").notNull().default(0),
+    // Fund profile (core/classify.ts fundProfile(); null when it does not apply). Kept with the classification:
+    // a staff classification (classification_source = manual) freezes these too.
+    /** UCITS or AIF (funds, sub-funds, fund vehicles). */
+    fundRegime: text("fund_regime", { enum: FUND_REGIMES }),
+    /** Luxembourg product law: 2010 Part I / Part II, SIF, SICAR, RAIF, securitisation, pension, unregulated. */
+    fundLaw: text("fund_law", { enum: FUND_LAWS }),
+    /** Corporate form: FCP, SICAV, SICAF, SCSp, SCS, SCA, SA, S.à r.l.… (any company, from legal form or name). */
+    legalVehicle: text("legal_vehicle", { enum: LEGAL_VEHICLES }),
+    /** Role in a fund structure: umbrella, sub-fund, feeder, general partner, SPV, holding… */
+    fundRole: text("fund_role", { enum: FUND_ROLES }),
+    /** For ManCos / AIFMs: which licence (UCITS ManCo, super-ManCo, authorised / registered AIFM…). */
+    managerType: text("manager_type", { enum: MANAGER_TYPES }),
+    /** ISO country of the legal seat ("LU" for nearly all; foreign parents, branches and back offices otherwise). */
+    jurisdiction: text("jurisdiction").notNull().default("LU"),
+    registerScope: text("register_scope", { enum: REGISTER_SCOPES }),
+    // Fund lifecycle (job fund_lifecycle, from core.fund_events): first launch / authorisation, and closure.
+    launchDate: day("launch_date"),
+    launchDateSource: text("launch_date_source"),
+    closureDate: day("closure_date"),
+    closureReason: text("closure_reason"),
     /** id of the matching row in the WEBSITE database's `providers` table (FundHub account / listing). */
     websiteProviderId: integer("website_provider_id"),
     /** How many sources currently state something about this company (cross-check depth). */
@@ -122,6 +155,9 @@ export const companies = core.table(
     index("companies_sp_idx").on(t.isServiceProvider),
     index("companies_tier_idx").on(t.tier),
     index("companies_provider_idx").on(t.websiteProviderId),
+    index("companies_fund_idx").on(t.fundRegime, t.fundLaw),
+    index("companies_fund_role_idx").on(t.fundRole),
+    index("companies_launch_idx").on(t.launchDate),
   ],
 );
 
@@ -217,9 +253,22 @@ export const positions = core.table(
     source: text("source", { enum: ENGINE_SOURCES }).notNull(),
     sourceRecordId: bigRef("source_record_id").references(() => sourceRecords.id, { onDelete: "set null" }),
     evidenceUrl: text("evidence_url"),
+    /** When we first / last saw this job in a source (record time). */
     validFrom: ts("valid_from").notNull().defaultNow(),
     validTo: ts("valid_to"),
     lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+    // Real employment dates (valid time), as precise as the source allows; null = unknown.
+    startDate: day("start_date"),
+    startPrecision: text("start_precision", { enum: DATE_PRECISIONS }),
+    endDate: day("end_date"),
+    endPrecision: text("end_precision", { enum: DATE_PRECISIONS }),
+    /** Where the person works (a branch / back office abroad shows here), ISO country + city. */
+    locationCountry: text("location_country"),
+    locationCity: text("location_city"),
+    /** Business function, e.g. "fund accounting", "transfer agency", "depositary operations", "compliance". */
+    function: text("function"),
+    /** "junior" | "senior" | "manager" | "director" | "executive" (free text for now). */
+    seniority: text("seniority"),
   },
   (t) => [uniqueIndex("positions_uq").on(t.personId, t.companyId, t.title, t.source), index("positions_company_idx").on(t.companyId)],
 );
@@ -334,7 +383,170 @@ export const rowHistory = core.table(
   (t) => [index("row_history_row_idx").on(t.tableName, t.rowId, t.changedAt), index("row_history_changed_idx").on(t.changedAt)],
 );
 
+// ------------------------------------------------------------------ service mandates (who serves which fund, over time)
+
+/**
+ * Kind: table "core.mandates". One row per continuous period of one provider serving one fund (or sub-fund) in
+ * one role (ops.mandate_roles). Two timelines: valid_from / valid_to = when it was true in the real world (with
+ * their precision); first_seen_at / last_seen_at = when we learnt it. A switch of provider = the old episode ends,
+ * a new one starts (core.changes "mandate_switched"). For exclusive roles the database refuses overlapping
+ * episodes of one fund (exclusion constraint in drizzle/0005). Built by pipeline/mandates.ts from GLEIF (fund
+ * managers) and, later, fund documents; staff edits have decided_by = "staff:…" and are never changed by builders.
+ */
+export const mandates = core.table(
+  "mandates",
+  {
+    id: bigId(),
+    clientCompanyId: uuid("client_company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    /** The provider when it is a company here; else only its name / LEI are known. */
+    providerCompanyId: uuid("provider_company_id").references(() => companies.id, { onDelete: "set null" }),
+    providerName: text("provider_name").notNull(),
+    providerLei: text("provider_lei"),
+    role: text("role").notNull(),
+    /** Copied from ops.mandate_roles.exclusive (the exclusion constraint cannot look it up). */
+    exclusive: boolean("exclusive").notNull().default(false),
+    validFrom: day("valid_from"),
+    validFromPrecision: text("valid_from_precision", { enum: DATE_PRECISIONS }).notNull().default("unknown"),
+    validTo: day("valid_to"),
+    validToPrecision: text("valid_to_precision", { enum: DATE_PRECISIONS }),
+    status: text("status", { enum: MANDATE_STATUSES }).notNull().default("current"),
+    confidence: real("confidence").notNull().default(1),
+    /** Which source made the episode ("gleif", "website", "documents"…), or "staff:<email>". */
+    decidedBy: text("decided_by").notNull(),
+    firstSeenAt: ts("first_seen_at").notNull().defaultNow(),
+    lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("mandates_client_idx").on(t.clientCompanyId, t.role),
+    index("mandates_provider_idx").on(t.providerCompanyId, t.role),
+    index("mandates_provider_lei_idx").on(t.providerLei),
+    index("mandates_current_idx").on(t.role).where(sql`status = 'current'`),
+  ],
+);
+
+/** Kind: table "core.mandate_evidence". What supports a mandate: a source statement with its document date. */
+export const mandateEvidence = core.table(
+  "mandate_evidence",
+  {
+    id: bigId(),
+    mandateId: bigRef("mandate_id")
+      .notNull()
+      .references(() => mandates.id, { onDelete: "cascade" }),
+    source: text("source", { enum: ENGINE_SOURCES }).notNull(),
+    sourceRecordId: bigRef("source_record_id").references(() => sourceRecords.id, { onDelete: "set null" }),
+    documentSha256: text("document_sha256"),
+    /** The "as at" date of the statement (annual report date, GLEIF relationship start…): what dates a switch. */
+    documentDate: day("document_date"),
+    url: text("url"),
+    /** Short excerpt or description, e.g. "GLEIF IS_FUND-MANAGED_BY 5493…" or "Depositary: … S.A.". */
+    quote: text("quote"),
+    seenAt: ts("seen_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("mandate_evidence_uq").on(t.mandateId, t.source, t.documentDate)],
+);
+
+// ------------------------------------------------------------------ fund lifecycle
+
+/**
+ * Kind: table "core.fund_events". Dated events in a fund's life (incorporated, authorised, launched, sub-fund
+ * added / closed, manager appointed / changed, deregistered…). Rebuilt by the fund_lifecycle job from CSSF, GLEIF,
+ * RCS dates and mandates; staff events (source "manual") are kept. Feeds mart.fund_launches.
+ */
+export const fundEvents = core.table(
+  "fund_events",
+  {
+    id: bigId(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: FUND_EVENT_KINDS }).notNull(),
+    eventDate: day("event_date"),
+    datePrecision: text("date_precision", { enum: DATE_PRECISIONS }).notNull().default("day"),
+    /** The other company involved: the sub-fund added, the new manager, the fund merged into… */
+    relatedCompanyId: uuid("related_company_id").references(() => companies.id, { onDelete: "set null" }),
+    source: text("source", { enum: ENGINE_SOURCES }).notNull(),
+    evidence: text("evidence"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("fund_events_company_idx").on(t.companyId, t.eventDate), index("fund_events_kind_idx").on(t.kind, t.eventDate)],
+);
+
+// ------------------------------------------------------------------ company groups
+
+/**
+ * Kind: table "core.company_groups". Groups of companies, as a tree (parent_group_id) in three layers:
+ *   corporate       corporate_group  — an ultimate parent and its subsidiaries (GLEIF consolidation);
+ *   fund            fund_platform    — a ManCo / AIFM and the funds it manages (GLEIF "fund managed by")
+ *                     └ fund_structure — one umbrella / standalone fund + sub-funds, feeders, GP, SPVs;
+ *   service_provider provider_group  — a provider network / brand and its Luxembourg entities.
+ * A platform's parent is the corporate group of its manager. `key` makes rebuilding idempotent
+ * ("gleif:corp:<LEI>", "gleif:mgr:<LEI>", "fund:<company id>", "brand:<word>", "manual:<uuid>").
+ * Groups with source "manual" are never changed by the builder (services/engine/src/pipeline/groups.ts).
+ */
+export const companyGroups = core.table(
+  "company_groups",
+  {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    name: text("name").notNull(),
+    layer: text("layer", { enum: GROUP_LAYERS }).notNull(),
+    kind: text("kind", { enum: GROUP_KINDS }).notNull(),
+    parentGroupId: integer("parent_group_id").references((): AnyPgColumn => companyGroups.id, { onDelete: "set null" }),
+    /** The company the group is about (ultimate parent, manager, umbrella fund), when it is in our database. */
+    headCompanyId: uuid("head_company_id").references(() => companies.id, { onDelete: "set null" }),
+    /** LEI of the head when it is not (yet) a company here, e.g. a foreign ultimate parent. */
+    headLei: text("head_lei"),
+    /** Country of the head (ISO 2), e.g. "DE" for a German parent. */
+    headCountry: text("head_country"),
+    source: text("source", { enum: GROUP_SOURCES }).notNull(),
+    confidence: real("confidence").notNull().default(1),
+    description: text("description"),
+    /** Members (current), maintained by the builder and the console. */
+    memberCount: integer("member_count").notNull().default(0),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("company_groups_parent_idx").on(t.parentGroupId), index("company_groups_head_idx").on(t.headCompanyId), index("company_groups_layer_idx").on(t.layer, t.kind)],
+);
+
+/**
+ * Kind: table "core.company_group_members". A company in a group, with its role. A company can be in several
+ * groups (one per layer, typically: its corporate group, its fund structure). History: a membership that
+ * disappears from its source gets `valid_to`; manual memberships are never ended by the builder.
+ */
+export const companyGroupMembers = core.table(
+  "company_group_members",
+  {
+    id: bigId(),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => companyGroups.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    role: text("role", { enum: GROUP_ROLES }).notNull(),
+    source: text("source", { enum: GROUP_SOURCES }).notNull(),
+    confidence: real("confidence").notNull().default(1),
+    /** Why: e.g. "GLEIF IS_SUBFUND_OF", "CSSF compartment O00012720_00000001", "name: XYZ GP S.à r.l. ↔ XYZ SCSp". */
+    evidence: text("evidence"),
+    validFrom: ts("valid_from").notNull().defaultNow(),
+    validTo: ts("valid_to"),
+  },
+  (t) => [
+    uniqueIndex("company_group_members_uq").on(t.groupId, t.companyId),
+    index("company_group_members_company_idx").on(t.companyId),
+    index("company_group_members_current_idx").on(t.groupId).where(sql`valid_to is null`),
+  ],
+);
+
 export type Company = typeof companies.$inferSelect;
+export type CompanyGroup = typeof companyGroups.$inferSelect;
+export type Mandate = typeof mandates.$inferSelect;
+export type MandateEvidence = typeof mandateEvidence.$inferSelect;
+export type FundEvent = typeof fundEvents.$inferSelect;
+export type CompanyGroupMember = typeof companyGroupMembers.$inferSelect;
 export type CompanyRelation = typeof companyRelations.$inferSelect;
 export type ChangeEvent = typeof changes.$inferSelect;
 export type ClassificationRule = typeof classificationRules.$inferSelect;

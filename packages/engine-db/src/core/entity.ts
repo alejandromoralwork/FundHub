@@ -27,8 +27,16 @@ import {
   companyIdentifiers,
   companyRelations,
   claims,
+  companyGroupMembers,
+  companyGroups,
   sourceRecords,
   type Address,
+  type GroupRole,
+  type FundLaw,
+  type FundRegime,
+  type FundRole,
+  type LegalVehicle,
+  type ManagerType,
   type ChangeKind,
   type ClassificationRule,
   type EngineSource,
@@ -38,6 +46,7 @@ import {
   type RelationKind,
 } from "../schema";
 import { classify } from "./classify";
+import { fundProfile, mergeKind } from "./fund-profile";
 import { consolidate, PRECEDENCE, type Precedence } from "./golden";
 import { normalizeCountries, normalizeName, sameValue } from "./normalize";
 
@@ -72,6 +81,11 @@ export async function mergeCompanies(tx: EngineTx, keep: string, drop: string, s
   await tx.execute(sql`
     update core.web_presence w set company_id = ${keep} where company_id = ${drop}
       and not exists (select 1 from core.web_presence k where k.company_id = ${keep} and k.platform = w.platform and k.url = w.url)`);
+  // Group memberships follow the kept company (unless it is already in that group); groups headed by drop too.
+  await tx.execute(sql`
+    update core.company_group_members m set company_id = ${keep} where company_id = ${drop}
+      and not exists (select 1 from core.company_group_members k where k.company_id = ${keep} and k.group_id = m.group_id)`);
+  await tx.execute(sql`update core.company_groups set head_company_id = ${keep} where head_company_id = ${drop}`);
   await tx.execute(sql`
     update core.news_mentions m set company_id = ${keep} where company_id = ${drop}
       and not exists (select 1 from core.news_mentions k where k.company_id = ${keep} and k.article_id = m.article_id)`);
@@ -85,6 +99,11 @@ export async function mergeCompanies(tx: EngineTx, keep: string, drop: string, s
       company_kind = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.company_kind else k.company_kind end,
       activity_category_id = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.activity_category_id else k.activity_category_id end,
       activity_subcategory_id = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.activity_subcategory_id else k.activity_subcategory_id end,
+      fund_regime = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.fund_regime else k.fund_regime end,
+      fund_law = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.fund_law else k.fund_law end,
+      legal_vehicle = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.legal_vehicle else k.legal_vehicle end,
+      fund_role = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.fund_role else k.fund_role end,
+      manager_type = case when d.classification_source = 'manual' and k.classification_source is distinct from 'manual' then d.manager_type else k.manager_type end,
       classification_source = case when d.classification_source = 'manual' then 'manual' else k.classification_source end
     from core.companies d where k.id = ${keep} and d.id = ${drop}`);
   await tx.delete(companies).where(eq(companies.id, drop));
@@ -180,14 +199,21 @@ export async function recomputeCompany(tx: EngineTx, companyId: string): Promise
       .innerJoin(sourceRecords, eq(sourceRecords.id, licences.sourceRecordId))
       .where(and(eq(sourceRecords.companyId, companyId), eq(licences.detailType, "ACTIVITY_CODE"), isNull(licences.endDate)));
     const { rules, corporateId } = await loadRules(tx);
+    const cssfTypes = types.map((t) => t.scope!).filter(Boolean);
     const c = classify(
-      { cssfTypes: types.map((t) => t.scope!).filter(Boolean), cssfCodes: codes.map((c) => c.code), legalForm: next.legalForm, hasRcs: !!rcsNumber },
+      { cssfTypes, cssfCodes: codes.map((c) => c.code), legalForm: next.legalForm, hasRcs: !!rcsNumber },
       rules,
       { corporateCategoryId: corporateId },
     );
+    const fp = fundProfile(await fundProfileInput(tx, companyId, next.canonicalName, next.legalForm, cssfTypes, current));
     classification = {
       isServiceProvider: c.isServiceProvider,
-      companyKind: c.companyKind,
+      companyKind: mergeKind(c.companyKind, fp),
+      fundRegime: fp.fundRegime,
+      fundLaw: fp.fundLaw,
+      legalVehicle: fp.legalVehicle,
+      fundRole: fp.fundRole,
+      managerType: fp.managerType,
       activityCategoryId: c.activityCategoryId,
       activitySubcategoryId: c.activitySubcategoryId,
       tier: Math.max(c.tier, company.classificationSource === "ai" ? company.tier : 0),
@@ -225,6 +251,58 @@ export async function recomputeCompany(tx: EngineTx, companyId: string): Promise
   for (const e of gone) await tx.update(conflicts).set({ status: "resolved", resolvedBy: "engine:sources-agree", resolvedAt: now, updatedAt: now }).where(eq(conflicts.id, e.id));
 
   return changed;
+}
+
+/**
+ * Kind: async function. Gathers what fundProfile() needs for one company: CSSF groups and sub-groups and GLEIF
+ * category / legal form (from its current claims), how many sub-funds the CSSF lists, and its role in a fund
+ * structure group with the umbrella's regime and law (for inheritance).
+ */
+async function fundProfileInput(
+  tx: EngineTx,
+  companyId: string,
+  name: string,
+  legalForm: string | null,
+  cssfTypes: string[],
+  current: { source: string; attribute: string; value: unknown }[],
+) {
+  const values = (source: string, attribute: string) =>
+    current.filter((c) => c.source === source && c.attribute === attribute && typeof c.value === "string").map((c) => c.value as string);
+  const [comp] = (
+    await tx.execute<{ n: number }>(sql`
+      select count(*)::int as n from clean.licences l join staging.source_records r on r.id = l.source_record_id
+      where r.company_id = ${companyId} and l.kind = 'compartment' and l.end_date is null`)
+  ).rows;
+  const [member] = await tx
+    .select({ role: companyGroupMembers.role, headId: companyGroups.headCompanyId })
+    .from(companyGroupMembers)
+    .innerJoin(companyGroups, eq(companyGroups.id, companyGroupMembers.groupId))
+    .where(and(eq(companyGroupMembers.companyId, companyId), isNull(companyGroupMembers.validTo), eq(companyGroups.kind, "fund_structure")))
+    // Staff memberships first; then a structure whose head has a regime of its own (a sub-fund listed both under the
+    // CSSF umbrella and under a GLEIF copy of it inherits from the one that knows UCITS / AIF); then confidence.
+    .orderBy(
+      sql`case when ${companyGroupMembers.source} = 'manual' then 0 else 1 end`,
+      sql`(select h.fund_regime from core.companies h where h.id = ${companyGroups.headCompanyId}) is null`,
+      sql`${companyGroupMembers.confidence} desc`,
+    )
+    .limit(1);
+  let parentFund = null;
+  if (member?.headId && member.headId !== companyId) {
+    const [h] = await tx.select({ fundRegime: companies.fundRegime, fundLaw: companies.fundLaw }).from(companies).where(eq(companies.id, member.headId));
+    parentFund = h ?? null;
+  }
+  return {
+    name,
+    legalForm,
+    cssfTypes,
+    cssfGroups: values("cssf", "cssfGroup"),
+    cssfSubGroups: values("cssf", "cssfSubGroup"),
+    compartments: comp?.n ?? 0,
+    gleifCategory: values("gleif", "gleifCategory")[0] ?? null,
+    gleifLegalForm: values("gleif", "legalForm")[0] ?? null,
+    structureRole: (member?.role as GroupRole | undefined) ?? null,
+    parentFund,
+  };
 }
 
 // ------------------------------------------------------------------ relations
@@ -277,7 +355,19 @@ export type ManualEdit = Partial<{
 
 /** Kind: type alias. A manual classification, or "rules" to hand classification back to the rules. */
 export type ManualClassification =
-  | { isServiceProvider: boolean; companyKind: CompanyKind; activityCategoryId: number | null; activitySubcategoryId: number | null; tier: number }
+  | {
+      isServiceProvider: boolean;
+      companyKind: CompanyKind;
+      activityCategoryId: number | null;
+      activitySubcategoryId: number | null;
+      tier: number;
+      // Fund profile (optional: fields not sent keep their current value).
+      fundRegime?: FundRegime | null;
+      fundLaw?: FundLaw | null;
+      legalVehicle?: LegalVehicle | null;
+      fundRole?: FundRole | null;
+      managerType?: ManagerType | null;
+    }
   | "rules";
 
 const EVENT_KIND: Partial<Record<string, ChangeKind>> = { name: "name_change", status: "status_change", address: "address_change" };

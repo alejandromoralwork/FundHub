@@ -110,6 +110,82 @@ The website source is held to strict rules:
 
 Approving a version queues `staging_release`, which runs clean → match → core. "Edit and approve" turns the corrected golden fields into staff claims. Rejected versions stay in staging for audit.
 
+## Fund profile and company groups
+
+Every company carries a **fund profile** next to its kind. It's derived on each recompute by `packages/engine-db/src/core/fund-profile.ts`. A staff classification (Change → Save as manual) freezes it.
+
+| Field | Values | Evidence, strongest first |
+|---|---|---|
+| `fund_regime` | UCITS · AIF · other | CSSF group `OPCLUX_1` (2010 Law Part I) = UCITS. `OPCLUX_2`, SIF, SICAR and RAIF are AIFs. Any other fund is an AIF, because UCITS always appear on the CSSF Part I list. Sub-funds inherit from their umbrella. |
+| `fund_law` | 2010 Part I · 2010 Part II · SIF · SICAR · RAIF · securitisation · pension | CSSF type (OPC, FIS, SIC, TIT, PF), then RAIF / SICAR / SIF in the name |
+| `legal_vehicle` | FCP · SICAV · SICAF · SCSp · SCS · SCA · S.A. · S.à r.l. · SAS · cooperative · sub-fund | CSSF sub-group (`OPCLUX_x_1` = FCP, `_2` = SICAV, `FIS1/2/3`), GLEIF legal form, RCS legal form, name suffix |
+| `fund_role` | standalone fund · umbrella · sub-fund · master · feeder · general partner · SPV · holding | The company's role in its fund-structure group; GLEIF "SUB-FUND"; CSSF sub-funds (umbrella); the name ("… GP S.à r.l." = GP, TopCo / BidCo / HoldCo = SPV) |
+| `manager_type` | super-ManCo · UCITS ManCo · Chapter 16 ManCo · authorised AIFM · registered AIFM · branches | CSSF types C15, C16, AIFM_AUT, AIFM_REG, AIFM_REG_LU_OTHER_EU_MEMBER_STATE |
+
+The company kinds are `fund` (funds and sub-funds), `fund_vehicle` (GP, SPV, fund holding) and `asset_manager` (ManCos and AIFMs). Regulated kinds from the CSSF rules (bank, service provider, financial institution) are never overridden by the profile.
+
+**Groups** (`core.company_groups`, `core.company_group_members`) form a tree in three layers:
+
+```
+corporate          Corporate group (ultimate parent)            ← GLEIF consolidation, international branches
+                    └ subsidiaries / branches
+fund               Fund platform (one ManCo / AIFM)              ← GLEIF "is fund-managed by"   (parent: its corporate group)
+                    └ Fund structure (umbrella / master / fund)  ← GLEIF "is sub-fund of" / "is feeder to", CSSF sub-funds
+                       └ sub-funds · feeders · GP · SPVs · holdings   (GP matched by name; SPV / holding = GLEIF parent is a fund)
+service_provider   Provider group                                ← the service providers of a corporate group, or a shared brand word (50 %)
+```
+
+- **Build:** the job `build_groups` (daily 14:00) rebuilds every generated group from three things:
+  - GLEIF's daily relationship file (golden copy, about 25 MB, read through `unzip`);
+  - the CSSF sub-funds, each of which becomes a sub-fund company with identifier `cssf_compartment` (plus its LEI);
+  - name rules.
+- **Reclassify:** afterwards it reclassifies the companies whose place changed, so sub-funds inherit their umbrella's UCITS / AIF profile.
+- **Staff edits:** groups and memberships that staff create, edit or remove in **Company intelligence → Groups** are stored as `manual`, and the builder never changes them.
+- **Views:** `mart.group_tree` (depth and path), `mart.group_members`, and `mart.company_profile` (with `corporate_group`, `fund_platform`, `fund_structure`).
+
+**CSSF types walked by `cssf_census`:**
+- every non-empty supervised type (service providers, ManCos, AIFMs, banks, investment firms, payment and e-money institutions, funds: OPC, FIS, SIC, TIT, PF…);
+- the membership lists FGD, SII, AGD and SGD.
+
+**Not walked, on purpose:**
+- OEX (foreign funds marketed in Luxembourg);
+- EMT (issuers, mostly foreign);
+- CRD (third-country institutions operating cross-border).
+
+## Service mandates and fund lifecycle
+
+**Mandates** (`core.mandates`, evidence in `core.mandate_evidence`, roles in `ops.mandate_roles`) record who serves each fund and sub-fund (ManCo / AIFM, depositary, central administration, auditor…), as **episodes with real dates**:
+- `valid_from` and `valid_to`, each with a precision of day, month, year or unknown;
+- separately, when we first and last saw it.
+
+A switch ends the old episode and starts a new one (`core.changes`: `mandate_started`, `mandate_switched`, `mandate_ended`). For one-at-a-time roles (`exclusive`), the database refuses overlapping episodes. Staff add or end mandates on the company page (Service providers tab), and builders never change staff episodes.
+
+- **Today's source:** GLEIF `IS_FUND-MANAGED_BY`, with its relationship start date. `build_groups` syncs it daily, and the role (`management_company` or `aifm`) follows the manager's licence and the fund's regime.
+  - **GLEIF onboarding caveat:** GLEIF began collecting fund relationships in spring 2023, so a start date between 2023-03-01 and 2023-06-30 is stored as approximate ("on or before"), not as an appointment.
+  - **History limit:** GLEIF shows only the *current* manager. Changes are therefore inferred when a manager starts more than six months after the fund (`manager_changed`, previous manager unknown), and are recorded directly as they happen from now on.
+- **Next sources** ([data-model-roadmap.md](data-model-roadmap.md)): annual reports and prospectuses (depositary, administrator, transfer agent, auditor), dated per document.
+
+**Fund lifecycle:** the job `fund_lifecycle` (daily 14:30) rebuilds `core.fund_events` and sets `launch_date` and `closure_date` on every fund and sub-fund. The events are:
+- incorporated (GLEIF / RCS creation date);
+- authorised (CSSF);
+- launched (CSSF sub-fund start);
+- sub-fund added or closed;
+- manager appointed or changed;
+- deregistered;
+- closed.
+
+**Marts:**
+
+| View | What it gives |
+|---|---|
+| `mart.fund_launches` | Each launch with the manager at launch time |
+| `mart.manager_momentum` | Launches in the last 12 months vs the 12 before, and first launch (leads) |
+| `mart.mandates_current` | Current mandates with the provider's group |
+| `mart.mandate_switches` | Provider A → B per fund and role |
+| `mart.graph_edges` | One edge list for node diagrams |
+
+The Metabase dashboard **Fund launches & managers** reads these.
+
 ## Where a person decides
 
 Everything a person decides is under **Admin → Company intelligence → Review**:
@@ -128,7 +204,18 @@ Everything a person decides is under **Admin → Company intelligence → Review
 | registers (`cssf`, `gleif`, `rcs`) | `cssf_census`, `cssf_fetch`, `gleif_sync`, `rcs_*` |
 | `web` | `fundhub_sync` (hourly), `website_crawl` (nightly batch of due companies, or one company) |
 | `news` | `news_poll` (every 30 minutes), `news_search` (daily batch) |
-| `maintenance` | `staging_release`, `quality_run` (daily), `publish_proposals` (daily 07:00), `reprocess`, `retention_purge`, `reclassify`, `census_snapshot` |
+| `maintenance` | `staging_release`, `build_groups` (daily 14:00, includes manager mandates), `fund_lifecycle` (daily 14:30), `quality_run` (daily), `publish_proposals` (daily 16:00), `reprocess`, `retention_purge`, `reclassify` (Mondays), `census_snapshot` |
+
+All schedules are in the daytime (Luxembourg time) because the VM is switched off at night (auto-shutdown 21:30):
+- `cssf_census` 10:30;
+- `cssf_refresh` 11:00;
+- `gleif_sync` 12:00;
+- `build_groups` 14:00;
+- `website_crawl` 15:00;
+- `publish_proposals` 16:00;
+- `census_snapshot` and `quality_run` around 17:30.
+
+A job missed while the VM is off runs again at its next slot.
 
 Run any job by hand with `npm run engine -- run <job> [--flag value]`. On the VM, `fundhub-engine-worker` serves the `cssf,gleif,web,news,maintenance` groups and `fundhub-engine-scheduler` keeps the cron schedules.
 

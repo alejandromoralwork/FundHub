@@ -15,6 +15,34 @@
       "when": 1795268235252,
       "tag": "0001_pipeline_sql",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795780449249,
+      "tag": "0002_fund_profile_and_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795780459803,
+      "tag": "0003_group_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795787969665,
+      "tag": "0004_mandates_and_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795787971061,
+      "tag": "0005_mandate_marts",
+      "breakpoints": true
     }
   ]
 }

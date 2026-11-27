@@ -18,11 +18,17 @@ import { CSSF_PARSER_VERSION, parseCssf, type CssfApiEntity } from "./parse";
 /**
  * Kind: constant. Company types the census walks. Order = importance for FundHub, so a partial run already
  * covers the service providers. (CI, IFM and VAP return 0 on the API today; kept so new entries are noticed.)
+ * The last group are memberships (deposit-guarantee / investor-compensation schemes, AGDL): extra facts on
+ * Luxembourg banks and investment firms already listed above.
+ * Not walked, on purpose: OEX (foreign funds authorised for marketing in Luxembourg), EMT (issuers whose home
+ * State is Luxembourg, mostly foreign) and CRD (third-country institutions providing services cross-border):
+ * they are not Luxembourg companies.
  */
 export const CENSUS_TYPES = [
   "SPP", "SUP", "C15", "C16", "AIFM_AUT", "AIFM_REG", "AIFM_REG_LU_OTHER_EU_MEMBER_STATE", "B", "IF", "CI",
   "IFM", "PI", "EMI", "AIP", "SPE", "CASP", "VAP", "EMONEY_TOKEN", "REFERENCE_TOKEN", "IHC", "CFI", "AGT",
   "CRF", "DCT", "MR", "MTF", "OTF", "ICI", "LM", "PF", "TIT", "SIC", "FIS", "OPC",
+  "FGD", "SII", "AGD", "SGD", "XXX",
 ];
 
 /** Kind: type alias. One listing page as the API returns it. */

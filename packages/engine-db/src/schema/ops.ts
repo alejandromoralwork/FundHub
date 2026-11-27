@@ -302,3 +302,20 @@ export type CaptureRoundItem = typeof lbrCaptureRoundItems.$inferSelect;
 export type LbrSearchWord = typeof lbrSearchWords.$inferSelect;
 export type NewsFeed = typeof newsFeeds.$inferSelect;
 export type QualityCheck = typeof qualityChecks.$inferSelect;
+
+/**
+ * Kind: table "ops.mandate_roles". The roles a service provider can hold for a fund (depositary, central
+ * administration, auditor, ManCo / AIFM…). `exclusive` = one provider at a time per fund: the database refuses
+ * two overlapping current mandates for such a role (core.mandates exclusion constraint). Seeded from seed-data.ts.
+ */
+export const mandateRoles = ops.table("mandate_roles", {
+  code: text("code").primaryKey(),
+  label: text("label").notNull(),
+  exclusive: boolean("exclusive").notNull(),
+  /** A CSSF-licensed activity (depositary, central administration, ManCo / AIFM…). */
+  regulated: boolean("regulated").notNull().default(false),
+  /** "fund", "sub_fund" or "both". */
+  appliesTo: text("applies_to").notNull().default("both"),
+  sort: integer("sort").notNull().default(0),
+});
+export type MandateRoleRow = typeof mandateRoles.$inferSelect;

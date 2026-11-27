@@ -5,6 +5,7 @@
  *   its default schedule. The engine (services/engine/src/jobs/index.ts) attaches a handler to each entry; the
  *   admin console uses the same list to build the "Jobs" page (forms, schedules) without importing the engine
  *   itself (which needs a browser). One list → the two can never disagree.
+ *   Schedules are daytime (Luxembourg time) on purpose: the VM is switched off at night (auto-shutdown 21:30).
  * WHERE IT RUNS: anywhere (plain data).
  * TYPESCRIPT YOU WILL SEE HERE: `as const satisfies`, discriminated param kinds.
  */
@@ -39,10 +40,10 @@ export const JOB_CATALOG = {
       { name: "all", kind: "boolean", label: "Re-fetch every entity" },
       { name: "limit", kind: "number", label: "Limit per type (testing)" },
     ],
-    schedule: { cron: "0 2 * * 0" },
+    schedule: { cron: "30 10 * * *" },
   },
   cssf_fetch: { group: "cssf", title: "CSSF entity", description: "Fetches one CSSF entity by its internal id.", params: [{ name: "id", kind: "string", label: "CSSF entity id", placeholder: "7013419", required: true }] },
-  cssf_refresh: { group: "maintenance", title: "CSSF refresh due", description: "Queues CSSF entities whose refresh date passed.", params: [{ name: "limit", kind: "number", label: "Limit" }], schedule: { cron: "0 3 * * *" } },
+  cssf_refresh: { group: "maintenance", title: "CSSF refresh due", description: "Queues CSSF entities whose refresh date passed.", params: [{ name: "limit", kind: "number", label: "Limit" }], schedule: { cron: "0 11 * * *" } },
   gleif_sync: {
     group: "gleif",
     title: "GLEIF sync",
@@ -52,7 +53,7 @@ export const JOB_CATALOG = {
       { name: "since", kind: "string", label: "Since (ISO date)", placeholder: "2026-10-01" },
       { name: "limit", kind: "number", label: "Limit (testing)" },
     ],
-    schedule: { cron: "0 4 * * *" },
+    schedule: { cron: "0 12 * * *" },
   },
   gleif_fetch: { group: "gleif", title: "GLEIF record", description: "Fetches one LEI record.", params: [{ name: "lei", kind: "string", label: "LEI", required: true }] },
   rcs_fetch: { group: "rcs", title: "RCS company", description: "Opens one company page in the logged-in LBR browser (paced, capped).", params: [{ name: "rcs", kind: "string", label: "RCS number", placeholder: "B145917", required: true }] },
@@ -76,7 +77,7 @@ export const JOB_CATALOG = {
     ],
     schedule: { cron: "0 10 * * *", data: { prefix: "B" } },
   },
-  rcs_seed_frontier: { group: "maintenance", title: "RCS seed frontier", description: "Sets each prefix's max known number from every source and writes the 'rcs:known' census.", params: [], schedule: { cron: "0 6 * * *" } },
+  rcs_seed_frontier: { group: "maintenance", title: "RCS seed frontier", description: "Sets each prefix's max known number from every source and writes the 'rcs:known' census.", params: [], schedule: { cron: "30 9 * * *" } },
   rcs_import_file: {
     group: "maintenance",
     title: "Import LBR extract",
@@ -87,9 +88,24 @@ export const JOB_CATALOG = {
       { name: "limit", kind: "number", label: "Limit rows" },
     ],
   },
-  rcs_refresh: { group: "maintenance", title: "RCS refresh queue", description: "Queues known-but-unfetched numbers (highest tier first), then due records, within the daily cap.", params: [{ name: "limit", kind: "number", label: "Limit" }], schedule: { cron: "30 7 * * *" } },
-  reclassify: { group: "maintenance", title: "Reclassify", description: "Re-applies classification rules to every company and links clients to companies.", params: [], schedule: { cron: "0 5 * * 0" } },
-  census_snapshot: { group: "maintenance", title: "Census snapshot", description: "Writes today's registry census.", params: [], schedule: { cron: "30 23 * * *" } },
+  rcs_refresh: { group: "maintenance", title: "RCS refresh queue", description: "Queues known-but-unfetched numbers (highest tier first), then due records, within the daily cap.", params: [{ name: "limit", kind: "number", label: "Limit" }], schedule: { cron: "45 9 * * *" } },
+  reclassify: { group: "maintenance", title: "Reclassify", description: "Re-applies classification rules to every company and links clients to companies.", params: [], schedule: { cron: "0 13 * * 1" } },
+  build_groups: {
+    group: "maintenance",
+    title: "Company groups",
+    description:
+      "Rebuilds the generated company groups and the fund-manager mandates (dated, from GLEIF): corporate groups (GLEIF parents), fund platforms (ManCo/AIFM → funds), fund structures (umbrella → sub-funds, feeders, GP, SPVs; CSSF compartments become sub-fund companies) and service-provider groups, then reclassifies the companies whose place changed. Staff-made groups are kept.",
+    params: [{ name: "skipGleif", kind: "boolean", label: "Skip GLEIF relationships (CSSF and names only)" }],
+    schedule: { cron: "0 14 * * *" },
+  },
+  fund_lifecycle: {
+    group: "maintenance",
+    title: "Fund lifecycle",
+    description: "Rebuilds the fund events (incorporated, authorised, sub-fund added / closed, manager appointed / changed, deregistered…) and each fund's launch and closure date, which feed the fund-launch statistics.",
+    params: [],
+    schedule: { cron: "30 14 * * *" },
+  },
+  census_snapshot: { group: "maintenance", title: "Census snapshot", description: "Writes today's registry census.", params: [], schedule: { cron: "30 17 * * *" } },
   // ---- FundHub accounts, company websites (group "web")
   fundhub_sync: {
     group: "web",
@@ -109,7 +125,7 @@ export const JOB_CATALOG = {
       { name: "companyId", kind: "string", label: "Company id (empty = queue due companies)" },
       { name: "limit", kind: "number", label: "How many to queue", placeholder: "25" },
     ],
-    schedule: { cron: "0 1 * * *" },
+    schedule: { cron: "0 15 * * *" },
   },
   // ---- News (group "news")
   news_poll: { group: "news", title: "News feeds", description: "Reads the newspaper / press-release feeds and matches articles to the companies they mention.", params: [{ name: "feedId", kind: "number", label: "One feed id (empty = all)" }], schedule: { cron: "*/30 * * * *" } },
@@ -125,7 +141,7 @@ export const JOB_CATALOG = {
   },
   // ---- Pipeline (group "maintenance")
   staging_release: { group: "maintenance", title: "Release approved record", description: "Runs clean → match → core for a version approved at the staging gate (queued by the console).", params: [{ name: "parsedId", kind: "number", label: "Parsed record id", required: true }] },
-  quality_run: { group: "maintenance", title: "Data quality", description: "Measures every data-quality check (coverage, cross-checking, match rate, conflicts, backlog, freshness…).", params: [], schedule: { cron: "45 23 * * *" } },
+  quality_run: { group: "maintenance", title: "Data quality", description: "Measures every data-quality check (coverage, cross-checking, match rate, conflicts, backlog, freshness…).", params: [], schedule: { cron: "45 17 * * *" } },
   publish_proposals: {
     group: "maintenance",
     title: "Publish proposals",
@@ -134,7 +150,7 @@ export const JOB_CATALOG = {
       { name: "limit", kind: "number", label: "Limit companies" },
       { name: "dryRun", kind: "boolean", label: "Dry run (count only)" },
     ],
-    schedule: { cron: "0 7 * * *" },
+    schedule: { cron: "0 16 * * *" },
   },
   reprocess: {
     group: "maintenance",
@@ -146,7 +162,7 @@ export const JOB_CATALOG = {
       { name: "limit", kind: "number", label: "Limit records" },
     ],
   },
-  retention_purge: { group: "maintenance", title: "Retention purge", description: "Deletes people data older than each source's retention limit (GDPR minimization).", params: [], schedule: { cron: "15 3 * * *" } },
+  retention_purge: { group: "maintenance", title: "Retention purge", description: "Deletes people data older than each source's retention limit (GDPR minimization).", params: [], schedule: { cron: "15 11 * * *" } },
 } as const satisfies Record<string, JobInfo>;
 
 export type JobName = keyof typeof JOB_CATALOG;

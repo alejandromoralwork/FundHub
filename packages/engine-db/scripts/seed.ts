@@ -14,8 +14,8 @@
 import "dotenv/config";
 import { TAXONOMY } from "@fundhub/core/taxonomy";
 import { db, pool } from "../src/client";
-import { activityCategories, attributePrecedence, classificationRules, lbrNumberSpace, newsFeeds, qualityChecks, reviewPolicies, sources } from "../src/schema";
-import { EXTRA_CATEGORIES, NEWS_FEEDS, PRECEDENCE, QUALITY_CHECKS, RCS_PREFIXES, REVIEW_POLICIES, RULES, SOURCES, subSlug, type CategorySeed } from "../src/seed-data";
+import { activityCategories, attributePrecedence, classificationRules, lbrNumberSpace, mandateRoles, newsFeeds, qualityChecks, reviewPolicies, sources } from "../src/schema";
+import { EXTRA_CATEGORIES, MANDATE_ROLE_SEED, NEWS_FEEDS, PRECEDENCE, QUALITY_CHECKS, RCS_PREFIXES, REVIEW_POLICIES, RULES, SOURCES, subSlug, type CategorySeed } from "../src/seed-data";
 
 /**
  * Kind: async function. Upserts one category row.
@@ -99,6 +99,8 @@ async function main() {
       .onConflictDoNothing();
   }
   for (const f of NEWS_FEEDS) await db.insert(newsFeeds).values(f).onConflictDoNothing();
+  // Mandate roles: new ones added; labels / flags edited by staff are kept.
+  for (const [i, r] of MANDATE_ROLE_SEED.entries()) await db.insert(mandateRoles).values({ ...r, sort: i }).onConflictDoNothing();
   let qsort = 0;
   for (const q of QUALITY_CHECKS) {
     const row = { code: q.code, label: q.label, description: q.description, layer: q.layer, min: q.min ?? null, max: q.max ?? null, sort: qsort++ };

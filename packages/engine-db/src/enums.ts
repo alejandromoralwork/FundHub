@@ -69,9 +69,94 @@ export type ReviewMode = (typeof REVIEW_MODES)[number];
 export const COMPANY_STATUSES = ["active", "in_liquidation", "struck_off", "unknown"] as const;
 export type CompanyStatus = (typeof COMPANY_STATUSES)[number];
 
-/** Kind: constant. Broad kind of company; finer detail lives in activity category / subcategory. */
-export const COMPANY_KINDS = ["service_provider", "asset_manager", "fund", "bank", "financial_institution", "corporate", "other"] as const;
+/**
+ * Kind: constant. Broad kind of company; finer detail lives in activity category / subcategory and, for the fund
+ * world, in the fund profile below. `asset_manager` = ManCos and AIFMs; `fund_vehicle` = a company that exists for
+ * a fund structure without being the fund itself (general partner, SPV, fund holding).
+ */
+export const COMPANY_KINDS = ["service_provider", "asset_manager", "fund", "fund_vehicle", "bank", "financial_institution", "corporate", "other"] as const;
 export type CompanyKind = (typeof COMPANY_KINDS)[number];
+
+// ---------------------------------------------------------------- fund profile (core.companies)
+
+/** Kind: constant. EU regime of a fund: UCITS (2010 Law Part I) or AIF (everything else that is a fund). */
+export const FUND_REGIMES = ["ucits", "aif", "other"] as const;
+export type FundRegime = (typeof FUND_REGIMES)[number];
+
+/** Kind: constant. The Luxembourg product law a fund (or securitisation / pension vehicle) falls under. */
+export const FUND_LAWS = ["ucits_part_i", "uci_part_ii", "sif", "sicar", "raif", "securitisation", "pension", "unregulated", "foreign"] as const;
+export type FundLaw = (typeof FUND_LAWS)[number];
+
+/** Kind: constant. Legal vehicle (corporate form) — from the RCS / GLEIF legal form, CSSF sub-group or the name suffix. */
+export const LEGAL_VEHICLES = ["fcp", "sicav", "sicaf", "scsp", "scs", "sca", "sa", "sarl", "sas", "scoop", "sub_fund", "other"] as const;
+export type LegalVehicle = (typeof LEGAL_VEHICLES)[number];
+
+/** Kind: constant. Role of a company inside a fund structure. */
+export const FUND_ROLES = ["standalone_fund", "umbrella_fund", "sub_fund", "master_fund", "feeder_fund", "general_partner", "spv", "holding"] as const;
+export type FundRole = (typeof FUND_ROLES)[number];
+
+/** Kind: constant. What kind of fund manager (from the CSSF registers). */
+export const MANAGER_TYPES = ["super_manco", "ucits_manco", "manco_ch16", "aifm_authorised", "aifm_registered", "aifm_branch", "manco_branch"] as const;
+export type ManagerType = (typeof MANAGER_TYPES)[number];
+
+// ---------------------------------------------------------------- time model
+
+/** Kind: constant. How precise a real-world date is ("2019" known only as a year → 2019-01-01 + "year"). */
+export const DATE_PRECISIONS = ["day", "month", "year", "unknown"] as const;
+export type DatePrecision = (typeof DATE_PRECISIONS)[number];
+
+/** Kind: constant. Where a company sits legally: in the Luxembourg RCS, Luxembourg but not in the RCS (some funds), or abroad. */
+export const REGISTER_SCOPES = ["lu_rcs", "lu_unregistered", "foreign"] as const;
+export type RegisterScope = (typeof REGISTER_SCOPES)[number];
+
+// ---------------------------------------------------------------- service mandates (core.mandates)
+
+/**
+ * Kind: constant. Roles a provider can hold for a fund. The full reference (label, exclusive, regulated) is the
+ * seeded table ops.mandate_roles; this list is for validation and types.
+ */
+export const MANDATE_ROLES = [
+  "management_company", "aifm", "investment_manager", "investment_adviser", "depositary", "central_administration",
+  "transfer_agent", "registrar", "auditor", "domiciliation_agent", "distributor", "paying_agent", "legal_adviser",
+  "prime_broker", "listing_agent", "director", "service_provider",
+] as const;
+export type MandateRole = (typeof MANDATE_ROLES)[number];
+
+/** Kind: constant. State of a mandate episode. `disputed` = sources disagree, a person should look. */
+export const MANDATE_STATUSES = ["current", "ended", "announced", "disputed"] as const;
+export type MandateStatus = (typeof MANDATE_STATUSES)[number];
+
+// ---------------------------------------------------------------- fund lifecycle (core.fund_events)
+
+/** Kind: constant. Dated events in a fund's life. */
+export const FUND_EVENT_KINDS = [
+  "incorporated", "authorised", "launched", "sub_fund_added", "sub_fund_closed", "manager_appointed", "manager_changed",
+  "renamed", "merged_into", "redomiciled_in", "redomiciled_out", "in_liquidation", "deregistered", "closed",
+] as const;
+export type FundEventKind = (typeof FUND_EVENT_KINDS)[number];
+
+// ---------------------------------------------------------------- company groups (core.company_groups)
+
+/** Kind: constant. The three grouping layers: corporate (who owns whom), fund (fund structures), service providers. */
+export const GROUP_LAYERS = ["corporate", "fund", "service_provider"] as const;
+export type GroupLayer = (typeof GROUP_LAYERS)[number];
+
+/**
+ * Kind: constant. Group kinds. Corporate layer: `corporate_group` (an ultimate parent and its subsidiaries).
+ * Fund layer: `fund_platform` (one ManCo/AIFM and the funds it manages) → `fund_structure` (one umbrella or
+ * standalone fund with its sub-funds, feeders and vehicles). Service-provider layer: `provider_group` (a provider
+ * network / brand and its Luxembourg entities).
+ */
+export const GROUP_KINDS = ["corporate_group", "fund_platform", "fund_structure", "provider_group"] as const;
+export type GroupKind = (typeof GROUP_KINDS)[number];
+
+/** Kind: constant. A member's role inside its group. `head` = the company the group is anchored on. */
+export const GROUP_ROLES = ["head", "subsidiary", "branch", "managed_fund", "umbrella_fund", "sub_fund", "master_fund", "feeder_fund", "general_partner", "spv", "holding", "member"] as const;
+export type GroupRole = (typeof GROUP_ROLES)[number];
+
+/** Kind: constant. Who made a group or membership. Builders never touch `manual` rows. */
+export const GROUP_SOURCES = ["gleif", "cssf", "name_rule", "manual"] as const;
+export type GroupSource = (typeof GROUP_SOURCES)[number];
 
 /**
  * Kind: constant. How deep the engine goes for a company:
@@ -85,7 +170,8 @@ export const CLASSIFICATION_SOURCES = ["rule", "ai", "manual"] as const;
 export type ClassificationSource = (typeof CLASSIFICATION_SOURCES)[number];
 
 /** Kind: constant. Identifier schemes stored in core.company_identifiers. */
-export const ID_SCHEMES = ["rcs", "lei", "cssf_code", "cssf_id", "vat", "matricule", "fundhub_provider", "domain"] as const;
+/** `cssf_compartment` = a sub-fund code as the CSSF lists it, e.g. "O00012720_00000001". */
+export const ID_SCHEMES = ["rcs", "lei", "cssf_code", "cssf_id", "cssf_compartment", "vat", "matricule", "fundhub_provider", "domain"] as const;
 export type IdScheme = (typeof ID_SCHEMES)[number];
 
 /** Kind: constant. What a change (core.changes) is about. */
@@ -107,6 +193,9 @@ export const CHANGE_KINDS = [
   "news_mention",
   "conflict_detected",
   "companies_merged",
+  "mandate_started",
+  "mandate_ended",
+  "mandate_switched",
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 

@@ -20,10 +20,12 @@ import { EditOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { COMPANY_KINDS, COMPANY_STATUSES, RELATION_KINDS } from "@fundhub/engine-db/enums";
 import type { categoryOptions, entityDetail } from "@/lib/engine-data";
-import { addRelation, endRelationAction, saveEntityEdit } from "@/lib/engine-actions";
+import { addMandate, addRelation, endMandate, endRelationAction, findCompanies, saveEntityEdit } from "@/lib/engine-actions";
 import { fmt, short, STATE_COLOR } from "./engine-overview";
 import { STATUS_COLOR } from "./engine-registry";
 import { useAction } from "./use-action";
+import { FUND_ROLE_LABEL, GROUP_KIND_LABEL, GROUP_ROLE_LABEL, GROUP_SOURCE_COLOR, LAW_LABEL, MANAGER_LABEL, REGIME_COLOR, REGIME_LABEL, VEHICLE_LABEL, optionsOf } from "@/lib/fund-labels";
+import type { FundLaw, FundRegime, FundRole, GroupKind, GroupRole, LegalVehicle, ManagerType } from "@fundhub/engine-db/enums";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof entityDetail>>>;
 type Categories = Awaited<ReturnType<typeof categoryOptions>>;
@@ -107,9 +109,12 @@ function ClassificationModal({ d, categories, open, onClose }: { d: Detail; cate
   const [form] = Form.useForm();
   const e = d.entity;
   const category = Form.useWatch("activityCategoryId", form);
+  // A cleared select gives `undefined`; send null so the manual classification really clears the field.
+  const withNulls = (c: unknown) =>
+    c && typeof c === "object" ? { ...Object.fromEntries(["fundRegime", "fundLaw", "legalVehicle", "fundRole", "managerType"].map((k) => [k, null])), ...Object.fromEntries(Object.entries(c).filter(([, v]) => v !== undefined)) } : c;
   const save = (classification: unknown) =>
     run(async () => {
-      const res = await saveEntityEdit(e.id, {}, classification);
+      const res = await saveEntityEdit(e.id, {}, withNulls(classification));
       if (!res.error) onClose();
       return res;
     });
@@ -123,7 +128,10 @@ function ClassificationModal({ d, categories, open, onClose }: { d: Detail; cate
         </Space>
       )}>
       <Form form={form} layout="vertical" onFinish={save}
-        initialValues={{ isServiceProvider: e.isServiceProvider, companyKind: e.companyKind, activityCategoryId: e.activityCategoryId, activitySubcategoryId: e.activitySubcategoryId, tier: e.tier }}>
+        initialValues={{
+          isServiceProvider: e.isServiceProvider, companyKind: e.companyKind, activityCategoryId: e.activityCategoryId, activitySubcategoryId: e.activitySubcategoryId, tier: e.tier,
+          fundRegime: e.fundRegime, fundLaw: e.fundLaw, legalVehicle: e.legalVehicle, fundRole: e.fundRole, managerType: e.managerType,
+        }}>
         <Form.Item name="isServiceProvider" valuePropName="checked"><Checkbox>Service provider (in FundHub's directory scope)</Checkbox></Form.Item>
         <Form.Item name="companyKind" label="Kind"><Select options={COMPANY_KINDS.map((k) => ({ value: k, label: k.replace(/_/g, " ") }))} /></Form.Item>
         <Form.Item name="activityCategoryId" label="Category">
@@ -133,6 +141,14 @@ function ClassificationModal({ d, categories, open, onClose }: { d: Detail; cate
           <Select allowClear options={categories.filter((c) => c.parentId === category).map((c) => ({ value: c.id, label: c.label }))} />
         </Form.Item>
         <Form.Item name="tier" label="Tier (0 metadata · 1 + filing PDFs · 2 + website agent, frequent refresh)"><InputNumber min={0} max={2} /></Form.Item>
+        <Typography.Text strong>Fund profile</Typography.Text>
+        <Row gutter={12} style={{ marginTop: 8 }}>
+          <Col span={12}><Form.Item name="fundRegime" label="UCITS / AIF"><Select allowClear options={optionsOf(REGIME_LABEL)} /></Form.Item></Col>
+          <Col span={12}><Form.Item name="fundLaw" label="Product law"><Select allowClear options={optionsOf(LAW_LABEL)} /></Form.Item></Col>
+          <Col span={12}><Form.Item name="legalVehicle" label="Legal vehicle"><Select allowClear options={optionsOf(VEHICLE_LABEL)} /></Form.Item></Col>
+          <Col span={12}><Form.Item name="fundRole" label="Role in fund structure"><Select allowClear options={optionsOf(FUND_ROLE_LABEL)} /></Form.Item></Col>
+          <Col span={24}><Form.Item name="managerType" label="Manager licence"><Select allowClear options={optionsOf(MANAGER_LABEL)} /></Form.Item></Col>
+        </Row>
       </Form>
     </Modal>
   );
@@ -154,6 +170,53 @@ function AddRelation({ companyId }: { companyId: string }) {
       <Form.Item name="evidenceUrl" rules={[{ type: "url" }]}><Input placeholder="Evidence URL (optional)" style={{ width: 240 }} /></Form.Item>
       <Button htmlType="submit" icon={<PlusOutlined />} loading={pending}>Add</Button>
     </Form>
+  );
+}
+
+/** Kind: function. A real-world date with its precision ("2021", "2021-03", "2021-03-04", "?"). */
+const fmtDay = (d: string | null, p?: string | null) => (!d ? "?" : p === "year" ? d.slice(0, 4) : p === "month" ? d.slice(0, 7) : p === "unknown" ? `${d.slice(0, 10)} (≈)` : d.slice(0, 10));
+
+const EVENT_LABEL: Record<string, string> = {
+  incorporated: "Incorporated", authorised: "Authorised / listed by the CSSF", launched: "Launched", sub_fund_added: "Sub-fund added", sub_fund_closed: "Sub-fund closed",
+  manager_appointed: "Manager appointed", manager_changed: "Manager changed", renamed: "Renamed", merged_into: "Merged into", redomiciled_in: "Redomiciled in",
+  redomiciled_out: "Redomiciled out", in_liquidation: "In liquidation", deregistered: "Left the CSSF list", closed: "Closed",
+};
+
+/** Kind: React component. Staff form: record a service mandate (role, provider, since, until). */
+function AddMandate({ companyId, roles }: { companyId: string; roles: Detail["roles"] }) {
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm();
+  const { run, pending } = useAction();
+  const [options, setOptions] = useState<{ value: string; label: string; name: string }[]>([]);
+  return (
+    <>
+      <Button size="small" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Add provider</Button>
+      <Modal title="Record a service provider" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={pending} destroyOnHidden>
+        <Form form={form} layout="vertical" initialValues={{ role: "depositary", validFromPrecision: "day" }}
+          onFinish={(v) =>
+            run(async () => {
+              const res = await addMandate(companyId, { ...v, validFrom: v.validFrom ? dayjs(v.validFrom).format("YYYY-MM-DD") : null, validTo: v.validTo ? dayjs(v.validTo).format("YYYY-MM-DD") : null });
+              if (!res.error) { setOpen(false); form.resetFields(); }
+              return res;
+            })
+          }>
+          <Form.Item name="role" label="Role"><Select options={roles.map((r) => ({ value: r.code, label: `${r.label}${r.exclusive ? " · one at a time" : ""}` }))} /></Form.Item>
+          <Form.Item name="providerCompanyId" label="Provider (company in the database)">
+            <Select showSearch allowClear filterOption={false} placeholder="Type a name, RCS number or LEI"
+              onSearch={async (q) => setOptions((await findCompanies(q)).map((c) => ({ value: c.id, label: `${c.name}${c.rcsNumber ? ` · ${c.rcsNumber}` : ""}`, name: c.name })))}
+              onChange={(v) => { const o = options.find((x) => x.value === v); if (o) form.setFieldValue("providerName", o.name); }}
+              options={options} />
+          </Form.Item>
+          <Form.Item name="providerName" label="Provider name (as written in the source)" rules={[{ required: true, min: 2 }]}><Input /></Form.Item>
+          <Space>
+            <Form.Item name="validFrom" label="Since"><DatePicker /></Form.Item>
+            <Form.Item name="validFromPrecision" label="Known to the"><Select style={{ width: 110 }} options={[{ value: "day", label: "day" }, { value: "month", label: "month" }, { value: "year", label: "year" }]} /></Form.Item>
+            <Form.Item name="validTo" label="Until (if ended)"><DatePicker /></Form.Item>
+          </Space>
+          <Typography.Text type="secondary">For a one-at-a-time role (depositary, auditor, ManCo / AIFM, central administration) the current provider's episode ends on the new start date.</Typography.Text>
+        </Form>
+      </Modal>
+    </>
   );
 }
 
@@ -214,6 +277,13 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
                 { label: "Category", children: catLabel(e.activityCategoryId) },
                 { label: "Subcategory", children: catLabel(e.activitySubcategoryId) },
                 { label: "Tier", children: e.tier },
+                ...(e.fundRegime ? [{ label: "UCITS / AIF", children: <Tag color={REGIME_COLOR[e.fundRegime as FundRegime]}>{REGIME_LABEL[e.fundRegime as FundRegime]}</Tag> }] : []),
+                ...(e.fundLaw ? [{ label: "Product law", children: LAW_LABEL[e.fundLaw as FundLaw] }] : []),
+                ...(e.legalVehicle ? [{ label: "Legal vehicle", children: VEHICLE_LABEL[e.legalVehicle as LegalVehicle] }] : []),
+                ...(e.fundRole ? [{ label: "Fund role", children: FUND_ROLE_LABEL[e.fundRole as FundRole] }] : []),
+                ...(e.managerType ? [{ label: "Manager licence", children: MANAGER_LABEL[e.managerType as ManagerType] }] : []),
+                ...(e.launchDate ? [{ label: "Launched", children: `${String(e.launchDate).slice(0, 10)}${e.launchDateSource ? ` (${e.launchDateSource})` : ""}` }] : []),
+                ...(e.closureDate ? [{ label: "Closed", children: `${String(e.closureDate).slice(0, 10)}${e.closureReason ? ` (${e.closureReason})` : ""}` }] : []),
                 { label: "Decided by", children: <Tag color={e.classificationSource === "manual" ? "purple" : undefined}>{e.classificationSource ?? "—"}</Tag> },
               ]} />
           </Card>
@@ -251,6 +321,81 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
       <Card size="small">
         <Tabs
           items={[
+            {
+              key: "groups",
+              label: `Groups (${d.groups.filter((g) => !g.valid_to).length})`,
+              children: (
+                <Table size="small" rowKey={(g) => `${g.id}`} dataSource={d.groups} pagination={false}
+                  locale={{ emptyText: "In no group yet (groups are rebuilt daily by the build_groups job)." }}
+                  columns={[
+                    { title: "Group", render: (_, g) => <Link href={`/engine/groups/${g.id}`}>{g.path}</Link> },
+                    { title: "Kind", dataIndex: "kind", render: (k: string) => GROUP_KIND_LABEL[k as GroupKind] ?? k, width: 190 },
+                    { title: "Role", dataIndex: "role", render: (r: string) => <Tag>{GROUP_ROLE_LABEL[r as GroupRole] ?? r}</Tag>, width: 140 },
+                    { title: "Source", dataIndex: "source", render: (src: string, g) => <Tag color={GROUP_SOURCE_COLOR[src]}>{src}{g.confidence < 1 ? ` ${Math.round(g.confidence * 100)}%` : ""}</Tag>, width: 120 },
+                    { title: "Evidence", dataIndex: "evidence", render: (v: string | null) => <Typography.Text type="secondary">{v ?? "—"}</Typography.Text> },
+                    { title: "", dataIndex: "valid_to", render: (v: string | null) => (v ? <Typography.Text type="secondary">ended {fmt(v)}</Typography.Text> : <Tag color="green">current</Tag>), width: 150 },
+                  ]} />
+              ),
+            },
+            {
+              key: "providers",
+              label: `Service providers (${d.served.filter((m) => m.status === "current").length})`,
+              children: (
+                <>
+                  {canEdit && <div style={{ marginBottom: 8 }}><AddMandate companyId={e.id} roles={d.roles} /></div>}
+                  <Table size="small" rowKey="id" dataSource={d.served} pagination={false}
+                    locale={{ emptyText: "No service provider known yet. Fund managers come from GLEIF (build_groups); other roles from documents later, or add them here." }}
+                    columns={[
+                      { title: "Role", dataIndex: "role", render: (r: string) => <Tag>{d.roles.find((x) => x.code === r)?.label ?? r}</Tag>, width: 220 },
+                      { title: "Provider", render: (_, m) => (m.providerCompanyId ? <Link href={`/engine/companies/${m.providerCompanyId}`}>{m.providerName}</Link> : <span>{m.providerName}{m.providerLei && <Typography.Text type="secondary" className="mono"> · {m.providerLei}</Typography.Text>}</span>) },
+                      { title: "Since", render: (_, m) => fmtDay(m.validFrom, m.validFromPrecision), width: 120 },
+                      { title: "Until", render: (_, m) => (m.status === "current" ? <Tag color="green">current</Tag> : fmtDay(m.validTo, m.validToPrecision)), width: 120 },
+                      { title: "By", dataIndex: "decidedBy", render: (v: string) => <Tag color={v.startsWith("staff:") ? "purple" : SOURCE_COLOR[v]}>{v.startsWith("staff:") ? "staff" : v}</Tag>, width: 90 },
+                      { title: "Evidence", dataIndex: "evidence", render: (v: string | null) => <Typography.Text type="secondary" ellipsis={{ tooltip: v }} style={{ maxWidth: 280 }}>{v ?? "—"}</Typography.Text> },
+                      {
+                        title: "",
+                        width: 70,
+                        render: (_, m) =>
+                          canEdit && m.status === "current" ? (
+                            <Popconfirm title="End this mandate today? (Use 'Add provider' with a start date for a switch on another date.)" onConfirm={() => run(() => endMandate(m.id, dayjs().format("YYYY-MM-DD")))}>
+                              <Button size="small" type="link" danger>End</Button>
+                            </Popconfirm>
+                          ) : null,
+                      },
+                    ]} />
+                </>
+              ),
+            },
+            ...(d.serving.length
+              ? [{
+                  key: "clients",
+                  label: `Clients as provider (${d.serving.length})`,
+                  children: (
+                    <Table size="small" rowKey="id" dataSource={d.serving} pagination={{ pageSize: 25 }}
+                      columns={[
+                        { title: "Client", render: (_: unknown, m: Detail["serving"][number]) => <Link href={`/engine/companies/${m.clientId}`}>{m.client}</Link> },
+                        { title: "Role", dataIndex: "role", render: (r: string) => d.roles.find((x) => x.code === r)?.label ?? r, width: 220 },
+                        { title: "Since", render: (_: unknown, m: Detail["serving"][number]) => fmtDay(m.validFrom, m.validFromPrecision), width: 120 },
+                        { title: "Fund role", dataIndex: "fundRole", render: (r: string | null) => (r ? FUND_ROLE_LABEL[r as FundRole] : "—"), width: 150 },
+                      ]} />
+                  ),
+                }]
+              : []),
+            {
+              key: "lifecycle",
+              label: `Lifecycle (${d.lifecycle.length})`,
+              children: (
+                <Table size="small" rowKey="id" dataSource={d.lifecycle} pagination={{ pageSize: 25 }}
+                  locale={{ emptyText: "No dated events (the fund_lifecycle job builds them for funds and sub-funds)." }}
+                  columns={[
+                    { title: "Date", render: (_, ev) => fmtDay(ev.eventDate, ev.datePrecision), width: 120 },
+                    { title: "Event", dataIndex: "kind", render: (k: string) => EVENT_LABEL[k] ?? k, width: 220 },
+                    { title: "Related", render: (_, ev) => (ev.relatedCompanyId ? <Link href={`/engine/companies/${ev.relatedCompanyId}`}>{ev.related ?? "company"}</Link> : "—") },
+                    { title: "Source", dataIndex: "source", render: (v: string) => <Tag color={SOURCE_COLOR[v]}>{v}</Tag>, width: 90 },
+                    { title: "Evidence", dataIndex: "evidence", render: (v: string | null) => <Typography.Text type="secondary">{v ?? "—"}</Typography.Text> },
+                  ]} />
+              ),
+            },
             {
               key: "people",
               label: `People (${d.team.filter((p) => !p.validTo).length})`,
