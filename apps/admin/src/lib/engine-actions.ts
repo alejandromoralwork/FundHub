@@ -674,3 +674,42 @@ export async function endMandate(mandateId: number, validTo: string): Promise<Ac
     return { error: /mandates_no_overlap/.test(msg) ? "That end date overlaps the next episode." : msg };
   }
 }
+
+// ------------------------------------------------------------------ review: bulk decisions
+
+const bulkIds = z.array(z.coerce.number().int().positive()).min(1).max(500);
+
+/** Kind: function. Runs one decision per id (the single-item action: same checks, same audit) and sums up. */
+async function bulk(ids: unknown, one: (id: number) => Promise<ActionResult>, done: string): Promise<ActionResult> {
+  await requireStaff(CAN.engineEdit);
+  const parsed = bulkIds.safeParse(ids);
+  if (!parsed.success) return { error: `ids: ${parsed.error.issues[0]?.message}` };
+  let ok = 0;
+  const errors: string[] = [];
+  for (const id of parsed.data) {
+    const r = await one(id);
+    if (r.error) errors.push(r.error);
+    else ok++;
+  }
+  revalidatePath("/engine/review");
+  const skipped = errors.filter((e) => e === "Already decided").length;
+  const failed = errors.length - skipped;
+  const tail = [skipped ? `${skipped} already decided` : "", failed ? `${failed} failed (${[...new Set(errors.filter((e) => e !== "Already decided"))].slice(0, 2).join("; ")})` : ""].filter(Boolean).join(", ");
+  return ok || !failed ? { ok: `${ok} ${done}${tail ? ` · ${tail}` : ""}` } : { error: tail };
+}
+
+/** Kind: server action. Same company / keep apart, for several match candidates. */
+export async function decideMatches(ids: unknown, accept: boolean): Promise<ActionResult> {
+  return bulk(ids, (id) => decideMatch(id, accept), accept ? "merged" : "kept apart");
+}
+
+/** Kind: server action. Checked / ignore, for several conflicts. */
+export async function decideConflicts(ids: unknown, status: "resolved" | "ignored"): Promise<ActionResult> {
+  if (status !== "resolved" && status !== "ignored") return { error: "status must be resolved or ignored" };
+  return bulk(ids, (id) => decideConflict(id, status), status === "resolved" ? "marked checked" : "ignored");
+}
+
+/** Kind: server action. About it / not about it, for several news mentions. */
+export async function decideMentions(ids: unknown, accept: boolean): Promise<ActionResult> {
+  return bulk(ids, (id) => decideMention(id, accept), accept ? "linked" : "dismissed");
+}

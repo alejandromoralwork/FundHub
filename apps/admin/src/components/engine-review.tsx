@@ -18,10 +18,11 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, Empty, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography } from "antd";
 import type { reviewPage } from "@/lib/engine-data";
-import { decideConflict, decideMention, decideStaging, editAndApproveStaging } from "@/lib/engine-actions";
+import { decideConflict, decideConflicts, decideMention, decideMentions, decideStaging, editAndApproveStaging } from "@/lib/engine-actions";
 import { MatchesView } from "./engine-matches";
 import { fmt, short } from "./engine-overview";
 import { useAction } from "./use-action";
+import { BulkBar, SELECTIONS } from "./review-bulk";
 
 type Data = Awaited<ReturnType<typeof reviewPage>>;
 type StagingRow = Data["staging"][number];
@@ -100,7 +101,7 @@ function StagingTab({ rows, canEdit, sources, source }: { rows: StagingRow[]; ca
           rowKey="id"
           dataSource={rows}
           pagination={{ pageSize: 20 }}
-          rowSelection={canEdit ? { selectedRowKeys: selected, onChange: (k) => setSelected(k as number[]) } : undefined}
+          rowSelection={canEdit ? { selectedRowKeys: selected, onChange: (k) => setSelected(k as number[]), selections: SELECTIONS } : undefined}
           expandable={{
             defaultExpandedRowKeys: rows.slice(0, 3).map((r) => r.id),
             expandedRowRender: (r) => (
@@ -158,9 +159,65 @@ function StagingTab({ rows, canEdit, sources, source }: { rows: StagingRow[]; ca
   );
 }
 
+/** Kind: React component. Conflicts tab: one row per disagreement; Checked / Ignore one at a time or in bulk. */
+function ConflictsTab({ rows, canEdit }: { rows: Data["conflicts"]; canEdit: boolean }) {
+  const { run, pending } = useAction();
+  const [selected, setSelected] = useState<number[]>([]);
+  return (
+    <Card size="small" title="Sources disagree" extra={<Typography.Text type="secondary">The golden record uses the winner (precedence). Check, then correct on the company page if needed.</Typography.Text>}>
+      {rows.length === 0 ? <Empty description="No open conflicts." /> : (
+        <>
+          {canEdit && (
+            <BulkBar selected={selected} clear={() => setSelected([])} actions={[
+              { label: "Mark checked", primary: true, run: (ids) => decideConflicts(ids, "resolved") },
+              { label: "Ignore", confirm: "Ignore {n} conflict(s)? They will not be raised again.", run: (ids) => decideConflicts(ids, "ignored") },
+            ]} />
+          )}
+          <Table size="small" rowKey="id" dataSource={rows} pagination={{ pageSize: 25 }}
+            rowSelection={canEdit ? { selectedRowKeys: selected, onChange: (k) => setSelected(k as number[]), selections: SELECTIONS } : undefined}
+            columns={[
+              { title: "Company", render: (_, c) => <Link href={`/engine/companies/${c.company_id}`}>{c.company_name}</Link> },
+              { title: "Field", dataIndex: "attribute", filters: [...new Set(rows.map((r) => r.attribute))].map((a) => ({ text: a, value: a })), onFilter: (v, r) => r.attribute === v },
+              { title: "What each source says", render: (_, c) => <Space direction="vertical" size={2}>{c.values.map((v) => <span key={v.source}><Tag color={v.source === c.winner ? "green" : undefined}>{v.source}{v.source === c.winner ? " (used)" : ""}</Tag>{short(v.value)}</span>)}</Space> },
+              { title: "Since", dataIndex: "detected_at", render: fmt, width: 140 },
+              { title: "", width: 180, render: (_, c) => canEdit && <Space><Button size="small" loading={pending} onClick={() => run(() => decideConflict(c.id, "resolved"))}>Checked</Button><Button size="small" loading={pending} onClick={() => run(() => decideConflict(c.id, "ignored"))}>Ignore</Button></Space> },
+            ]} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** Kind: React component. Mentions tab: is this article about the company? One at a time or in bulk. */
+function MentionsTab({ rows, canEdit }: { rows: Data["mentions"]; canEdit: boolean }) {
+  const { run, pending } = useAction();
+  const [selected, setSelected] = useState<number[]>([]);
+  return (
+    <Card size="small" title="Is this article about the company?">
+      {rows.length === 0 ? <Empty description="No uncertain mentions." /> : (
+        <>
+          {canEdit && (
+            <BulkBar selected={selected} clear={() => setSelected([])} actions={[
+              { label: "About it", primary: true, run: (ids) => decideMentions(ids, true) },
+              { label: "Not about it", run: (ids) => decideMentions(ids, false) },
+            ]} />
+          )}
+          <Table size="small" rowKey="id" dataSource={rows} pagination={{ pageSize: 25 }}
+            rowSelection={canEdit ? { selectedRowKeys: selected, onChange: (k) => setSelected(k as number[]), selections: SELECTIONS } : undefined}
+            columns={[
+              { title: "Article", render: (_, m) => <Space direction="vertical" size={0}><a href={m.url} target="_blank" rel="noreferrer">{m.title}</a><Typography.Text type="secondary">{m.snippet ?? ""}</Typography.Text></Space> },
+              { title: "Company", render: (_, m) => <Space direction="vertical" size={0}><Link href={`/engine/companies/${m.company_id}`}>{m.company_name}</Link><Typography.Text type="secondary">matched “{m.matched_text}” · {Math.round(m.confidence * 100)}%</Typography.Text></Space> },
+              { title: "Published", dataIndex: "published_at", render: fmt, width: 140 },
+              { title: "", width: 190, render: (_, m) => canEdit && <Space><Button size="small" type="primary" loading={pending} onClick={() => run(() => decideMention(m.id, true))}>About it</Button><Button size="small" loading={pending} onClick={() => run(() => decideMention(m.id, false))}>Not about it</Button></Space> },
+            ]} />
+        </>
+      )}
+    </Card>
+  );
+}
+
 /** Kind: React component. The page with its tabs (tab in the URL: ?tab=staging|matches|conflicts|mentions|rejects). */
 export function ReviewView({ data, canEdit, tab = "staging", source }: { data: Data; canEdit: boolean; tab?: string; source?: string }) {
-  const { run, pending } = useAction();
   const router = useRouter();
   const sources = useMemo(() => [...new Set(data.staging.map((r) => r.source))].sort(), [data.staging]);
   const count = (n: number) => <Badge count={n} overflowCount={999} style={{ marginLeft: 6 }} />;
@@ -177,39 +234,8 @@ export function ReviewView({ data, canEdit, tab = "staging", source }: { data: D
         items={[
           { key: "staging", label: <>Staging approval{count(data.staging.length)}</>, children: <StagingTab rows={data.staging} canEdit={canEdit} sources={sources} source={source} /> },
           { key: "matches", label: <>Matches{count(data.matches.length)}</>, children: <MatchesView rows={data.matches} canEdit={canEdit} /> },
-          {
-            key: "conflicts",
-            label: <>Conflicts{count(data.conflicts.length)}</>,
-            children: (
-              <Card size="small" title="Sources disagree" extra={<Typography.Text type="secondary">The golden record uses the winner (precedence). Check, then correct on the company page if needed.</Typography.Text>}>
-                {data.conflicts.length === 0 ? <Empty description="No open conflicts." /> : (
-                  <Table size="small" rowKey="id" dataSource={data.conflicts} pagination={{ pageSize: 25 }} columns={[
-                    { title: "Company", render: (_, c) => <Link href={`/engine/companies/${c.company_id}`}>{c.company_name}</Link> },
-                    { title: "Field", dataIndex: "attribute" },
-                    { title: "What each source says", render: (_, c) => <Space direction="vertical" size={2}>{c.values.map((v) => <span key={v.source}><Tag color={v.source === c.winner ? "green" : undefined}>{v.source}{v.source === c.winner ? " (used)" : ""}</Tag>{short(v.value)}</span>)}</Space> },
-                    { title: "Since", dataIndex: "detected_at", render: fmt, width: 140 },
-                    { title: "", width: 180, render: (_, c) => canEdit && <Space><Button size="small" loading={pending} onClick={() => run(() => decideConflict(c.id, "resolved"))}>Checked</Button><Button size="small" loading={pending} onClick={() => run(() => decideConflict(c.id, "ignored"))}>Ignore</Button></Space> },
-                  ]} />
-                )}
-              </Card>
-            ),
-          },
-          {
-            key: "mentions",
-            label: <>Mentions{count(data.mentions.length)}</>,
-            children: (
-              <Card size="small" title="Is this article about the company?">
-                {data.mentions.length === 0 ? <Empty description="No uncertain mentions." /> : (
-                  <Table size="small" rowKey="id" dataSource={data.mentions} pagination={{ pageSize: 25 }} columns={[
-                    { title: "Article", render: (_, m) => <Space direction="vertical" size={0}><a href={m.url} target="_blank" rel="noreferrer">{m.title}</a><Typography.Text type="secondary">{m.snippet ?? ""}</Typography.Text></Space> },
-                    { title: "Company", render: (_, m) => <Space direction="vertical" size={0}><Link href={`/engine/companies/${m.company_id}`}>{m.company_name}</Link><Typography.Text type="secondary">matched “{m.matched_text}” · {Math.round(m.confidence * 100)}%</Typography.Text></Space> },
-                    { title: "Published", dataIndex: "published_at", render: fmt, width: 140 },
-                    { title: "", width: 190, render: (_, m) => canEdit && <Space><Button size="small" type="primary" loading={pending} onClick={() => run(() => decideMention(m.id, true))}>About it</Button><Button size="small" loading={pending} onClick={() => run(() => decideMention(m.id, false))}>Not about it</Button></Space> },
-                  ]} />
-                )}
-              </Card>
-            ),
-          },
+          { key: "conflicts", label: <>Conflicts{count(data.conflicts.length)}</>, children: <ConflictsTab rows={data.conflicts} canEdit={canEdit} /> },
+          { key: "mentions", label: <>Mentions{count(data.mentions.length)}</>, children: <MentionsTab rows={data.mentions} canEdit={canEdit} /> },
           {
             key: "rejects",
             label: <>Rejects{count(data.rejects.length)}</>,

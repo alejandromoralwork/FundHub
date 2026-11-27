@@ -12,7 +12,9 @@
 import Link from "next/link";
 import { Button, Card, Empty, Popconfirm, Space, Table, Tag, Typography } from "antd";
 import type { pendingMatches } from "@/lib/engine-data";
-import { decideMatch } from "@/lib/engine-actions";
+import { useState } from "react";
+import { decideMatch, decideMatches } from "@/lib/engine-actions";
+import { BulkBar, SELECTIONS } from "./review-bulk";
 import { fmt } from "./engine-overview";
 import { useAction } from "./use-action";
 
@@ -21,12 +23,21 @@ type Rows = Awaited<ReturnType<typeof pendingMatches>>;
 /** Kind: React component. The page. */
 export function MatchesView({ rows, canEdit }: { rows: Rows; canEdit: boolean }) {
   const { run, pending } = useAction();
+  const [selected, setSelected] = useState<number[]>([]);
   return (
     <Card size="small" title={`Possible duplicates (${rows.length})`} extra={<Typography.Text type="secondary">Same name, no shared identifier — is it the same company?</Typography.Text>}>
       {rows.length === 0 ? (
         <Empty description="Nothing to review." />
       ) : (
+        <>
+        {canEdit && (
+          <BulkBar selected={selected} clear={() => setSelected([])} actions={[
+            { label: "Same company (merge)", primary: true, confirm: "Merge {n} pair(s)? Each moves all identifiers, sources and history into one company.", run: (ids) => decideMatches(ids, true) },
+            { label: "Different companies", run: (ids) => decideMatches(ids, false) },
+          ]} />
+        )}
         <Table size="small" rowKey="id" dataSource={rows} pagination={{ pageSize: 25 }}
+          rowSelection={canEdit ? { selectedRowKeys: selected, onChange: (k) => setSelected(k as number[]), selections: SELECTIONS } : undefined}
           columns={[
             { title: "Found", dataIndex: "created_at", render: fmt, width: 140 },
             {
@@ -65,6 +76,7 @@ export function MatchesView({ rows, canEdit }: { rows: Rows; canEdit: boolean })
                 ),
             },
           ]} />
+        </>
       )}
     </Card>
   );
