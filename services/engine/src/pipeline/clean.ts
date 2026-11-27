@@ -86,6 +86,17 @@ export function isoDate(v: unknown): string | null {
 }
 
 /**
+ * Kind: function. A status word LBR puts in or after a name ("DEME Offshore LU SA , radiée", "radiée",
+ * "X S.A. (en liquidation judiciaire)"). @returns the status and the name without it, or null.
+ */
+export function statusInName(name: string): { status: "struck_off" | "in_liquidation"; rest: string } | null {
+  const m = /^(.*?)[\s,;(–-]*\b(radi[ée]e?|struck off|en liquidation(?: judiciaire| volontaire)?|in liquidation|en faillite|in bankruptcy)\)?\s*$/i.exec(name);
+  if (!m) return null;
+  const status = /radi|struck/i.test(m[2]) ? "struck_off" : "in_liquidation";
+  return { status, rest: m[1].trim().replace(/[\s,;(–-]+$/, "") };
+}
+
+/**
  * Kind: function. The clean stage for one record.
  * @returns the cleaned record (a copy) and the rejected values.
  */
@@ -101,6 +112,20 @@ export function cleanRecord(input: ParsedRecord): CleanResult {
 
   if (f.name !== undefined) {
     const n = typeof f.name === "string" ? f.name.replace(/\s+/g, " ").trim() : "";
+    // LBR writes a company's state next to (or instead of) its name: "radiée" (struck off), "en liquidation",
+    // "en faillite". It is a status, never part of the name: stripped here, and it sets the status when the
+    // source gives none. A "name" that is only that word is no name at all.
+    const st = statusInName(n);
+    if (st) {
+      if (!f.status || f.status === "unknown") f.status = st.status;
+      if (!st.rest) {
+        rejects.push({ attribute: "name", value: f.name, reason: `"${n}" is a status (${st.status}), not a name` });
+        delete f.name;
+      } else f.name = st.rest;
+    }
+  }
+  if (f.name !== undefined) {
+    const n = typeof f.name === "string" ? f.name.replace(/\s+/g, " ").trim().replace(/[\s,;–-]+$/, "") : "";
     if (n.length < 2 || n.length > 300) reject("name", "name missing or longer than 300 characters");
     else f.name = n;
   }

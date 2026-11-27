@@ -326,7 +326,11 @@ test("consolidate: precedence, lineage, conflicts (cosmetic differences are not 
   assert.equal(out.golden.canonicalName, "Acme Services SA");
   assert.equal(out.golden.status, "active", "'unknown' never overrides a real status");
   assert.equal(out.golden.website, "https://www.acme.com");
-  assert.deepEqual(out.conflicts.map((c) => c.attribute), ["address"], "names differ only cosmetically");
+  // Name and address follow precedence only (LBR first, then CSSF…): no conflict for a person to check.
+  assert.deepEqual(out.conflicts.map((c) => c.attribute), [], "name / address mismatches never open conflicts");
+  assert.equal(out.golden.registeredAddress?.postcode, "L-1111", "the RCS address wins over GLEIF's");
+  const addr = out.lineage.find((l) => l.attribute === "address")!;
+  assert.deepEqual([addr.source, addr.sourcesAgreeing, addr.sourcesTotal], ["rcs", 1, 2], "the disagreement stays visible in the lineage");
   const name = out.lineage.find((l) => l.attribute === "name")!;
   assert.deepEqual([name.source, name.claimId, name.sourcesAgreeing, name.sourcesTotal], ["rcs", 2, 2, 2]);
   assert.equal(out.sourceCount, 3);
@@ -352,4 +356,22 @@ test("mentions: press-name alias ('Creditreform Luxembourg S.A.' is written 'Cre
   assert.equal(pressName("Alter Domus (Luxembourg) S.à r.l."), "Alter Domus");
   const idx = buildIndex([{ id: "k", normalized_name: "creditreform luxembourg", canonical_name: "Creditreform Luxembourg S.A." }]);
   assert.deepEqual(findMentions("Creditreform warns of rising insolvencies", idx, null).map((h) => h.companyId), ["k"]);
+});
+
+test("clean: LBR status words in names ('radiée', 'en liquidation') become the status, never part of the name", async () => {
+  const { cleanRecord, statusInName } = await import("../src/pipeline/clean");
+  assert.deepEqual(statusInName("DEME Offshore LU SA , radiée"), { status: "struck_off", rest: "DEME Offshore LU SA" });
+  assert.deepEqual(statusInName("radiée"), { status: "struck_off", rest: "" });
+  assert.deepEqual(statusInName("Foo S.A. (en liquidation judiciaire)"), { status: "in_liquidation", rest: "Foo S.A." });
+  assert.equal(statusInName("Gradient Holding"), null, "a word containing 'radi' is not a status");
+  assert.equal(statusInName("Radiant Capital S.à r.l."), null);
+  const rec = (name: string, status?: "active" | "in_liquidation" | "struck_off" | "unknown") => ({ source: "gleif" as const, externalId: "x", state: "found" as const, facts: { name, ...(status ? { status } : {}) }, identifiers: [], names: [] });
+  const a = cleanRecord(rec("DEME Offshore LU SA , radiée", "unknown"));
+  assert.deepEqual([a.record.facts.name, a.record.facts.status], ["DEME Offshore LU SA", "struck_off"]);
+  const b = cleanRecord(rec("radiée"));
+  assert.equal(b.record.facts.name, undefined);
+  assert.equal(b.record.facts.status, "struck_off");
+  assert.equal(b.rejects[0].attribute, "name");
+  // A status the source states explicitly is kept.
+  assert.equal(cleanRecord(rec("Foo S.A. en liquidation", "struck_off")).record.facts.status, "struck_off");
 });

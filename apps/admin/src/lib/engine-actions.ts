@@ -300,7 +300,8 @@ export async function resetCaptureRoundSkipped(): Promise<ActionResult> {
 // ------------------------------------------------------------------ staging approval gate
 
 const stagingDecision = z.object({
-  ids: z.array(z.number().int().positive()).min(1).max(200),
+  // Coerced: ids that came through raw SQL (bigint → string) are accepted too.
+  ids: z.array(z.coerce.number().int().positive()).min(1).max(200),
   decision: z.enum(["approve", "reject"]),
   note: z.string().trim().max(500).optional(),
 });

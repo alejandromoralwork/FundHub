@@ -184,9 +184,12 @@ export function parseRcsSearchList(text: string): { total: number | null; items:
     if (/^site map$/i.test(lines[i])) break;
     if (!RCS_LINE_RE.test(lines[i]) || i + 1 >= lines.length) continue;
     const rcs = normalizeRcs(lines[i]);
-    const name = lines[i + 1];
-    const status = listStatus(lines[i + 2]);
-    if (rcs && !rcs.startsWith("A") && !RCS_LINE_RE.test(name)) items.push({ rcs, name, struckOff: status === "struck_off", status });
+    // Very old entries have no name: the line after the number is already the status ("radiée"). The RCS number
+    // then stands in for the name.
+    const nameIsStatus = listStatus(lines[i + 1]);
+    const name = nameIsStatus ? (rcs ?? lines[i]) : lines[i + 1];
+    const status = nameIsStatus ?? listStatus(lines[i + 2]);
+    if (rcs && !rcs.startsWith("A") && (nameIsStatus || !RCS_LINE_RE.test(name))) items.push({ rcs, name, struckOff: status === "struck_off", status });
   }
   return { total: Number.isFinite(total) ? total : null, items };
 }

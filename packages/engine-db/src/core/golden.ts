@@ -66,7 +66,13 @@ export const GOLDEN_FIELD: Record<string, keyof Golden> = {
 };
 
 /** Kind: constant. Attributes where disagreement between sources is worth a person's attention. */
-export const CONFLICT_ATTRIBUTES = ["name", "legalForm", "status", "rcsNumber", "lei", "address", "registrationDate", "website"];
+/**
+ * Kind: constant. Attributes where a disagreement between sources opens a conflict for a person to check.
+ * Name and address are NOT here on purpose: they follow strict precedence (LBR first, then CSSF, then the rest,
+ * ops.attribute_precedence) with no manual check; the disagreement stays visible in the field lineage
+ * (sources agreeing / total).
+ */
+export const CONFLICT_ATTRIBUTES = ["legalForm", "status", "rcsNumber", "lei", "registrationDate", "website"];
 
 /** Kind: type alias. Lineage of one golden field. */
 export type Lineage = { attribute: string; claimId: number | null; source: EngineSource; value: unknown; sourcesAgreeing: number; sourcesTotal: number };

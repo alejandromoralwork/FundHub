@@ -197,3 +197,12 @@ test("RCS struck-off company page ('radiée'): status, deletion date, address, l
   assert.deepEqual(r.facts.address, { street: "8-10, rue Genistre", postcode: "1623", city: "Luxembourg", country: "LU", raw: "8-10, rue Genistre, 1623 Luxembourg" });
   assert.equal(r.filings!.length, 0);
 });
+
+test("LBR search list: a row whose only text is 'radiée' is a nameless struck-off company", () => {
+  const text = ["3 search result(s) for xyz", "B2", "radiée", "B100554", "ARENDT SERVICES S.A.", "B142564", "DEME Offshore LU SA", "struck off", "Site map"].join("\n");
+  const list = parseRcsSearchList(text)!;
+  assert.deepEqual(
+    list.items.map((i) => [i.rcs, i.name, i.status]),
+    [["B2", "B2", "struck_off"], ["B100554", "ARENDT SERVICES S.A.", null], ["B142564", "DEME Offshore LU SA", "struck_off"]],
+  );
+});

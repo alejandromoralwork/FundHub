@@ -439,7 +439,8 @@ export async function stagingQueue(f: { source?: string } = {}) {
       where p.review_status = 'pending' ${f.source && (ENGINE_SOURCES as readonly string[]).includes(f.source) ? sql`and r.source = ${f.source}` : sql``}
       order by p.created_at desc limit 200`)
   ).rows;
-  return plain(rows);
+  // Raw SQL returns bigint columns as strings: the actions expect numeric ids.
+  return plain(rows.map((r) => ({ ...r, id: Number(r.id) })));
 }
 
 /** Kind: async function. All review queues at once (counts + rows) for the Review page. */
@@ -460,7 +461,9 @@ export async function reviewPage(f: { source?: string } = {}) {
       from core.news_mentions m join core.companies c on c.id = m.company_id join clean.articles a on a.id = m.article_id
       where m.decision = 'pending' order by a.published_at desc nulls last limit 300`),
   ]);
-  return plain({ staging, matches, conflicts: conflictRows.rows, rejects: rejects.rows, mentions: mentions.rows });
+  // Raw SQL returns bigint ids as strings: numbers for the actions.
+  const num = <T extends { id: unknown }>(rows: T[]) => rows.map((r) => ({ ...r, id: Number(r.id) }));
+  return plain({ staging, matches, conflicts: num(conflictRows.rows), rejects: num(rejects.rows), mentions: num(mentions.rows) });
 }
 
 // ------------------------------------------------------------------ data quality

@@ -95,6 +95,7 @@ The website source is held to strict rules:
 - `manual` (a staff edit) always wins. Clearing it hands the field back to the sources.
 - The full ranking is the `ops.attribute_precedence` table, shown on the Sources page and editable in the Database module.
 - After changing precedence, run `reprocess --source <code> --from consolidate`.
+- **Name and address are pure precedence:** a staff edit first, then LBR (company pages `rcs`, then extracts `lbr_bulk`), then CSSF, then GLEIF, FundHub and the website. A mismatch never opens a conflict for a person; it shows in the field's lineage (sources agreeing / total) on the company's Lineage tab. Conflicts are still opened for legal form, status, RCS number, LEI, registration date and website (`CONFLICT_ATTRIBUTES` in `packages/engine-db/src/core/golden.ts`).
 
 ### Staging approval policies (defaults, editable on the Sources page)
 

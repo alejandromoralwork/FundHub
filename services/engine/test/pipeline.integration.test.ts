@@ -4,7 +4,7 @@
  * WHAT IT DOES: Runs records through raw → staging → [approval gate] → clean → match → core and checks every
  *   layer, plus each gate path: held (pending), approved, edited-and-approved (manual claim wins), rejected,
  *   policy switched to auto (flows straight through); and cross-checking: two sources linked by LEI, a
- *   disagreement on the address opens a match.conflicts row, lineage names the winning source.
+ *   disagreement on the address is settled by precedence (no conflict row), lineage names the winning source.
  *   Uses a dedicated CSSF scope and test identifiers, and deletes everything it created at the end.
  * WHERE IT RUNS: `npm test -w @fundhub/engine` (skipped when the database is not reachable).
  */
@@ -96,7 +96,8 @@ test("layered pipeline: gate paths, cleaning, cross-source matching, conflicts a
   assert.equal((await db.select().from(rejects).where(and(eq(rejects.sourceRecordId, a.sourceRecordId), eq(rejects.attribute, "email")))).length, 1);
   assert.equal(await releaseApproved(p.id), null, "releasing twice is a no-op");
 
-  // 3. CROSS-CHECK: GLEIF links by LEI to the same company; addresses disagree → conflict; CSSF wins by precedence.
+  // 3. CROSS-CHECK: GLEIF links by LEI to the same company; addresses disagree → CSSF wins by precedence, no conflict
+  //    to check (name / address are pure precedence), the disagreement is in the lineage.
   const g = await ingestParsed(gleifRec(), raw("gleif", LEI), 1, ctx);
   assert.equal(g.status, "new");
   assert.equal(g.companyId, companyId);
@@ -104,8 +105,7 @@ test("layered pipeline: gate paths, cleaning, cross-source matching, conflicts a
   assert.equal(co.sourceCount, 2);
   assert.equal(co.registeredAddress?.postcode, "L-1111", "postcode normalized and CSSF wins the address");
   const [conflict] = await db.select().from(conflicts).where(and(eq(conflicts.companyId, companyId), eq(conflicts.attribute, "address")));
-  assert.equal(conflict?.status, "open");
-  assert.equal(conflict?.winner, "cssf");
+  assert.equal(conflict, undefined, "no address conflict: precedence decides");
   const [lin] = await db.select().from(fieldLineage).where(and(eq(fieldLineage.companyId, companyId), eq(fieldLineage.attribute, "address")));
   assert.equal(lin.source, "cssf");
   assert.equal(lin.sourcesTotal, 2);
