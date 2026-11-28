@@ -23,7 +23,10 @@ import { db, pool } from "@fundhub/engine-db/client";
 import { documentScopeSql } from "@fundhub/engine-db/core/document-scope";
 import { recomputeCompany } from "@fundhub/engine-db/core/entity";
 import { validCompanySql } from "@fundhub/engine-db/core/registry";
-import { companies, companyGroupMembers, companyGroups, companyIdentifiers, documents, filings, sourceRecords } from "@fundhub/engine-db/schema";
+import { companies, companyGroupMembers, companyGroups, companyIdentifiers, documents, filings, reviewPolicies, sourceRecords } from "@fundhub/engine-db/schema";
+import type { ParsedRecord, RawCapture } from "../src/core/types";
+import { clearPolicyCache } from "../src/pipeline/gate";
+import { ingestParsed } from "../src/pipeline/ingest";
 import { storeDocument } from "../src/capture-server";
 import { FsBlobStore, sha256 } from "../src/storage";
 import { purgeUnwantedDocuments } from "../src/pipeline/documents";
@@ -206,6 +209,38 @@ test("docs:purge-unwanted removes only PDFs whose filings are all of a not-kept 
     await db.delete(sourceRecords).where(eq(sourceRecords.id, rec.id));
     await db.delete(documents).where(inArray(documents.sha256, [sha256(keepPdf), sha256(dropPdf)]));
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("monthly loop: a page held for review still writes its filings, so new documents can be saved", { skip }, async () => {
+  const n = String(Date.now()).slice(-6);
+  const rcs = `B4${n}`;
+  const scope = `T-HELD-${n}`;
+  const raw = (body: string): RawCapture => ({ source: "rcs", externalId: rcs, url: `https://www.lbr.lu/mjrcs-web-front/consult-company/${rcs}`, httpStatus: 200, contentType: "application/json", body: Buffer.from(body), ext: "json" });
+  const rec = (address: string, filingNos: string[]): ParsedRecord => ({
+    source: "rcs", externalId: rcs, state: "found", scope,
+    facts: { name: `${tag} Held SA`, rcsNumber: rcs, status: "active", address: { raw: address, postcode: "1111", city: "Luxembourg", country: "LU" } },
+    identifiers: [{ scheme: "rcs", value: rcs }], names: [{ name: `${tag} Held SA`, kind: "legal", validFrom: null }],
+    filings: filingNos.map((f, i) => ({ filingNumber: f, filingDate: `2026-0${i + 1}-01`, type: i ? "Modification" : "Annual accounts", details: i ? ["Registered office"] : [], corrects: null, correctedBy: null, hasDocuments: true })),
+  });
+  const blobs = new FsBlobStore(await mkdtemp(join(tmpdir(), "fh-held-")));
+  const [pol] = await db.insert(reviewPolicies).values({ source: "rcs", scope, mode: "review_if", conditions: { protectedAttributes: ["address"] }, note: "test" }).returning({ id: reviewPolicies.id });
+  clearPolicyCache();
+  let srId = 0;
+  try {
+    const first = await ingestParsed(rec("1 rue A, L-1111 Luxembourg", [`L1${n}001`]), raw("v1"), 1, { blobs });
+    srId = first.sourceRecordId;
+    assert.ok(first.status === "new" || first.status === "held");
+    // Next month: the address changed (held for review) and a new filing appeared.
+    const second = await ingestParsed(rec("9 rue B, L-1111 Luxembourg", [`L1${n}001`, `L1${n}002`]), raw("v2"), 1, { blobs });
+    assert.equal(second.status, "held");
+    const fs = await db.select({ f: filings.filingNumber }).from(filings).where(eq(filings.sourceRecordId, srId));
+    assert.deepEqual(fs.map((x) => x.f).sort(), [`L1${n}001`, `L1${n}002`]);
+  } finally {
+    await db.delete(reviewPolicies).where(eq(reviewPolicies.id, pol.id));
+    clearPolicyCache();
+    if (srId) await db.delete(sourceRecords).where(eq(sourceRecords.id, srId));
+    await db.execute(sql`delete from core.companies where canonical_name = ${`${tag} Held SA`}`);
   }
 });
 

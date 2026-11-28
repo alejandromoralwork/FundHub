@@ -4,8 +4,10 @@
  * WHAT IT DOES: Capture ROUNDS ("loops") — the plan and register of passes over RCS companies that a person works
  *   through with the FundHub LBR Capture extension:
  *   - initial round: companies known (GLEIF / CSSF / imports) but never captured from the RCS;
- *   - update round (e.g. monthly): companies already captured, most-likely-changed first — unchanged pages cost
- *     nothing (content hash) and only new filings' PDFs are fetched.
+ *   - update round (e.g. monthly): companies already captured and not struck off, most-likely-changed first —
+ *     unchanged pages cost nothing (content hash) and only documents not saved yet are fetched (new filings, or
+ *     ones that failed last time). A page that changes a legal fact is "held" for Review, but its filings (and so
+ *     its documents) are saved on the same visit.
  *   Functions: start / close a round, next items, record a visit or a document, skip, reset skipped
  *   ("clean the cycle"), stats and the register of all rounds. One round is active at a time.
  * WHERE IT RUNS: on Node.js — engine (capture-server, CLI) and admin console server actions.
@@ -87,6 +89,8 @@ export async function startRound(opts: { kind: "initial" | "update"; scope: Roun
         join core.companies e on e.id = s.company_id
         join core.company_identifiers i on i.company_id = e.id and i.scheme = 'rcs' and i.value = s.external_id
         where s.source = 'rcs' and s.state = 'found'
+          -- struck-off companies file nothing any more: not revisited monthly
+          and e.status <> 'struck_off'
           and (${skipDays} = 0 or s.last_seen_at < now() - (${skipDays} || ' days')::interval)
           ${where}
       ) q`);
@@ -144,10 +148,23 @@ export async function skipItem(rcs: string, tx: EngineTx = db) {
 export async function recordVisit(rcs: string, result: { status: string; filingsAfter?: number | null; newFilings?: number; error?: string }, tx: EngineTx = db) {
   const r = await activeRound(tx);
   if (!r) return null;
-  const status = result.error ? "failed" : result.status === "new" ? "captured" : result.status === "changed" ? "changed" : result.status === "unchanged" ? "unchanged" : "not_found";
+  // "held" = the page changed a legal fact and waits in Review (its filings and documents are saved already).
+  const status = result.error
+    ? "failed"
+    : result.status === "new"
+      ? "captured"
+      : result.status === "changed"
+        ? "changed"
+        : result.status === "held"
+          ? "held"
+          : result.status === "unchanged"
+            ? "unchanged"
+            : result.status === "skipped"
+              ? "failed"
+              : "not_found";
   await tx
     .update(lbrCaptureRoundItems)
-    .set({ status, visitedAt: new Date(), filingsAfter: result.filingsAfter ?? null, newFilings: sql`${lbrCaptureRoundItems.newFilings} + ${result.newFilings ?? 0}`, error: result.error ?? null })
+    .set({ status, visitedAt: new Date(), filingsAfter: result.filingsAfter ?? null, newFilings: sql`${lbrCaptureRoundItems.newFilings} + ${result.newFilings ?? 0}`, error: result.error ?? (result.status === "skipped" ? "RCS source switched off (Sources page)" : null) })
     .where(and(eq(lbrCaptureRoundItems.roundId, r.id), eq(lbrCaptureRoundItems.rcs, rcs)));
   return r;
 }
@@ -166,6 +183,7 @@ export type RoundStats = {
   pending: number;
   captured: number;
   changed: number;
+  held: number;
   unchanged: number;
   not_found: number;
   skipped: number;
@@ -184,6 +202,7 @@ export async function roundStats(roundId: number, tx: EngineTx = db): Promise<Ro
              count(*) filter (where status = 'pending')::int as pending,
              count(*) filter (where status = 'captured')::int as captured,
              count(*) filter (where status = 'changed')::int as changed,
+             count(*) filter (where status = 'held')::int as held,
              count(*) filter (where status = 'unchanged')::int as unchanged,
              count(*) filter (where status = 'not_found')::int as not_found,
              count(*) filter (where status = 'skipped')::int as skipped,

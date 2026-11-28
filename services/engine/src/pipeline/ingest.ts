@@ -25,7 +25,7 @@ import { contentHash } from "../core/normalize";
 import type { ParsedRecord, RawCapture, SourceAdapter } from "../core/types";
 import { blobKey, sha256, type BlobStore } from "../storage";
 import { evaluate, loadPolicies, pickPolicy } from "./gate";
-import { daysFromNow, refreshDays, releaseParsed, splitEdit, wouldCreateCompany } from "./release";
+import { daysFromNow, refreshDays, releaseParsed, splitEdit, wouldCreateCompany, writeFilings } from "./release";
 
 /** Kind: type alias. What happened to one acquired version. "held" = waiting at the approval gate. */
 export type IngestStatus = "new" | "changed" | "unchanged" | "not_found" | "gone" | "held" | "skipped";
@@ -125,6 +125,8 @@ export async function ingestParsed(rec: ParsedRecord, raw: RawCapture, parserVer
     });
     if (decision.hold) {
       await tx.update(parsedRecords).set({ reviewStatus: "pending", reviewReasons: decision.reasons, reviewPolicyId: decision.policyId }).where(eq(parsedRecords.id, parsed.id));
+      // The filings list goes in now (factual, append-only), so new filings' documents can be saved this visit.
+      if (rec.filings?.length) await writeFilings(tx, sr.id, rec);
       await tx.update(sourceRecords).set({ lastChangedAt: now }).where(eq(sourceRecords.id, sr.id));
       return { status: "held" as const, companyId: sr.companyId, sourceRecordId: sr.id, changes: 0, reasons: decision.reasons };
     }

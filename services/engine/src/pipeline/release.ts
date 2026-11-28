@@ -171,12 +171,7 @@ async function writeDetails(tx: EngineTx, rec: ParsedRecord, sourceRecordId: num
       where source_record_id = ${sourceRecordId}
         and (detail_type || ':' || code) not in (select jsonb_array_elements_text(${JSON.stringify(keep)}::jsonb))`);
   }
-  for (const f of rec.filings ?? []) {
-    await tx
-      .insert(filings)
-      .values({ sourceRecordId, ...f })
-      .onConflictDoUpdate({ target: filings.filingNumber, set: { correctedBy: f.correctedBy, corrects: f.corrects, details: f.details, hasDocuments: f.hasDocuments } });
-  }
+  await writeFilings(tx, sourceRecordId, rec);
   for (const p of rec.pages ?? []) {
     await tx
       .insert(webPages)
@@ -369,4 +364,18 @@ export function splitEdit(original: ParsedRecord, edited: ParsedRecord): { rec: 
   }
   for (const k of Object.keys(original.facts)) if (!(k in (edited.facts ?? {})) && !(MANUAL_ATTRIBUTES as readonly string[]).includes(k)) delete facts[k];
   return { rec: { ...edited, facts }, manual: manual as ManualEdit };
+}
+
+/**
+ * Kind: async function. Upserts the LBR filings list of a record (clean.filings). Also used for a version HELD at
+ * the approval gate: the filings list is factual and append-only (filings are never deleted), and its documents
+ * can only be saved once the filings are known; the legal facts of the held version still wait for review.
+ */
+export async function writeFilings(tx: EngineTx, sourceRecordId: number, rec: ParsedRecord) {
+  for (const f of rec.filings ?? []) {
+    await tx
+      .insert(filings)
+      .values({ sourceRecordId, ...f })
+      .onConflictDoUpdate({ target: filings.filingNumber, set: { correctedBy: f.correctedBy, corrects: f.corrects, details: f.details, hasDocuments: f.hasDocuments } });
+  }
 }

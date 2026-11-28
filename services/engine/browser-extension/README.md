@@ -66,10 +66,10 @@ Work in **rounds**. Each round is a list of companies to visit and a record of w
 | Round | Covers | What a visit saves |
 |---|---|---|
 | **Initial** | Companies known (GLEIF / CSSF) but never captured | Profile and all filings; documents if you save them |
-| **Update** (e.g. monthly) | Companies already captured. Those most likely to have changed come first: another source changed, then recent filers, then service providers. "Skip if captured in the last N days" leaves out recent ones. | **Only changes.** An unchanged page writes nothing. Only **new filings' PDFs** are fetched, because documents already saved are skipped. |
+| **Update** (e.g. monthly) | Companies already captured and **not struck off**. Those most likely to have changed come first: another source changed, then recent filers, then service providers. "Skip if captured in the last N days" leaves out recent ones. | **Only changes.** An unchanged page writes nothing. Only documents **not saved yet** are fetched (new filings, or ones that failed last time); a document is never saved twice (the extension asks the engine which filings already have their PDF, and the engine refuses a second copy). |
 
 **In the popup (tab 2 · Capture filings):**
-* The **round** card shows its name, progress and what was found (new / changed / unchanged / skipped / new filings / new PDFs).
+* The **round** card shows its name, progress and what was found (new / changed / held / unchanged / skipped / new filings / new PDFs). **Held** = the page changed a legal fact (name, address, status, legal form) and waits in Admin → Review; its new filings and their documents are saved on the same visit.
 * The dark **Next company** box has the **Open on LBR →** button.
 * Round buttons: **New round…** (kind, which companies: all / service providers / asset managers / CSSF entities / name, skip-days), **Close round** (archives it), **Reset skipped** (puts skipped and failed companies back in the queue).
 * **Also save every PDF of each company I open**: fetches the documents not saved yet, a few seconds apart.
@@ -85,6 +85,11 @@ Work in **rounds**. Each round is a list of companies to visit and a record of w
 **Register:** the admin console page **Scraping engine → Capture rounds** (`/admin/engine/rounds`) lists every round and its counts, plus each company's result. You can also use the CLI: `npm run engine -- round:list | round:status | round:start --kind update --scope sp --skip-days 20 | round:close | round:reset-skipped`.
 
 Without an active round, the extension falls back to the list of never-captured companies.
+
+**Monthly routine:**
+1. Popup → **New round…** → kind **Update**, companies **CSSF entities** (or all), skip **20** days → Start. (Or `npm run engine -- round:start --kind update --scope cssf --skip-days 20`.)
+2. Open any LBR company page → **Autopilot ▶ Start** (or click **Next** yourself). It saves each page, the documents still missing, then the next company; 100 per run.
+3. When the round is done: Admin → Review for the **held** companies (approve the legal changes), then **Close round**. The register keeps the month's counts.
 
 ## Search sweep (find the companies FundHub doesn't know yet)
 

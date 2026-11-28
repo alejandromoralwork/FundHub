@@ -232,7 +232,7 @@ export const lbrCaptureRounds = ops.table(
 );
 
 /** Kind: constant. States of one company within a round. */
-export const ROUND_ITEM_STATUSES = ["pending", "captured", "changed", "unchanged", "not_found", "skipped", "failed"] as const;
+export const ROUND_ITEM_STATUSES = ["pending", "captured", "changed", "held", "unchanged", "not_found", "skipped", "failed"] as const;
 
 /** Kind: table "ops.lbr_capture_round_items". One company of a round and what happened when it was visited. */
 export const lbrCaptureRoundItems = ops.table(

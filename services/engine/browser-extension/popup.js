@@ -248,6 +248,7 @@ async function loadCapture() {
         <div class="fh-chips">
           <span title="Captured for the first time">new <b>${fmt(s.captured)}</b></span>
           <span title="Something changed since the last capture">changed <b>${fmt(s.changed)}</b></span>
+          <span title="A legal fact changed: waits in Review (filings and documents already saved)">held <b>${fmt(s.held || 0)}</b></span>
           <span title="Nothing changed">unchanged <b>${fmt(s.unchanged)}</b></span>
           <span title="Skipped or failed — bring them back with Reset skipped">skipped <b>${fmt(s.skipped)}</b></span>
           <span>new filings <b>${fmt(s.new_filings)}</b></span>

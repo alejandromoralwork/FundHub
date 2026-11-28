@@ -22,7 +22,7 @@ import { useAction } from "./use-action";
 
 type Data = Awaited<ReturnType<typeof roundsPage>>;
 
-const ITEM_COLOR: Record<string, string> = { pending: "default", captured: "green", changed: "gold", unchanged: "blue", not_found: "red", skipped: "default", failed: "red" };
+const ITEM_COLOR: Record<string, string> = { pending: "default", captured: "green", changed: "gold", held: "purple", unchanged: "blue", not_found: "red", skipped: "default", failed: "red" };
 
 /** Kind: React component. "New round" modal. */
 function NewRound({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -90,6 +90,7 @@ export function RoundsView({ data, canEdit, status }: { data: Data; canEdit: boo
               { title: "Progress", render: (_, r) => <div style={{ minWidth: 140 }}><Progress size="small" percent={r.stats.total ? Math.round((r.stats.done / r.stats.total) * 100) : 0} /><Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.stats.done.toLocaleString()} / {r.stats.total.toLocaleString()}</Typography.Text></div> },
               { title: "New", render: (_, r) => r.stats.captured, width: 60 },
               { title: "Changed", render: (_, r) => r.stats.changed, width: 75 },
+              { title: "Held", render: (_, r) => r.stats.held ?? 0, width: 60 },
               { title: "Unchanged", render: (_, r) => r.stats.unchanged, width: 90 },
               { title: "Not found", render: (_, r) => r.stats.not_found, width: 85 },
               { title: "Skipped", render: (_, r) => r.stats.skipped, width: 75 },
