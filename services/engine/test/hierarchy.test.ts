@@ -133,5 +133,13 @@ test("document filings: only the useful filing types keep their PDF", () => {
   assert.equal(keep("Consolidated accounts"), true);
   assert.equal(keep("Resignation"), false);
   assert.equal(keep("NACE code update"), false);
+  assert.equal(keep("Modification", ["Associate(s)"]), true);
+  assert.equal(keep("Modification", ["Social capital/social funds", "Social object"]), true);
+  assert.equal(keep("Modification", ["Social object"]), false);
+  assert.equal(keep("End of the domiciliation agreement"), true);
+  assert.equal(keep("Modification - Dissolution / Liquidation", ["Liquidator(s)"]), true);
+  assert.equal(keep("Modification", ["Liquidation"]), true);
+  assert.equal(keep("Court order - Bankruptcy"), false);
+  assert.equal(keep("Project of merger"), false);
   assert.equal(filingWantsDocument("Resignation", [], "all"), true);
 });

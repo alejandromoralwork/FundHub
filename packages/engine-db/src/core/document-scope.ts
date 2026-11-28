@@ -11,8 +11,8 @@
  *   - "legacy": service providers and fund general partners (the rule before the CSSF run).
  *   Within a company in scope, only some FILING TYPES are worth their PDF (DOCUMENT_FILINGS, default "selected"):
  *   annual accounts and consolidated accounts (all variants), coordinated articles of association, registration, and modifications whose
- *   details include trade name(s), registered office or the person(s) in charge of checking the accounts
- *   (auditor). Modifications that only change directors / signatories, signature lists, resignations, NACE
+ *   details include trade name(s), registered office, the person(s) in charge of checking the accounts
+ *   (auditor), associate(s) or social capital; end of domiciliation agreements; dissolution / liquidation filings. Modifications that only change directors / signatories, signature lists, resignations, NACE
  *   updates… keep their filing row but not the document. "all" keeps every document.
  * WHERE IT RUNS: engine workers, capture server, admin console.
  */
@@ -68,28 +68,40 @@ export function documentFilingsMode(): "selected" | "all" {
  */
 const FILING_TYPE_PREFIXES = ["annual accounts", "comptes annuels", "consolidated accounts", "comptes consolidés"];
 const FILING_TYPES_EXACT = ["coordinated articles of association", "statuts coordonnés", "registration", "immatriculation"];
+/**
+ * Kind: constant. Words that keep a filing when they appear in its type or in a detail: end of a domiciliation
+ * agreement (names the domiciliation agent) and dissolution / liquidation decisions (name the liquidator).
+ * Matched as words because LBR's exact wording varies (and is French on the French site).
+ */
+const FILING_KEYWORDS = ["domiciliation", "dissolution", "liquidation"];
 /** Kind: constant. A "Modification…" filing is kept when one of its details is one of these. */
 const MODIFICATION_DETAILS = [
   "trade name(s)",
   "registered office",
   "person(s) in charge of checking the accounts",
+  "associate(s)",
+  "social capital/social funds",
   "dénomination(s)",
   "siège social",
   "personne(s) chargée(s) du contrôle des comptes",
+  "associé(s)",
+  "capital social/fonds social",
 ];
 
 /** Kind: function. Human wording of the filing rule (extension, errors). */
 export const documentFilingsLabel = () =>
   documentFilingsMode() === "all"
     ? "all filings"
-    : "annual and consolidated accounts, coordinated articles, registration, and modifications of trade name / registered office / auditor";
+    : "annual and consolidated accounts, coordinated articles, registration, domiciliation / dissolution / liquidation filings, and modifications of trade name / registered office / auditor / associates / capital";
 
 /** Kind: function. Is this filing's document worth keeping? */
 export function filingWantsDocument(type: string, details: string[] = [], mode = documentFilingsMode()): boolean {
   if (mode === "all") return true;
   const t = type.trim().toLowerCase();
   if (FILING_TYPE_PREFIXES.some((p) => t.startsWith(p)) || FILING_TYPES_EXACT.includes(t)) return true;
-  return t.startsWith("modification") && details.some((d) => MODIFICATION_DETAILS.includes(d.trim().toLowerCase()));
+  const ds = details.map((d) => d.trim().toLowerCase());
+  if (FILING_KEYWORDS.some((k) => t.includes(k) || ds.some((d) => d.includes(k)))) return true;
+  return t.startsWith("modification") && ds.some((d) => MODIFICATION_DETAILS.includes(d));
 }
 
 const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
@@ -101,6 +113,8 @@ export function filingDocumentSql(alias = "f", mode = documentFilingsMode()): SQ
   return sql.raw(
     `(${FILING_TYPE_PREFIXES.map((p) => `${t} like ${lit(p + "%")}`).join(" or ")}` +
       ` or ${t} in (${FILING_TYPES_EXACT.map(lit).join(", ")})` +
+      FILING_KEYWORDS.map((k) => ` or ${t} like ${lit(`%${k}%`)}`).join("") +
+      ` or exists (select 1 from jsonb_array_elements_text(${alias}.details) kd where ${FILING_KEYWORDS.map((k) => `lower(kd) like ${lit(`%${k}%`)}`).join(" or ")})` +
       ` or (${t} like 'modification%' and exists (select 1 from jsonb_array_elements_text(${alias}.details) fd` +
       ` where lower(trim(fd)) in (${MODIFICATION_DETAILS.map(lit).join(", ")}))))`,
   );

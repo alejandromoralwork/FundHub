@@ -260,7 +260,8 @@ Within those companies, only useful **filing types** keep their PDF (`DOCUMENT_F
 | ✔ | Annual accounts (all variants: eCDF, Article 71…) and consolidated accounts |
 | ✔ | Coordinated articles of association |
 | ✔ | Registration |
-| ✔ | Any "Modification…" whose details include **Trade name(s)**, **Registered office** or **Person(s) in charge of checking the accounts** (auditor). LBR files auditor changes as "Modification relating solely to authorized representatives", so those are kept only when the auditor changed. |
+| ✔ | **End of the domiciliation agreement**, and any filing whose type or details mention **dissolution** or **liquidation** (they name the domiciliation agent / the liquidator) |
+| ✔ | Any "Modification…" whose details include **Trade name(s)**, **Registered office**, **Person(s) in charge of checking the accounts** (auditor), **Associate(s)** (shareholders) or **Social capital/social funds**. LBR files auditor changes as "Modification relating solely to authorized representatives", so those are kept only when the auditor changed. |
 | ✘ | Modifications of directors / delegates only, authorized signature lists, resignations, NACE updates, merger projects, and the rest (the filing row is still kept) |
 
 The rule lives in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for any other company or filing type, and for filings whose company page was not saved yet, and the browser extension offers "Save all documents" (and the automatic download) only in scope. To capture the in-scope companies first, use the work-list filter **CSSF entities** (popup, console rounds, `round:start --scope cssf`).
