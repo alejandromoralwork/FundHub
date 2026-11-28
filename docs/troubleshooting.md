@@ -93,7 +93,7 @@ The general pattern for any service `X`: `systemctl status X` (is it running?), 
 | "Run scrape" jobs never run | `services/scraper/.env` missing, or timer stopped | `systemctl list-timers 'fundhub-*'`; `journalctl -u fundhub-scraper-jobs -n 30` | Create the `.env`; `sudo systemctl enable --now fundhub-scraper-jobs.timer` |
 | No new backups | Backup failing | `journalctl -u fundhub-engine-backup -n 30` | Fix the error; `sudo systemctl start fundhub-engine-backup` |
 | Everything slow, services killed | Out of memory (4 GB VM) | `free -m`; `journalctl -k | grep -i oom` | Close editor tabs / restart code-server; consider a bigger VM |
-| Writes fail everywhere | Disk full | `df -h /` | Delete old dumps in `/var/backups/fundhub-engine`, old captures; grow the disk |
+| Writes fail everywhere | Disk full | `df -h / /srv/fundhub-data` | Delete old dumps in `/var/backups/fundhub-engine`; move PDFs / captures to the data disk (`infra/vm/bin/data-disk-setup.sh`); grow the disk |
 
 ### Authelia
 

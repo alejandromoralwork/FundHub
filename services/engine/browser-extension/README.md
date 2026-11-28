@@ -71,7 +71,7 @@ Work in **rounds**. Each round is a list of companies to visit and a record of w
 **In the popup (tab 2 · Capture filings):**
 * The **round** card shows its name, progress and what was found (new / changed / unchanged / skipped / new filings / new PDFs).
 * The dark **Next company** box has the **Open on LBR →** button.
-* Round buttons: **New round…** (kind, which companies: all / service providers / asset managers / name, skip-days), **Close round** (archives it), **Reset skipped** (puts skipped and failed companies back in the queue).
+* Round buttons: **New round…** (kind, which companies: all / service providers / asset managers / CSSF entities / name, skip-days), **Close round** (archives it), **Reset skipped** (puts skipped and failed companies back in the queue).
 * **Also save every PDF of each company I open**: fetches the documents not saved yet, a few seconds apart.
 * **Up next** (fold-out): the following companies, each with Open or ✕ (skip).
 
@@ -125,7 +125,7 @@ Progress: popup (words searched, companies found, numbers known per RCS prefix),
 
 1. Log in on https://www.lbr.lu as usual.
 2. **Pick a company.** There are three ways:
-   * The **popup**, tab 2: **Open on LBR →**, or **Up next** for the following companies (without a round you can filter by service providers, asset managers, or name / B-number).
+   * The **popup**, tab 2: **Open on LBR →**, or **Up next** for the following companies (without a round you can filter by service providers, asset managers, CSSF entities, or name / B-number).
    * The **panel** on LBR pages (bottom right) shows the next 5.
    * The shortcut **Alt+Shift+N** opens the next company of the work list, using the popup's filter.
 
@@ -133,7 +133,7 @@ Progress: popup (words searched, companies found, numbers known per RCS prefix),
 3. When the page has loaded and LBR's check is gone, the page is **saved automatically**: profile and filings. If LBR shows its check, the panel says so; complete it, and saving follows.
 4. **Documents.**
    * Any document you open is saved and linked to its filing.
-   * The panel's **Save all documents of this company** opens the remaining documents 4–8 s apart. It stops on LBR's check, an access limit, or **Stop**.
+   * The panel's **Save all documents of this company** (shown only for companies in the document scope — by default CSSF entities that are not funds, `DOCUMENT_SCOPE` on the engine) opens the remaining documents 4–8 s apart. It stops on LBR's check, an access limit, or **Stop**.
    * With the popup switch **Also save every PDF of each company I open** (tab 2), this starts by itself on each company you open.
 
 You can stop at any time. The work list skips everything already captured, so the next session continues where you left off.

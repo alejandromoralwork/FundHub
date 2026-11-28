@@ -133,7 +133,7 @@ One-way: the `publish_proposals` job writes proposals into the website's `ingest
 In order of importance:
 
 1. **Data location.** The website DB is in Neon `us-east-1` and the VM in Azure Central India. FundHub handles EU personal data (directors, accounts): move both to an EU region (Frankfurt / West Europe).
-2. **Engine files** (filing PDFs, kept only for service providers and fund GPs) go on a separate Azure data disk ([infra/vm/README.md → Data disk for filing PDFs](../infra/vm/README.md#data-disk-for-filing-pdfs)). Snapshot it regularly. Later, consider object storage (`STORAGE_DRIVER=s3`) and putting the database on its own data disk too.
+2. **Engine files** (filing PDFs, kept only for the document scope — by default CSSF entities that are not funds, `DOCUMENT_SCOPE`) and capture files go on a separate Azure data disk ([infra/vm/README.md → Data disk for filing PDFs](../infra/vm/README.md#data-disk-for-filing-pdfs)). Snapshot it regularly. Later, consider object storage (`STORAGE_DRIVER=s3`) and putting the database on its own data disk too.
 3. **Social and people sources** (LinkedIn, Glassdoor, Instagram, Facebook, X) are registered but disabled: schema and review policies exist, adapters are phase 2. Their terms forbid scraping; keep to public pages, human pace, and the GDPR minimization in [data-pipeline.md](data-pipeline.md).
 4. **Internal data separation.** Finance, CRM, staff and audit tables share the website DB, separated by roles. Next step: move them to an `internal` schema the `fundhub_web` role cannot reach; a separate database later if needed.
 5. **Dev and prod on one VM.** The engine runs from the development checkout. Later, run it from a fixed release (the existing `services/engine/Dockerfile`).

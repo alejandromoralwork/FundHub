@@ -80,7 +80,7 @@ The admin console has a **Scraping engine** section. It needs `ENGINE_DATABASE_U
 | Page | What it does | Who |
 |---|---|---|
 | Overview | Totals, census against what each source reports, RCS coverage per prefix, RCS session state (pause / resume), queue, runs, latest changes | owner, operations, analyst |
-| Registry | Every entity, searchable by name, former name, RCS no., LEI or CSSF code. Filters: kind, service provider, category, status, tier, source, has-RCS | owner, operations, analyst |
+| Registry | Every entity, searchable by name, former name, RCS no., LEI or CSSF code. Filters: kind, service provider, category, status, tier, source, has-RCS, in RCS (registry status) | owner, operations, analyst |
 | Entity page | Golden record and which source won each field; edit or remove your overrides; classification; clients (add / end); history of every attribute, change events, CSSF statuses, RCS filings, row history | owner and operations can edit |
 | Jobs & schedules | Run any job with its parameters, switch schedules on/off, edit the RCS number space, see the queue | owner, operations |
 | Match review | Possible duplicates: "Same company" merges them, "Different" keeps them apart | owner, operations |

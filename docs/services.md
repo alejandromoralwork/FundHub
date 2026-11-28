@@ -94,7 +94,7 @@ Builds one registry of every Luxembourg entity from CSSF, GLEIF and the RCS/LBR 
 | Runs on | Azure VM, from the repo checkout |
 | Commands | `npm run engine -- <command>`: `status`, `entity B145917`, `run cssf_census`, `run gleif_sync`, `round:*`, `sweep:*`, `worker`, `scheduler` |
 | Settings | `services/engine/.env` (`ENGINE_DATABASE_URL`, `CAPTURE_TOKEN`, storage), template `services/engine/.env.example` |
-| Data | Engine database (module 7); raw pages and PDFs in `services/engine/.engine-data/` |
+| Data | Engine database (module 7); raw pages and PDFs under `STORAGE_ROOT` (`/srv/fundhub-data/engine/blobs` once the data disk is set up, else `services/engine/.engine-data/blobs`) |
 | Tests | `npm test -w @fundhub/engine` |
 
 ## 5. Capture receiver (`fundhub-capture`)
@@ -106,7 +106,8 @@ The engine's HTTP service that the Chrome extension talks to: receives LBR pages
 | Address | `https://<vm>/engine/*` → `127.0.0.1:4477`; every request needs `Authorization: Bearer <CAPTURE_TOKEN>` (no 2FA: it is a machine client) |
 | Operate | code-server: *Terminal → Run Task → Capture server: start / restart / stop / logs*, or `npm run capture:start` / `capture:restart`; logs `journalctl -u fundhub-capture -f` |
 | Token | `npm run capture:token` (reads `services/engine/.env`) |
-| Captures | Also saved as files in `services/engine/.engine-data/captures/` (`npm run engine -- rcs:import-captures` re-imports them) |
+| Captures | Also saved as gzip JSON files in `CAPTURES_DIR` (`/srv/fundhub-data/engine/captures` with the data disk, else `services/engine/.engine-data/captures/`); `npm run engine -- rcs:import-captures` re-imports them (`.json` and `.json.gz`) |
+| Documents | Filing PDFs only for the document scope (`DOCUMENT_SCOPE`, default `cssf`: CSSF entities that are not funds); see [data-pipeline.md → Filing documents](data-pipeline.md#filing-documents-pdfs) |
 
 ## 6. LBR capture extension
 
@@ -188,7 +189,7 @@ FundHub's internal files: `Finance/Receipts`, `Clients`, `Providers`, `Legal`, `
 
 ## 13. Backups (`fundhub-engine-backup`)
 
-Nightly at 03:30 UTC: `pg_dump` of the engine DB to `/var/backups/fundhub-engine/`, checked readable, 14 days kept; optional off-VM copy with rclone (`RCLONE_REMOTE` in `/etc/default/fundhub-backup`).
+Nightly at 03:30 UTC: `pg_dump` of the engine DB to `/var/backups/fundhub-engine/`, checked readable, 14 days kept; optional off-VM copy with rclone (`RCLONE_REMOTE` in `/etc/default/fundhub-backup`, pruned after 14 days). Filing PDFs: set `RCLONE_DOCS_REMOTE` (and `DOCS_DIR` if not `/srv/fundhub-data/engine/blobs/docs`) for a separate copy that only adds new files and is never pruned.
 
 Run now: `sudo systemctl start fundhub-engine-backup`; list: `sudo ls -lh /var/backups/fundhub-engine`; restore: [infra/vm/README.md → Restore](../infra/vm/README.md#restore-a-backup).
 

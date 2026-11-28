@@ -77,7 +77,7 @@ Dependency direction: `apps/*` and `services/*` import `packages/*`; packages ne
 |---|---|
 | `core` | `taxonomy.ts` (service categories), `enums.ts`, `filters.ts`, `score.ts` (FundHub Score), `awards.ts`, `format.ts`, `password*.ts`, `company.ts` (legal identity — fill in before launch) |
 | `db` | `src/schema.ts`, `src/client.ts`, `src/queries.ts`, `drizzle/` (migrations), `scripts/` (`local-postgres`, `migrate`, `seed`, `roles`, `pipelines/import-providers`, `pipelines/publish-staged`), `data/` (sample providers and posts — fictional) |
-| `engine-db` | `src/schema.ts`, `src/client.ts`, `src/core/` (entity, golden, classify, rounds, sweep — shared by engine and admin), `src/seed-data.ts`, `drizzle/` |
+| `engine-db` | `src/schema.ts`, `src/client.ts`, `src/core/` (entity, golden, classify, registry (RCS existence), document-scope (which PDFs are kept), rounds, sweep — shared by engine and admin), `src/seed-data.ts`, `drizzle/` |
 | `email` | `src/templates/`, `src/send.ts` (Resend; without a key, mails print to the console and are still logged) |
 
 ## 3. Conventions

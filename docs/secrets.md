@@ -40,7 +40,7 @@ Every password, key and token FundHub depends on, where it lives, and what happe
 | Metabase app DB / `fundhub_bi_ro` passwords | `/etc/metabase/metabase.env`, `~/.fundhub-secrets/bi-ro-db-url` | `ALTER ROLE …`, update the file (and re-run `bi:provision` for `fundhub_bi_ro`) |
 | code-server password | `~/.config/code-server/config.yaml` | Edit, restart `code-server@alejandro` |
 
-**Not secrets, but irreplaceable data** (back up off the VM): the engine database (nightly dumps in `/var/backups/fundhub-engine`), the Drive files (`/srv/fundhub-drive`), LBR captures and PDFs (`services/engine/.engine-data/`). The website database is protected by Neon's point-in-time restore.
+**Not secrets, but irreplaceable data** (back up off the VM): the engine database (nightly dumps in `/var/backups/fundhub-engine`), the Drive files (`/srv/fundhub-drive`), LBR captures and PDFs (`/srv/fundhub-data/engine/` once the data disk is set up, else `services/engine/.engine-data/`). The website database is protected by Neon's point-in-time restore.
 
 ## 3. The VM secrets bundle
 

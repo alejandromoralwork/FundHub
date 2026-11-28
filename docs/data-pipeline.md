@@ -95,7 +95,7 @@ The website source is held to strict rules:
 - Licences come only from the CSSF.
 - `manual` (a staff edit) always wins. Clearing it hands the field back to the sources.
 - The full ranking is the `ops.attribute_precedence` table, shown on the Sources page and editable in the Database module.
-- After changing precedence, run `reprocess --source <code> --from consolidate`.
+- After changing precedence, recompute: `npm run engine -- run reprocess --source <code> --from consolidate` for the companies one source feeds, or `npm run engine -- run reclassify --all` for every company.
 - **Name and address are pure precedence:** a staff edit first, then LBR (company pages `rcs`, then extracts `lbr_bulk`), then CSSF, then GLEIF, FundHub and the website. A mismatch never opens a conflict for a person; it shows in the field's lineage (sources agreeing / total) on the company's Lineage tab. Conflicts are still opened for legal form, status, RCS number, LEI, registration date and website (`CONFLICT_ATTRIBUTES` in `packages/engine-db/src/core/golden.ts`).
 
 The order is **RCS > CSSF > GLEIF** (migration `0008_registry_status` put CSSF ahead of GLEIF for legal form, status, RCS number and website). Precedence only decides fields where sources disagree: a field only CSSF or GLEIF states is kept, and source-specific facts (CSSF type and authorisation, GLEIF category…) stay as claims.
@@ -114,7 +114,7 @@ Any valid company must exist in the RCS; CSSF and GLEIF entities need not. CSSF 
 
 `validCompanySql()` (verified, or a compartment of a verified umbrella) gates publishing to the website. The capture work list filter `cssf` (popup, rounds, `round:start --scope cssf`) puts CSSF entities first so they get verified.
 
-Rollback of 0008 (no rows were deleted): drop `core.companies.registry_status` (its check constraint and index) and `raw.documents.rcs_number`, swap the `cssf` / `gleif` ranks back in `ops.attribute_precedence`, then run `reprocess --from consolidate`.
+Rollback of 0008 (no rows were deleted): drop `core.companies.registry_status` (its check constraint and index) and `raw.documents.rcs_number`, swap the `cssf` / `gleif` ranks back in `ops.attribute_precedence`, then run `npm run engine -- run reclassify --all`.
 
 ### Staging approval policies (defaults, editable on the Sources page)
 
@@ -246,11 +246,18 @@ The primary category stays on `core.companies`. The Companies list's category fi
 
 ## Filing documents (PDFs)
 
-The LBR filings list is kept for every captured company. The filing PDFs themselves are kept only for two groups:
-- **service providers**;
-- **general partners of funds** (`fund_role = general_partner`).
+The LBR filings list is kept for every captured company. The filing PDFs themselves are kept only for the **document scope**, chosen with `DOCUMENT_SCOPE` in `services/engine/.env`:
 
-The rule lives in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for any other company, and the browser extension offers "Save all documents" (and the automatic download) only for the two groups. Files sit on the VM's data disk (`STORAGE_ROOT`, see [infra/vm/README.md](../infra/vm/README.md#data-disk-for-filing-pdfs)). The database stores only their hash and storage key.
+| `DOCUMENT_SCOPE` | Companies whose PDFs are kept |
+|---|---|
+| `cssf` (default) | CSSF entities that are not funds: ManCos / AIFMs, banks, financial institutions, supervised service providers, GPs with a CSSF record (about 1,450). Funds (umbrella, sub-fund, standalone, master, feeder) are left out. |
+| `legacy` | service providers and general partners of funds (`fund_role = general_partner`), the rule before the CSSF run |
+
+The rule lives in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for any other company, and the browser extension offers "Save all documents" (and the automatic download) only in scope. To capture the in-scope companies first, use the work-list filter **CSSF entities** (popup, console rounds, `round:start --scope cssf`).
+
+Before anything is written, the capture server checks that the file is a real PDF (`%PDF-`), that the filing belongs to the company the page was sent for, and that the filing has no document yet (a second copy is answered "already saved"). Each `raw.documents` row records the RCS number it was sent for, so a PDF that arrives before its company page is linked later only to that company's filing.
+
+**Storage:** files are content-addressed (`docs/<2 chars>/<sha256>.pdf`), so identical PDFs are stored once and never renamed. They sit on the VM's data disk (`STORAGE_ROOT`, see [infra/vm/README.md](../infra/vm/README.md#data-disk-for-filing-pdfs)); the database stores only the hash, storage key and size. PDFs are not recompressed (they already are). Off-VM copy: a disk snapshot, or `RCLONE_DOCS_REMOTE` in the nightly backup.
 
 ## Where a person decides
 
