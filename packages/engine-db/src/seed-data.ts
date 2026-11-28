@@ -216,13 +216,13 @@ export const SOURCES: SourceSeed[] = [
  */
 export const PRECEDENCE: Record<string, EngineSource[]> = {
   name: ["rcs", "lbr_bulk", "cssf", "gleif", "fundhub", "website"],
-  legalForm: ["rcs", "lbr_bulk", "gleif", "cssf"],
-  status: ["rcs", "lbr_bulk", "gleif", "cssf"],
+  legalForm: ["rcs", "lbr_bulk", "cssf", "gleif"],
+  status: ["rcs", "lbr_bulk", "cssf", "gleif"],
   address: ["rcs", "lbr_bulk", "cssf", "gleif", "fundhub", "website"],
   registrationDate: ["rcs", "lbr_bulk", "gleif"],
   lei: ["gleif", "cssf"],
-  rcsNumber: ["rcs", "lbr_bulk", "gleif", "cssf", "fundhub"],
-  website: ["fundhub", "website", "gleif", "cssf"],
+  rcsNumber: ["rcs", "lbr_bulk", "cssf", "gleif", "fundhub"],
+  website: ["fundhub", "website", "cssf", "gleif"],
   websiteVerifiedAt: ["website"],
   description: ["fundhub", "website", "linkedin"],
   phone: ["fundhub", "website", "facebook"],

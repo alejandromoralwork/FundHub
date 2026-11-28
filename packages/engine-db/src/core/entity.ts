@@ -13,7 +13,7 @@
  * TYPESCRIPT YOU WILL SEE HERE: Drizzle query builder, `sql` templates, `Partial<T>`, `keyof`.
  */
 
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, type EngineTx } from "../client";
 import {
   activityCategories,
@@ -47,6 +47,7 @@ import {
 } from "../schema";
 import { classify } from "./classify";
 import { fundProfile, mergeKind } from "./fund-profile";
+import { registryStatus } from "./registry";
 import { loadCategories, serviceRowsFromIds, serviceRowsFromLabels, syncServices } from "./services";
 import { consolidate, PRECEDENCE, type Precedence } from "./golden";
 import { normalizeCountries, normalizeName, sameValue } from "./normalize";
@@ -242,10 +243,18 @@ export async function recomputeCompany(tx: EngineTx, companyId: string): Promise
     for (const src of ["fundhub", "website"]) await syncServices(tx, companyId, src, serviceRowsFromLabels(stated.get(src), cats));
   }
 
+  // Existence (core/registry.ts): only LBR confirms a company; everything else stays pending / unregistered.
+  const lbr = await tx
+    .select({ state: sourceRecords.state })
+    .from(sourceRecords)
+    .where(and(eq(sourceRecords.companyId, companyId), inArray(sourceRecords.source, ["rcs", "lbr_bulk"])));
+  const profile = { fundRole: company.fundRole, legalVehicle: company.legalVehicle, ...(classification as Partial<Pick<typeof company, "fundRole" | "legalVehicle">>) };
+  const registry = registryStatus({ lbrStates: lbr.map((r) => r.state), hasRcsIdentifier: ids.some((i) => i.scheme === "rcs"), hasCompartmentIdentifier: ids.some((i) => i.scheme === "cssf_compartment"), ...profile });
+
   const changed = (Object.keys(next) as (keyof typeof next)[]).some((k) => !sameValue(next[k], company[k]));
   await tx
     .update(companies)
-    .set({ ...next, ...classification, sourceCount: result.sourceCount, lastSeenAt: new Date(), ...(changed ? { lastChangedAt: new Date() } : {}) })
+    .set({ ...next, ...classification, registryStatus: registry, sourceCount: result.sourceCount, lastSeenAt: new Date(), ...(changed ? { lastChangedAt: new Date() } : {}) })
     .where(eq(companies.id, companyId));
 
   // Lineage: one row per golden field; fields no source states any more are removed.

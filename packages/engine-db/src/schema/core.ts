@@ -11,7 +11,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import { type AnyPgColumn, boolean, index, integer, jsonb, primaryKey, real, serial, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, boolean, check, index, integer, jsonb, primaryKey, real, serial, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import {
   CHANGE_KINDS,
   CLASSIFICATION_SOURCES,
@@ -20,6 +20,7 @@ import {
   FUND_EVENT_KINDS,
   MANDATE_STATUSES,
   REGISTER_SCOPES,
+  REGISTRY_STATUSES,
   COMPANY_STATUSES,
   ENGINE_SOURCES,
   FUND_LAWS,
@@ -136,6 +137,8 @@ export const companies = core.table(
     /** ISO country of the legal seat ("LU" for nearly all; foreign parents, branches and back offices otherwise). */
     jurisdiction: text("jurisdiction").notNull().default("LU"),
     registerScope: text("register_scope", { enum: REGISTER_SCOPES }),
+    /** Does LBR / RCS confirm this company exists? Recomputed with the golden record (core/registry.ts). */
+    registryStatus: text("registry_status", { enum: REGISTRY_STATUSES }).notNull().default("pending"),
     // Fund lifecycle (job fund_lifecycle, from core.fund_events): first launch / authorisation, and closure.
     launchDate: day("launch_date"),
     launchDateSource: text("launch_date_source"),
@@ -158,6 +161,8 @@ export const companies = core.table(
     index("companies_fund_idx").on(t.fundRegime, t.fundLaw),
     index("companies_fund_role_idx").on(t.fundRole),
     index("companies_launch_idx").on(t.launchDate),
+    index("companies_registry_status_idx").on(t.registryStatus),
+    check("companies_registry_status_check", sql.raw(`registry_status in (${REGISTRY_STATUSES.map((s) => `'${s}'`).join(", ")})`)),
   ],
 );
 

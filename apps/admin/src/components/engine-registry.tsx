@@ -3,7 +3,7 @@
  * FILE: apps/admin/src/components/engine-registry.tsx
  * PART: console (apps/admin)
  * WHAT IT DOES: The registry list: every entity (golden record) with search (name, former names, RCS number,
- *   LEI, CSSF code) and filters (kind, service provider, category, status, tier, source, has RCS). Filters live
+ *   LEI, CSSF code) and filters (kind, service provider, category, status, tier, source, has RCS, in RCS). Filters live
  *   in the URL (?q=…&kind=…), so a filtered view can be bookmarked or shared; the server does the querying.
  * WHERE IT RUNS: in the browser (client component), rendered by app/(console)/engine/companies/page.tsx.
  * TYPESCRIPT YOU WILL SEE HERE: `URLSearchParams`, `useRouter().push`, `Record<string, string | undefined>`.
@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Input, Select, Space, Table, Tag, Typography } from "antd";
-import { ENGINE_SOURCES, COMPANY_KINDS, COMPANY_STATUSES } from "@fundhub/engine-db/enums";
+import { ENGINE_SOURCES, COMPANY_KINDS, COMPANY_STATUSES, REGISTRY_STATUSES } from "@fundhub/engine-db/enums";
 import type { categoryOptions, registryList, RegistryFilters } from "@/lib/engine-data";
 import { FUND_ROLE_LABEL, LAW_LABEL, REGIME_COLOR, REGIME_LABEL, VEHICLE_LABEL, optionsOf } from "@/lib/fund-labels";
 import type { FundRegime, FundRole, LegalVehicle } from "@fundhub/engine-db/enums";
@@ -23,6 +23,9 @@ type Categories = Awaited<ReturnType<typeof categoryOptions>>;
 
 /** Kind: constant. Colour per entity status. */
 export const STATUS_COLOR: Record<string, string> = { active: "green", in_liquidation: "orange", struck_off: "red", unknown: "default" };
+/** Kind: constant. Existence in LBR / RCS (core.companies.registry_status): label and colour. */
+export const REGISTRY_LABEL: Record<string, string> = { verified: "in RCS", pending: "RCS not captured", rcs_not_found: "not in RCS", compartment: "sub-fund", unregistered: "no RCS no." };
+export const REGISTRY_COLOR: Record<string, string> = { verified: "green", pending: "gold", rcs_not_found: "red", compartment: "default", unregistered: "orange" };
 
 /** Kind: React component. The page. */
 export function RegistryList({ list, filters, categories }: { list: List; filters: RegistryFilters; categories: Categories }) {
@@ -52,12 +55,13 @@ export function RegistryList({ list, filters, categories }: { list: List; filter
         <Select allowClear placeholder="Fund law" style={{ width: 200 }} value={filters.law} options={optionsOf(LAW_LABEL)} onChange={(law) => go({ law })} />
         <Select allowClear placeholder="Fund role" style={{ width: 180 }} value={filters.role} options={optionsOf(FUND_ROLE_LABEL)} onChange={(role) => go({ role })} />
         <Select allowClear placeholder="RCS number" style={{ width: 140 }} value={filters.rcs} options={[{ value: "yes", label: "Has RCS no." }, { value: "no", label: "No RCS no." }]} onChange={(rcs) => go({ rcs })} />
+        <Select allowClear placeholder="In RCS?" style={{ width: 160 }} value={filters.registry} options={REGISTRY_STATUSES.map((v) => ({ value: v, label: REGISTRY_LABEL[v] }))} onChange={(registry) => go({ registry })} />
       </Space>
       <Table size="small" rowKey="id" dataSource={list.rows}
         pagination={{ current: list.page, pageSize: list.pageSize, total: list.total, showSizeChanger: false, onChange: (page) => go({ ...filters, page: String(page) }) }}
         columns={[
           { title: "Name", dataIndex: "name", render: (n: string, r) => <Link href={`/engine/companies/${r.id}`}>{n}</Link> },
-          { title: "RCS", dataIndex: "rcsNumber", render: (v: string | null) => <span className="mono">{v ?? "—"}</span>, width: 100 },
+          { title: "RCS", dataIndex: "rcsNumber", render: (v: string | null, r) => <Space size={2} direction="vertical"><span className="mono">{v ?? "—"}</span><Tag color={REGISTRY_COLOR[r.registryStatus]}>{REGISTRY_LABEL[r.registryStatus] ?? r.registryStatus}</Tag></Space>, width: 130 },
           { title: "Status", dataIndex: "status", render: (s: string) => <Tag color={STATUS_COLOR[s]}>{s.replace(/_/g, " ")}</Tag>, width: 110 },
           { title: "Kind", dataIndex: "kind", render: (k: string, r) => <Space size={2}>{r.sp && <Tag color="blue">SP</Tag>}<span>{k.replace(/_/g, " ")}</span></Space>, width: 170 },
           {

@@ -22,7 +22,7 @@ import { COMPANY_KINDS, COMPANY_STATUSES, RELATION_KINDS } from "@fundhub/engine
 import type { categoryOptions, entityDetail } from "@/lib/engine-data";
 import { addMandate, addRelation, endMandate, endRelationAction, findCompanies, saveEntityEdit, saveServices } from "@/lib/engine-actions";
 import { fmt, short, STATE_COLOR } from "./engine-overview";
-import { STATUS_COLOR } from "./engine-registry";
+import { REGISTRY_COLOR, REGISTRY_LABEL, STATUS_COLOR } from "./engine-registry";
 import { useAction } from "./use-action";
 import { FUND_ROLE_LABEL, GROUP_KIND_LABEL, GROUP_ROLE_LABEL, GROUP_SOURCE_COLOR, LAW_LABEL, MANAGER_LABEL, REGIME_COLOR, REGIME_LABEL, VEHICLE_LABEL, optionsOf } from "@/lib/fund-labels";
 import type { FundLaw, FundRegime, FundRole, GroupKind, GroupRole, LegalVehicle, ManagerType } from "@fundhub/engine-db/enums";
@@ -277,7 +277,7 @@ export function EntityView({ d, categories, canEdit }: { d: Detail; categories: 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Card
-        title={<Space wrap><span style={{ fontSize: 18 }}>{e.canonicalName}</span><Tag color={STATUS_COLOR[e.status]}>{e.status.replace(/_/g, " ")}</Tag>{e.isServiceProvider && <Tag color="blue">service provider</Tag>}<Tag>{e.companyKind.replace(/_/g, " ")}</Tag><Tag>tier {e.tier}</Tag></Space>}
+        title={<Space wrap><span style={{ fontSize: 18 }}>{e.canonicalName}</span><Tag color={STATUS_COLOR[e.status]}>{e.status.replace(/_/g, " ")}</Tag><Tag color={REGISTRY_COLOR[e.registryStatus]} title="Existence in LBR / RCS (the source of truth)">{REGISTRY_LABEL[e.registryStatus] ?? e.registryStatus}</Tag>{e.isServiceProvider && <Tag color="blue">service provider</Tag>}<Tag>{e.companyKind.replace(/_/g, " ")}</Tag><Tag>tier {e.tier}</Tag></Space>}
         extra={<Space><Link href="/engine/companies">← Companies</Link>{canEdit && <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>}</Space>}
       >
         <Table size="small" pagination={false} rowKey="attr" dataSource={FIELDS}

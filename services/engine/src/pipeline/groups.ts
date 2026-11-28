@@ -390,7 +390,7 @@ export async function ensureCompartmentCompanies(): Promise<{ compartments: Comp
         const lei = r.lei && !leiTaken.has(r.lei) ? r.lei : null;
         const [c] = await tx
           .insert(companies)
-          .values({ canonicalName: name, normalizedName: normalizeName(name), status: "active", companyKind: "fund", fundRole: "sub_fund", legalVehicle: "sub_fund", lei })
+          .values({ canonicalName: name, normalizedName: normalizeName(name), status: "active", companyKind: "fund", fundRole: "sub_fund", legalVehicle: "sub_fund", registryStatus: "compartment", lei })
           .returning({ id: companies.id });
         companyId = c.id;
         created++;

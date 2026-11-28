@@ -88,7 +88,8 @@ The website source is held to strict rules:
 
 | Kind of field | Fields | Most trusted first |
 |---|---|---|
-| Legal facts | name, legal form, status, address, registration date, RCS number | `rcs` → `lbr_bulk` → `cssf` / `gleif` → `fundhub` → `website` |
+| Legal facts | name, legal form, status, address, registration date, RCS number | `rcs` → `lbr_bulk` → `cssf` → `gleif` → `fundhub` → `website` |
+| LEI | lei | `gleif` → `cssf` (GLEIF issues LEIs; RCS never states one) |
 | Descriptive facts | description, services, headcount, contacts | `fundhub` → `website` → `linkedin` |
 
 - Licences come only from the CSSF.
@@ -96,6 +97,24 @@ The website source is held to strict rules:
 - The full ranking is the `ops.attribute_precedence` table, shown on the Sources page and editable in the Database module.
 - After changing precedence, run `reprocess --source <code> --from consolidate`.
 - **Name and address are pure precedence:** a staff edit first, then LBR (company pages `rcs`, then extracts `lbr_bulk`), then CSSF, then GLEIF, FundHub and the website. A mismatch never opens a conflict for a person; it shows in the field's lineage (sources agreeing / total) on the company's Lineage tab. Conflicts are still opened for legal form, status, RCS number, LEI, registration date and website (`CONFLICT_ATTRIBUTES` in `packages/engine-db/src/core/golden.ts`).
+
+The order is **RCS > CSSF > GLEIF** (migration `0008_registry_status` put CSSF ahead of GLEIF for legal form, status, RCS number and website). Precedence only decides fields where sources disagree: a field only CSSF or GLEIF states is kept, and source-specific facts (CSSF type and authorisation, GLEIF category…) stay as claims.
+
+### Existence: RCS is the source of truth (`registry_status`)
+
+Any valid company must exist in the RCS; CSSF and GLEIF entities need not. CSSF and GLEIF may still create companies (the census stays complete and the LBR work list knows what to look up), but only LBR confirms them. `core.companies.registry_status`, recomputed with the golden record (`packages/engine-db/src/core/registry.ts`):
+
+| Value | Meaning |
+|---|---|
+| `verified` | an `rcs` page or `lbr_bulk` search row was found on LBR |
+| `pending` | an RCS number is known (e.g. from GLEIF) but LBR was not captured yet |
+| `rcs_not_found` | LBR was asked and had no such company |
+| `compartment` | a sub-fund: not an RCS entity; valid when its umbrella / head is verified |
+| `unregistered` | no RCS number known: needs an LBR name search |
+
+`validCompanySql()` (verified, or a compartment of a verified umbrella) gates publishing to the website. The capture work list filter `cssf` (popup, rounds, `round:start --scope cssf`) puts CSSF entities first so they get verified.
+
+Rollback of 0008 (no rows were deleted): drop `core.companies.registry_status` (its check constraint and index) and `raw.documents.rcs_number`, swap the `cssf` / `gleif` ranks back in `ops.attribute_precedence`, then run `reprocess --from consolidate`.
 
 ### Staging approval policies (defaults, editable on the Sources page)
 

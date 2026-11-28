@@ -46,6 +46,8 @@ import {
   sourceRecords,
   COMPANY_KINDS,
   COMPANY_STATUSES,
+  REGISTRY_STATUSES,
+  type RegistryStatus,
   ENGINE_SOURCES,
   companyGroups,
   companyGroupMembers,
@@ -119,6 +121,8 @@ export type RegistryFilters = {
   tier?: string;
   source?: string;
   rcs?: string;
+  /** Existence in LBR / RCS (core.companies.registry_status, see packages/engine-db/src/core/registry.ts). */
+  registry?: string;
   /** Fund profile: UCITS / AIF, product law, role in a fund structure. */
   regime?: string;
   law?: string;
@@ -163,6 +167,7 @@ export async function registryList(f: RegistryFilters) {
   if (f.role && (FUND_ROLES as readonly string[]).includes(f.role)) conds.push(eq(companies.fundRole, f.role as (typeof FUND_ROLES)[number]));
   if (f.rcs === "yes") conds.push(sql`${companies.rcsNumber} is not null`);
   if (f.rcs === "no") conds.push(isNull(companies.rcsNumber));
+  if (f.registry && (REGISTRY_STATUSES as readonly string[]).includes(f.registry)) conds.push(eq(companies.registryStatus, f.registry as RegistryStatus));
   if (f.source && (ENGINE_SOURCES as readonly string[]).includes(f.source)) {
     conds.push(sql`exists (select 1 from staging.source_records s where s.company_id = companies.id and s.source = ${f.source} and s.state = 'found')`);
   }
@@ -180,6 +185,7 @@ export async function registryList(f: RegistryFilters) {
         rcsNumber: companies.rcsNumber,
         lei: companies.lei,
         status: companies.status,
+        registryStatus: companies.registryStatus,
         kind: companies.companyKind,
         sp: companies.isServiceProvider,
         tier: companies.tier,

@@ -44,6 +44,8 @@ export const documents = raw.table("documents", {
   pages: integer("pages"),
   /** The filing this document was opened from (when known), so it can be linked once the filing is captured. */
   filingNumber: text("filing_number"),
+  /** RCS number of the company the document was sent for (cross-check, and linking when no filing number). */
+  rcsNumber: text("rcs_number"),
   textStatus: text("text_status", { enum: TEXT_STATUSES }).notNull().default("pending"),
   textBlobKey: text("text_blob_key"),
   downloadedAt: ts("downloaded_at").notNull().defaultNow(),

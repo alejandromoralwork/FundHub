@@ -112,6 +112,18 @@ export type DatePrecision = (typeof DATE_PRECISIONS)[number];
 export const REGISTER_SCOPES = ["lu_rcs", "lu_unregistered", "foreign"] as const;
 export type RegisterScope = (typeof REGISTER_SCOPES)[number];
 
+/**
+ * Kind: constant. Whether LBR / RCS (the source of truth for existence) confirms the company exists.
+ * - verified: an "rcs" or "lbr_bulk" record was found on LBR.
+ * - pending: an RCS number is known (e.g. from GLEIF) but LBR has not been captured yet.
+ * - rcs_not_found: LBR was asked and had no such company.
+ * - compartment: a sub-fund (not an RCS entity itself); valid when its umbrella is verified.
+ * - unregistered: no RCS number known (CSSF / GLEIF / website only): needs an LBR name search.
+ * Only verified companies (and compartments of verified umbrellas) count as valid (core/registry.ts).
+ */
+export const REGISTRY_STATUSES = ["verified", "pending", "rcs_not_found", "compartment", "unregistered"] as const;
+export type RegistryStatus = (typeof REGISTRY_STATUSES)[number];
+
 // ---------------------------------------------------------------- service mandates (core.mandates)
 
 /**

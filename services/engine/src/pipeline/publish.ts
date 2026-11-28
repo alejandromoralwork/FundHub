@@ -8,12 +8,14 @@
  *   reaches the website automatically. The website never reads the Intelligence DB; this job only writes the
  *   `ingest_*` tables, with the restricted role WEBSITE_DATABASE_URL_PUBLISH.
  *   Values the provider itself declared (winner = "fundhub") are never proposed back to it.
+ *   Only companies LBR / RCS confirms exist are proposed (core/registry.ts validCompanySql).
  * WHERE IT RUNS: engine workers (job `publish_proposals`).
  */
 
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { db } from "@fundhub/engine-db/client";
+import { validCompanySql } from "@fundhub/engine-db/core/registry";
 import { countryName, sameValue } from "../core/normalize";
 
 /** Kind: type alias. One proposed field, as the console's review screen expects it. */
@@ -48,7 +50,7 @@ export async function publishProposals(opts: { publishUrl: string | undefined; l
                  from clean.claims x join staging.source_records r on r.id = x.source_record_id left join raw.fetches f on f.id = r.latest_fetch_id
                  where x.company_id = c.id and x.valid_to is null and x.source = 'website'
                    and x.attribute in ('assetClasses', 'certifications', 'regulatoryScope', 'techStack', 'claimedLicences')), '{}') as lists
-        from core.companies c where c.website_provider_id is not null
+        from core.companies c where c.website_provider_id is not null and ${validCompanySql("c")}
         order by c.last_changed_at desc limit ${opts.limit ?? 5000}`)
     ).rows;
 
