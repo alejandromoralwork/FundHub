@@ -511,7 +511,13 @@ export async function startCaptureServer() {
         const body = await readJson<DocumentBody>(req);
         if (!body?.data || !body.url?.startsWith(ALLOWED_ORIGIN)) return reply(400, { ok: false, error: "Not an LBR document" });
         const out = await storeDocument(body, blobs);
-        console.log(out.ok ? (out.alreadySaved ? `📄 ${out.filingNumber} already saved — skipped` : `📄 ${out.filingNumber ?? "?"} saved (${out.bytes} bytes${out.linked ? ", linked to filing" : ""})`) : `✘ document: ${out.error}`);
+        let path = "";
+        try {
+          path = new URL(body.url).pathname; // logged to learn LBR's document URLs (direct downloads would be faster)
+        } catch {
+          /* not a URL */
+        }
+        console.log(`${out.ok ? (out.alreadySaved ? `📄 ${out.filingNumber} already saved — skipped` : `📄 ${out.filingNumber ?? "?"} saved (${out.bytes} bytes${out.linked ? ", linked to filing" : ""})`) : `✘ document: ${out.error}`} ${path}`);
         return reply(200, out);
       }
       if (req.method === "POST" && url.pathname === "/skip") {

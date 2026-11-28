@@ -141,5 +141,6 @@ test("document filings: only the useful filing types keep their PDF", () => {
   assert.equal(keep("Modification", ["Liquidation"]), true);
   assert.equal(keep("Court order - Bankruptcy"), false);
   assert.equal(keep("Project of merger"), false);
+  assert.equal(keep("Investment funds - Management regulations"), true);
   assert.equal(filingWantsDocument("Resignation", [], "all"), true);
 });

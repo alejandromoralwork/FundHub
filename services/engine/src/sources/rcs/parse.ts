@@ -62,7 +62,8 @@ export function parseFilings(lines: string[]): RcsFilingRow[] {
         if (c) row.corrects = c[1];
         else if (cb) row.correctedBy = cb[1];
         else if (/^no documents?$/i.test(line)) row.hasDocuments = false;
-        else if (line !== "-") row.details.push(line);
+        // "-" = no details; a bare number is the paginator under the table ("1", "2" → "12"), never a detail.
+        else if (line !== "-" && !/^\d+$/.test(line)) row.details.push(line);
       }
       out.push(row);
     }

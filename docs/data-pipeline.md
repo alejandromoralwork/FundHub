@@ -260,6 +260,7 @@ Within those companies, only useful **filing types** keep their PDF (`DOCUMENT_F
 | ✔ | Annual accounts (all variants: eCDF, Article 71…) and consolidated accounts |
 | ✔ | Coordinated articles of association |
 | ✔ | Registration |
+| ✔ | **Investment funds – Management regulations** (the FCP regulations a ManCo files: which funds it manages) |
 | ✔ | **End of the domiciliation agreement**, and any filing whose type or details mention **dissolution** or **liquidation** (they name the domiciliation agent / the liquidator) |
 | ✔ | Any "Modification…" whose details include **Trade name(s)**, **Registered office**, **Person(s) in charge of checking the accounts** (auditor), **Associate(s)** (shareholders) or **Social capital/social funds**. LBR files auditor changes as "Modification relating solely to authorized representatives", so those are kept only when the auditor changed. |
 | ✘ | Modifications of directors / delegates only, authorized signature lists, resignations, NACE updates, merger projects, and the rest (the filing row is still kept) |

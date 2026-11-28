@@ -322,7 +322,9 @@
     lastKey = key;
     capturing = true;
     try {
-      return await sendCapture(kind, t);
+      // LBR shows the filings in pages of 200: add the rows of the other pages, so the engine gets the full list.
+      const full = kind === "company" ? await withAllFilingPages(t) : t;
+      return await sendCapture(kind, full);
     } finally {
       capturing = false;
     }
@@ -413,13 +415,16 @@
     }
     if (msg.kind === "pdf" && settings.enabled) {
       const filingNumber = (msg.url.match(FILING_RE) || [])[0] || (Date.now() - lastClick.at < 60_000 ? lastClick.filing : null);
-      const r = await send({ type: "document", payload: { url: msg.url, contentType: msg.contentType, data: msg.data, filingNumber, rcs: rcsOfPage() } });
+      // The document is in hand: let "Save all documents" click the next one while this one uploads.
+      if (bulk && bulk.waitingFor && (!filingNumber || filingNumber === bulk.waitingFor)) bulk.resolve(true);
+      const upload = send({ type: "document", payload: { url: msg.url, contentType: msg.contentType, data: msg.data, filingNumber, rcs: rcsOfPage() } });
+      uploads.add(upload);
+      const r = await upload.finally(() => uploads.delete(upload));
       if (r.ok) {
         if (filingNumber) savedFilings.add(filingNumber);
         if (ui.company && r.linked && !r.alreadySaved) ui.company.docs_saved += 1;
         toast(r.alreadySaved ? `<span class="muted">📄 ${esc(filingNumber)} was already saved — skipped</span>` : `<span class="ok">📄 ${esc(filingNumber || "document")} saved${r.linked ? "" : " (not linked to a filing)"}</span>`);
       } else toast(`<span class="warn">⚠ document: ${esc(r.error)}</span>`);
-      if (bulk && bulk.waitingFor && (!filingNumber || filingNumber === bulk.waitingFor)) bulk.resolve(true);
     }
   });
 
@@ -457,6 +462,67 @@
     return out;
   }
 
+  // ---- the filings list is paginated (200 rows per page)
+  /** Pause between two documents of "Save all documents". */
+  const DOC_PAUSE_MS = [1500, 3000];
+  /** Document uploads still on their way to the engine. */
+  const uploads = new Set();
+  const paginator = () => document.querySelector('[id$="_deposit-list-table_paginate"]');
+  /** Highest page number shown in the paginator (1 when there is no paginator). */
+  const filingPageCount = () => Math.max(1, ...[...(paginator()?.querySelectorAll("span.page") || [])].map((x) => Number(x.textContent.trim()) || 1));
+  const firstFilingShown = () => (filingRows()[0] || {}).filing || null;
+  /** Waits until the table shows other rows than `before` (the page changed); false after 10 s. */
+  async function waitRowsChange(before) {
+    for (let i = 0; i < 50; i++) {
+      await sleep(200);
+      const now = firstFilingShown();
+      if (now && now !== before) return true;
+    }
+    return false;
+  }
+  /** Moves to the next filings page; false when there is none (or it did not load). */
+  async function nextFilingsPage() {
+    const next = paginator()?.querySelector(".fa-chevron-right.chevron-enabled");
+    if (!next) return false;
+    const before = firstFilingShown();
+    clickElement(next);
+    return waitRowsChange(before);
+  }
+  async function gotoFirstFilingsPage() {
+    const one = [...(paginator()?.querySelectorAll("span.page") || [])].find((x) => x.textContent.trim() === "1");
+    if (!one || one.classList.contains("text-decoration-underline")) return true;
+    const before = firstFilingShown();
+    clickElement(one);
+    return waitRowsChange(before);
+  }
+  /** The rows on screen as page-text lines (filing no., date, type, details…), like the page's own text. */
+  const rowsAsText = () =>
+    filingRows()
+      .map(({ row }) => [...row.cells].map((td) => (td.innerText || "").trim()).filter(Boolean).join("\n"))
+      .join("\n");
+  /**
+   * Page text plus the rows of filings pages 2…n (inserted before the footer), then back to page 1.
+   * Without a paginator: the text unchanged. If a page does not load: what was gathered, with a warning.
+   */
+  async function withAllFilingPages(t) {
+    if (filingPageCount() <= 1 && !paginator()?.querySelector(".fa-chevron-right.chevron-enabled")) return t;
+    const extra = [];
+    let complete = true;
+    for (let guard = 0; guard < 50; guard++) {
+      if (!paginator()?.querySelector(".fa-chevron-right.chevron-enabled")) break;
+      if (!(await nextFilingsPage())) {
+        complete = false;
+        break;
+      }
+      extra.push(rowsAsText());
+    }
+    await gotoFirstFilingsPage();
+    if (!complete) toast('<span class="warn">⚠ Could not load every page of filings — saved what was shown. Save the page again later.</span>');
+    if (!extra.length) return t;
+    const footer = t.search(/\n\s*Site map\s*\n/i);
+    return footer >= 0 ? t.slice(0, footer) + "\n" + extra.join("\n") + t.slice(footer) : t + "\n" + extra.join("\n");
+  }
+
   async function saveAllDocuments() {
     const rcs = rcsOfPage();
     if (!rcs || bulk) return "busy";
@@ -474,55 +540,64 @@
     }
     // Only the filing types whose document the engine keeps (annual accounts, articles, registration, some modifications).
     const todo = new Set(known.filings.filter((f) => f.has_documents && !f.saved && f.wanted !== false).map((f) => f.filing_number));
-    const rows = filingRows().filter((r) => todo.has(r.filing));
-    if (!rows.length) {
-      ui.note = todo.size ? `${todo.size} documents to save, but their rows are not on this page (scroll / show all filings?).` : "All key documents of this company are already saved.";
+    for (const f of savedFilings) todo.delete(f);
+    if (!todo.size) {
+      ui.note = "All key documents of this company are already saved.";
       render();
       return "nothing";
     }
-    bulk = { total: rows.length, done: 0, stop: false, userStop: false, waitingFor: null, resolve: () => {} };
+    bulk = { total: todo.size, done: 0, stop: false, userStop: false, waitingFor: null, resolve: () => {} };
     // Remember the run: if the page is refreshed (or you come back later), it resumes by itself and skips what
     // is already saved. Only "Stop" or finishing forgets it.
     await chrome.storage.local.set({ bulkResume: { rcs, at: Date.now() } });
     let misses = 0;
     let outcome = "done";
     render();
-    for (const { filing, row } of rows) {
-      if (bulk.stop) break;
-      // Saved meanwhile (opened by hand, or a late arrival)? Never request it twice.
-      if (savedFilings.has(filing)) {
+    // The rows live on several pages of 200: start on page 1, then move page by page.
+    if (filingPageCount() > 1) await gotoFirstFilingsPage();
+    pages: for (;;) {
+      for (const { filing, row } of filingRows().filter((x) => todo.has(x.filing))) {
+        if (bulk.stop) break pages;
+        todo.delete(filing);
+        // Saved meanwhile (opened by hand, or a late arrival)? Never request it twice.
+        if (savedFilings.has(filing)) {
+          bulk.done++;
+          continue;
+        }
+        if (checkOnScreen()) {
+          ui.note = "LBR is showing its check / a limit — stopped. Continue later with the same button.";
+          outcome = "blocked";
+          break pages;
+        }
+        const ctl = consultControl(row);
+        if (!ctl) {
+          bulk.done++;
+          continue;
+        }
+        const got = new Promise((resolve) => {
+          bulk.waitingFor = filing;
+          bulk.resolve = resolve;
+          setTimeout(() => resolve(false), 20_000);
+        });
+        lastClick = { filing, at: Date.now() };
+        clickElement(ctl);
+        const ok = await got; // resolves when the PDF reaches the page; its upload continues in the background
+        if (!bulk) break pages;
         bulk.done++;
-        continue;
+        misses = ok ? 0 : misses + 1;
+        if (misses >= 2) {
+          ui.note = "No document arrived for 2 filings in a row — open one document by hand so the flow can be checked. Stopped.";
+          outcome = "error";
+          break pages;
+        }
+        render();
+        await sleep(DOC_PAUSE_MS[0] + Math.random() * (DOC_PAUSE_MS[1] - DOC_PAUSE_MS[0]));
       }
-      if (checkOnScreen()) {
-        ui.note = "LBR is showing its check / a limit — stopped. Continue later with the same button.";
-        outcome = "blocked";
-        break;
-      }
-      const ctl = consultControl(row);
-      if (!ctl) {
-        bulk.done++;
-        continue;
-      }
-      const got = new Promise((resolve) => {
-        bulk.waitingFor = filing;
-        bulk.resolve = resolve;
-        setTimeout(() => resolve(false), 20_000);
-      });
-      lastClick = { filing, at: Date.now() };
-      clickElement(ctl);
-      const ok = await got;
-      if (!bulk) break;
-      bulk.done++;
-      misses = ok ? 0 : misses + 1;
-      if (misses >= 2) {
-        ui.note = "No document arrived for 2 filings in a row — open one document by hand so the flow can be checked. Stopped.";
-        outcome = "error";
-        break;
-      }
-      render();
-      await sleep(4000 + Math.random() * 4000); // human pace
+      if (bulk.stop || !todo.size || !(await nextFilingsPage())) break;
     }
+    // Wait for the uploads still on their way to the engine before counting.
+    await Promise.allSettled([...uploads]);
+    if (outcome === "done" && todo.size && !bulk.stop) ui.note = `${todo.size} documents were not found on the filings pages (list changed?). Save the page again, then retry.`;
     const finished = bulk && !bulk.stop && bulk.done >= bulk.total;
     if (bulk && bulk.userStop) outcome = "stopped";
     if (finished || (bulk && bulk.userStop)) await chrome.storage.local.remove("bulkResume");

@@ -70,10 +70,11 @@ const FILING_TYPE_PREFIXES = ["annual accounts", "comptes annuels", "consolidate
 const FILING_TYPES_EXACT = ["coordinated articles of association", "statuts coordonnés", "registration", "immatriculation"];
 /**
  * Kind: constant. Words that keep a filing when they appear in its type or in a detail: end of a domiciliation
- * agreement (names the domiciliation agent) and dissolution / liquidation decisions (name the liquidator).
+ * agreement (names the domiciliation agent), dissolution / liquidation decisions (name the liquidator), and
+ * "Investment funds - Management regulations" (FCP regulations a ManCo files: which funds it manages).
  * Matched as words because LBR's exact wording varies (and is French on the French site).
  */
-const FILING_KEYWORDS = ["domiciliation", "dissolution", "liquidation"];
+const FILING_KEYWORDS = ["domiciliation", "dissolution", "liquidation", "management regulations", "règlement de gestion"];
 /** Kind: constant. A "Modification…" filing is kept when one of its details is one of these. */
 const MODIFICATION_DETAILS = [
   "trade name(s)",
@@ -92,7 +93,7 @@ const MODIFICATION_DETAILS = [
 export const documentFilingsLabel = () =>
   documentFilingsMode() === "all"
     ? "all filings"
-    : "annual and consolidated accounts, coordinated articles, registration, domiciliation / dissolution / liquidation filings, and modifications of trade name / registered office / auditor / associates / capital";
+    : "annual and consolidated accounts, coordinated articles, registration, domiciliation / dissolution / liquidation filings, FCP management regulations, and modifications of trade name / registered office / auditor / associates / capital";
 
 /** Kind: function. Is this filing's document worth keeping? */
 export function filingWantsDocument(type: string, details: string[] = [], mode = documentFilingsMode()): boolean {

@@ -206,3 +206,19 @@ test("LBR search list: a row whose only text is 'radiée' is a nameless struck-o
     [["B2", "B2", "struck_off"], ["B100554", "ARENDT SERVICES S.A.", null], ["B142564", "DEME Offshore LU SA", "struck_off"]],
   );
 });
+
+test("RCS: filings from several list pages (200 rows each) merge, and paginator numbers are never details", () => {
+  const page1 = readFileSync(new URL("./fixtures/lbr-company-B100554.txt", import.meta.url), "utf8");
+  const before = parseRcsText(page1, "B100554").filings!.length;
+  // What the extension sends: page 1, the paginator ("1" "2" → "12"), then page 2's rows before the footer.
+  const page2Rows = ["L050000001", "02/09/2005", "Registration", "-", "L050000002", "03/09/2005", "Modification", "Registered office"].join("\n");
+  const footer = page1.search(/\n\s*Site map\s*\n/i);
+  const merged = page1.slice(0, footer) + "\n12\n" + page2Rows + page1.slice(footer);
+  const r = parseRcsText(merged, "B100554");
+  assert.equal(r.filings!.length, before + 2);
+  const reg = r.filings!.find((f) => f.filingNumber === "L050000001")!;
+  assert.equal(reg.type, "Registration");
+  assert.deepEqual(reg.details, []);
+  assert.deepEqual(r.filings!.find((f) => f.filingNumber === "L050000002")!.details, ["Registered office"]);
+  assert.ok(r.filings!.every((f) => !f.details.some((d) => /^\d+$/.test(d))));
+});

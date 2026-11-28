@@ -307,5 +307,6 @@ export const QUALITY_CHECKS: { code: string; label: string; description: string;
   { code: "reject_rate", label: "Reject rate (7 days)", description: "Rejected values / claims written in the last 7 days.", layer: "clean", max: 0.02 },
   { code: "freshness", label: "Freshness", description: "Share of scheduled records refreshed on time (next_fetch_at not overdue by more than 2 days).", layer: "staging", min: 0.9 },
   { code: "website_completeness", label: "Websites known", description: "Share of active service providers with a website.", layer: "core", min: 0.9 },
+  { code: "filings_truncated", label: "Filings lists possibly cut", description: "LBR company pages saved with exactly 200, 400… filings: LBR pages its list by 200, so these were probably saved before the extension read every page. Save them again (count).", layer: "clean", max: 0 },
   { code: "website_verified", label: "Websites verified", description: "Share of known websites verified by their legal notice.", layer: "core", min: 0.6 },
 ];

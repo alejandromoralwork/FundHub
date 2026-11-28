@@ -121,6 +121,11 @@ The list's status ("radiée", "en faillite"…) is recorded. An "unknown" status
 
 Progress: popup (words searched, companies found, numbers known per RCS prefix), or `npm run engine -- sweep:status`.
 
+## Long filings lists and speed
+
+* LBR shows a company's filings in **pages of 200**. Before saving a company, the extension reads every page (the paginator's "next" arrow), adds those rows to the capture and goes back to page 1, so the engine always gets the full list. If a page does not load, it saves what it has and says so. The Data quality check **Filings lists possibly cut** counts companies saved with exactly 200, 400… filings (saved by an older version): open them again.
+* **Save all documents** goes through the same pages. It clicks the next document as soon as the previous PDF reached the page (the upload to the engine continues in the background) and waits 1.5–3 s between documents (`DOC_PAUSE_MS` in `content.js`). At the end it waits for the last uploads before counting.
+
 ## Autopilot (optional)
 
 The panel on an LBR page has an **Autopilot** card. **▶ Start** runs the routine you would otherwise click:

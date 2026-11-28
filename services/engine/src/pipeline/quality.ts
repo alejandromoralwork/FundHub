@@ -26,6 +26,11 @@ const QUERIES: Record<string, { q: ReturnType<typeof sql>; ratio: boolean }> = {
     q: sql`select count(*) filter (where company_id is not null)::int as n, greatest(count(*), 1)::int as d
            from staging.source_records where state = 'found' and source not in ('news', 'manual') and released_parsed_id is not null`,
   },
+  filings_truncated: {
+    ratio: false,
+    q: sql`select count(*)::int as n, 1 as d from (select f.source_record_id from clean.filings f join staging.source_records s on s.id = f.source_record_id
+           where s.source = 'rcs' group by 1 having count(*) >= 200 and count(*) % 200 = 0) x`,
+  },
   open_conflicts: { ratio: false, q: sql`select count(*)::int as n, 1 as d from match.conflicts where status = 'open'` },
   review_backlog: { ratio: false, q: sql`select count(*)::int as n, 1 as d from staging.parsed_records where review_status = 'pending' and created_at < now() - interval '3 days'` },
   reject_rate: {
