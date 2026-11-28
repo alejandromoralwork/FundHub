@@ -45,6 +45,31 @@
   // The panel lives in a shadow root, so the body's innerText never includes it.
   const text = () => document.body?.innerText || "";
   const checkOnScreen = () => CHECK_RE.test(text());
+  /** LBR's access-limit (quota) page: the only thing that stops a run for good. */
+  const LIMIT_RE = /access limitation/i;
+  const limitOnScreen = () => LIMIT_RE.test(text()) || /AccessLimitation/i.test(location.href);
+  /** How long LBR's certificate check may stay on screen before we give up (it normally lasts ~1 s). */
+  const CHECK_MAX_MS = 60_000;
+  /**
+   * LBR verifies the LuxTrust certificate with a short "Verifying…" screen. Waits until it is gone.
+   * @returns true when the check is gone; false on an access limit, or when the check lasts over CHECK_MAX_MS.
+   */
+  async function waitCheckClears(maxMs = CHECK_MAX_MS) {
+    const t0 = Date.now();
+    while (checkOnScreen()) {
+      if (limitOnScreen() || Date.now() - t0 > maxMs) return false;
+      if (!ui.note.startsWith("LBR is checking")) {
+        ui.note = "LBR is checking the certificate… continuing as soon as it is done.";
+        render();
+      }
+      await sleep(500);
+    }
+    if (ui.note.startsWith("LBR is checking")) {
+      ui.note = "";
+      render();
+    }
+    return true;
+  }
 
   const CSS = `
     :host { all: initial; }
@@ -292,12 +317,15 @@
     if (!kind) return null;
     const t = text();
     if (CHECK_RE.test(t)) {
-      ui.note = "Waiting for LBR's check — complete it on the page.";
-      if (autopilotOn()) await autopilotStop("LBR is showing its check or an access limit. Autopilot paused: finish the check yourself, wait a while, then press Start again.");
+      // The certificate check lasts a moment; the page watcher calls again and saves once it is gone.
+      if (limitOnScreen()) {
+        ui.note = "LBR shows its access limit — nothing is saved until it is lifted.";
+        if (autopilotOn()) await autopilotStop("LBR shows its access limit (quota). Wait a while, then press Start again.");
+      } else ui.note = "LBR is checking the certificate… continuing as soon as it is done.";
       render();
       return null;
     }
-    if (ui.note.startsWith("Waiting for LBR")) ui.note = "";
+    if (ui.note.startsWith("LBR is checking") || ui.note.startsWith("LBR shows its access limit")) ui.note = "";
     // Never save a page the browser has translated (Google Translate marks <html> with "translated-ltr/rtl").
     if (/translated-(ltr|rtl)/.test(document.documentElement.className)) {
       ui.note = "This page is translated by the browser — choose \"Show original\" so FundHub saves LBR's own text.";
@@ -564,8 +592,8 @@
           bulk.done++;
           continue;
         }
-        if (checkOnScreen()) {
-          ui.note = "LBR is showing its check / a limit — stopped. Continue later with the same button.";
+        if (checkOnScreen() && !(await waitCheckClears())) {
+          ui.note = limitOnScreen() ? "LBR shows its access limit — stopped. Continue later with the same button." : "LBR's check did not finish within a minute — stopped. Continue later with the same button.";
           outcome = "blocked";
           break pages;
         }
@@ -639,7 +667,7 @@
     const ap = settings.autopilot || {};
     if (!autopilotOn())
       return `<div class="card"><div class="row"><b>Autopilot</b><button class="btn" id="apStart">▶ Start</button></div>
-        <div class="muted">Saves each company and its key documents, then opens the next one by itself (max ${AUTOPILOT_MAX} per run). Pauses on LBR's check.</div>
+        <div class="muted">Saves each company and its key documents, then opens the next one by itself (max ${AUTOPILOT_MAX} per run). Waits through LBR's certificate check; stops on LBR's access limit.</div>
         ${ap.reason ? `<div class="muted">Last run: ${esc(ap.count || 0)} companies — ${esc(ap.reason)}</div>` : ""}</div>`;
     const secs = apNextAt ? Math.max(0, Math.round((apNextAt - Date.now()) / 1000)) : 0;
     const what = bulk ? "saving documents…" : apNextAt ? `next company in ${secs} s` : "saving this company…";
@@ -672,7 +700,8 @@
     clearTimeout(apWatchdog);
     apWatchdog = setTimeout(async () => {
       if (!autopilotOn() || apBusy || bulk || apNextAt) return;
-      if (CHECK_RE.test(text())) return autopilotStop("LBR is showing its check or an access limit.");
+      if (limitOnScreen()) return autopilotStop("LBR shows its access limit (quota). Wait a while, then press Start again.");
+      if (checkOnScreen()) return autopilotStop("LBR's certificate check has not finished for 90 s. Reload the page; press Start again.");
       await autopilotFailed(rcsOfPage(), "page did not become savable");
     }, AUTOPILOT_PAGE_TIMEOUT_MS);
   }
@@ -691,12 +720,13 @@
     apBusy = true;
     clearTimeout(apWatchdog);
     try {
-      if (CHECK_RE.test(text())) return autopilotStop("LBR is showing its check or an access limit.");
+      if (checkOnScreen() && !(await waitCheckClears()))
+        return autopilotStop(limitOnScreen() ? "LBR shows its access limit (quota). Wait a while, then press Start again." : "LBR's certificate check did not finish within a minute.");
       if (!r || !r.ok) return autopilotFailed(rcsOfPage(), (r && r.error) || "not saved");
       let outcome = "nothing";
       if (ui.company && ui.company.docs_wanted !== false && ui.company.with_docs > ui.company.docs_saved) outcome = await saveAllDocuments();
       if (!autopilotOn()) return; // stopped meanwhile
-      if (outcome === "blocked") return autopilotStop("LBR is showing its check or an access limit.");
+      if (outcome === "blocked") return autopilotStop(limitOnScreen() ? "LBR shows its access limit (quota). Wait a while, then press Start again." : "LBR's certificate check did not finish within a minute.");
       if (outcome === "error") return autopilotFailed(rcsOfPage(), "documents did not arrive");
       const count = ((settings.autopilot && settings.autopilot.count) || 0) + 1;
       await apSave({ count, fails: 0 });
