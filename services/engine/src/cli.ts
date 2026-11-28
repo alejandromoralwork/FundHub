@@ -10,6 +10,7 @@
  *   engine round:start --kind initial|update [--scope sp|am|cssf] [--skip-days n]   start a capture round
  *   engine round:status | round:list | round:close | round:reset-skipped       capture rounds (register)
  *   engine sweep:plan | sweep:status | sweep:reset-skipped        LBR search sweep (word searches YOU run)
+ *   engine docs:purge-unwanted [--apply]   remove saved PDFs of filing types no longer kept (dry run without --apply)
  *   engine rcs:import-captures [--dir d]   re-import saved captures (after a parser update)
  *   engine rcs:session [B… …] [--limit n] [--cap n] [--check-wait min]   collect RCS pages with you at the screen
  *   engine rcs:capture [B123456] [--out d] open the browser, save a company page as a parser fixture
@@ -53,6 +54,8 @@ import { parseGleif } from "./sources/gleif/parse";
 import { parseRcsText } from "./sources/rcs/parse";
 import { RcsBrowser } from "./sources/rcs/browser";
 import { config } from "./config";
+import { makeBlobStore } from "./storage";
+import { purgeUnwantedDocuments } from "./pipeline/documents";
 import { runRcsSession } from "./rcs-session";
 import { importCaptures, startCaptureServer } from "./capture-server";
 
@@ -278,6 +281,12 @@ async function main(): Promise<number> {
       // Receives LBR pages you open in your own Chrome (snippets/lbr-save-to-fundhub.js). See src/capture-server.ts.
       await startCaptureServer();
       return -1;
+    case "docs:purge-unwanted": {
+      const out = await purgeUnwantedDocuments(makeBlobStore(config().storage), { apply: !!flags.apply });
+      console.log(JSON.stringify({ ...out, mb: Math.round(out.bytes / 1e5) / 10 }, null, 2));
+      if (!out.applied && out.documents) console.log(`Dry run: ${out.documents} PDFs would be removed. Re-run with --apply to remove them.`);
+      return 0;
+    }
     case "rcs:import-captures":
       console.log(JSON.stringify(await importCaptures(flags.dir as string | undefined), null, 2));
       return 0;

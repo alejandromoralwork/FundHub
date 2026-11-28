@@ -10,9 +10,9 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { EngineConfig } from "./config";
 
 /** Kind: function. Hex sha256 of some bytes. */
@@ -31,6 +31,8 @@ export interface BlobStore {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
   get(key: string): Promise<Buffer | null>;
   exists(key: string): Promise<boolean>;
+  /** Removes a blob (no error if it is already gone). Only for clean-ups such as docs:purge-unwanted. */
+  delete(key: string): Promise<void>;
 }
 
 /** Kind: class. Stores blobs as files under a root folder. */
@@ -55,6 +57,9 @@ export class FsBlobStore implements BlobStore {
     } catch {
       return null;
     }
+  }
+  async delete(key: string) {
+    await rm(join(this.root, key), { force: true });
   }
   async exists(key: string) {
     try {
@@ -90,6 +95,9 @@ export class S3BlobStore implements BlobStore {
     } catch {
       return null;
     }
+  }
+  async delete(key: string) {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.cfg.bucket, Key: key }));
   }
   async exists(key: string) {
     try {

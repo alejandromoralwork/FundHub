@@ -26,6 +26,7 @@ import { validCompanySql } from "@fundhub/engine-db/core/registry";
 import { companies, companyGroupMembers, companyGroups, companyIdentifiers, documents, filings, sourceRecords } from "@fundhub/engine-db/schema";
 import { storeDocument } from "../src/capture-server";
 import { FsBlobStore, sha256 } from "../src/storage";
+import { purgeUnwantedDocuments } from "../src/pipeline/documents";
 
 /** Kind: async function. True when the engine database answers and has migration 0008 (registry_status). */
 async function dbReady() {
@@ -173,6 +174,37 @@ test("storeDocument: checks first, stores each PDF once, links it to its filing"
     await db.delete(documents).where(eq(documents.sha256, sha256(pdf)));
     if (created.records.length) await db.delete(sourceRecords).where(inArray(sourceRecords.id, created.records));
     if (created.companies.length) await db.delete(companies).where(inArray(companies.id, created.companies));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("docs:purge-unwanted removes only PDFs whose filings are all of a not-kept type", { skip }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "fh-purge-"));
+  const blobs = new FsBlobStore(dir);
+  const n = String(Date.now()).slice(-8);
+  const keepF = `L6${n}`, dropF = `L5${n}`;
+  const keepPdf = Buffer.from(`%PDF-1.7 ${tag} accounts`), dropPdf = Buffer.from(`%PDF-1.7 ${tag} signatures`);
+  const key = (pdf: Buffer) => `docs/${sha256(pdf).slice(0, 2)}/${sha256(pdf)}.pdf`;
+  const [rec] = await db.insert(sourceRecords).values({ source: "rcs", externalId: `B6${n}` }).returning({ id: sourceRecords.id });
+  try {
+    for (const [pdf, f, type] of [[keepPdf, keepF, "Annual accounts"], [dropPdf, dropF, "Authorized signature list"]] as const) {
+      await blobs.put(key(pdf), pdf);
+      await db.insert(documents).values({ sha256: sha256(pdf), blobKey: key(pdf), mime: "application/pdf", bytes: pdf.length, filingNumber: f });
+      await db.insert(filings).values({ filingNumber: f, sourceRecordId: rec.id, type, documentSha256: sha256(pdf) });
+    }
+    const dry = await purgeUnwantedDocuments(blobs);
+    assert.ok(dry.byType["Authorized signature list"] >= 1);
+    assert.equal(await blobs.exists(key(dropPdf)), true);
+    await purgeUnwantedDocuments(blobs, { apply: true });
+    assert.equal((await db.select().from(documents).where(eq(documents.sha256, sha256(dropPdf)))).length, 0);
+    assert.equal(await blobs.exists(key(dropPdf)), false);
+    const [f] = await db.select({ d: filings.documentSha256 }).from(filings).where(eq(filings.filingNumber, dropF));
+    assert.equal(f.d, null);
+    assert.equal((await db.select().from(documents).where(eq(documents.sha256, sha256(keepPdf)))).length, 1);
+    assert.equal(await blobs.exists(key(keepPdf)), true);
+  } finally {
+    await db.delete(sourceRecords).where(eq(sourceRecords.id, rec.id));
+    await db.delete(documents).where(inArray(documents.sha256, [sha256(keepPdf), sha256(dropPdf)]));
     await rm(dir, { recursive: true, force: true });
   }
 });
