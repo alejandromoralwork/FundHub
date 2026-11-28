@@ -130,7 +130,7 @@ test("document filings: only the useful filing types keep their PDF", () => {
   assert.equal(keep("Modification relating solely to authorized representatives", ["Administrator(s)/Manager(s)"]), false);
   assert.equal(keep("Modification - Change of legal form", ["Legal form"]), false);
   assert.equal(keep("Authorized signature list"), false);
-  assert.equal(keep("Consolidated accounts"), false);
+  assert.equal(keep("Consolidated accounts"), true);
   assert.equal(keep("Resignation"), false);
   assert.equal(keep("NACE code update"), false);
   assert.equal(filingWantsDocument("Resignation", [], "all"), true);

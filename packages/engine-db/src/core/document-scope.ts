@@ -10,7 +10,7 @@
  *     master / feeder) are left out.
  *   - "legacy": service providers and fund general partners (the rule before the CSSF run).
  *   Within a company in scope, only some FILING TYPES are worth their PDF (DOCUMENT_FILINGS, default "selected"):
- *   annual accounts (all variants), coordinated articles of association, registration, and modifications whose
+ *   annual accounts and consolidated accounts (all variants), coordinated articles of association, registration, and modifications whose
  *   details include trade name(s), registered office or the person(s) in charge of checking the accounts
  *   (auditor). Modifications that only change directors / signatories, signature lists, resignations, NACE
  *   updates… keep their filing row but not the document. "all" keeps every document.
@@ -66,7 +66,7 @@ export function documentFilingsMode(): "selected" | "all" {
  * Kind: constant. Filing types (lower case, as LBR writes them, English or French) whose document is kept.
  * Prefixes cover the variants ("Annual accounts (eCDF)", "Annual accounts (eCDF) - Article 71 …").
  */
-const FILING_TYPE_PREFIXES = ["annual accounts", "comptes annuels"];
+const FILING_TYPE_PREFIXES = ["annual accounts", "comptes annuels", "consolidated accounts", "comptes consolidés"];
 const FILING_TYPES_EXACT = ["coordinated articles of association", "statuts coordonnés", "registration", "immatriculation"];
 /** Kind: constant. A "Modification…" filing is kept when one of its details is one of these. */
 const MODIFICATION_DETAILS = [
@@ -82,7 +82,7 @@ const MODIFICATION_DETAILS = [
 export const documentFilingsLabel = () =>
   documentFilingsMode() === "all"
     ? "all filings"
-    : "annual accounts, coordinated articles, registration, and modifications of trade name / registered office / auditor";
+    : "annual and consolidated accounts, coordinated articles, registration, and modifications of trade name / registered office / auditor";
 
 /** Kind: function. Is this filing's document worth keeping? */
 export function filingWantsDocument(type: string, details: string[] = [], mode = documentFilingsMode()): boolean {
