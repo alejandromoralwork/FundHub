@@ -15,6 +15,8 @@ This records what the engine found while testing access to lbr.lu with a real Lu
 | Search URL | `/mjrcs-web-front/consult-search-list?search=B145917` |
 | RCS number format | prefix letter plus digits, e.g. `B145917`. The engine normalises spacing and leading zeros (`normalizeRcs`). |
 
+> **Update (28 Nov 2026, reported by the team):** LBR no longer shows the captcha to logged-in users; access goes through the LuxTrust certificate kept in the browser session. The extension's optional autopilot relies on this. The access-limit page (`AccessLimitation.html`) still applies: the autopilot stops on it, keeps a 20–40 s pause between companies and caps a run at 100 companies. The findings below describe the 2026-11-04 test.
+
 ## Protections (decisive)
 
 1. **Friendly Captcha on every search.**

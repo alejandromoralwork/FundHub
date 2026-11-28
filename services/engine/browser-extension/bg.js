@@ -63,7 +63,7 @@ const badge = () => {
   chrome.action.setBadgeText({ text: docs ? String(docs) : "" });
 };
 
-chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     try {
       switch (msg.type) {
@@ -118,6 +118,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
           return reply({ ok: true });
         case "open":
           await openCompany(msg.rcs);
+          return reply({ ok: true });
+        // Autopilot: the next company in the SAME tab that asked (works while you use other tabs / windows).
+        case "open-here":
+          if (sender.tab && sender.tab.id != null) await chrome.tabs.update(sender.tab.id, { url: COMPANY(msg.rcs) });
+          else await openCompany(msg.rcs);
           return reply({ ok: true });
         default:
           return reply({ ok: false, error: "unknown message" });

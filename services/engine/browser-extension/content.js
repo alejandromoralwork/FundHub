@@ -19,7 +19,7 @@
   const FILING_RE = /\bL\d{9}\b/;
   const ICON = chrome.runtime.getURL("icons/icon32.png");
 
-  const settings = { enabled: true, autoDocs: false, keepLocalCopy: false, minimized: false, filter: "", sweepMode: false };
+  const settings = { enabled: true, autoDocs: false, keepLocalCopy: false, minimized: false, filter: "", sweepMode: false, autopilot: null };
   let lastKey = "";
   let apiData = [];
   let lastClick = { filing: null, at: 0 };
@@ -163,7 +163,8 @@
       else if (ui.sweepError === "not found") body += `<div class="warn" style="margin-top:6px">The capture receiver is running old code: restart it (Ctrl+C, then start it again) to use the sweep.</div>`;
       else body += `<div class="ok" style="margin-top:6px">Search sweep complete (or not planned yet — see the FundHub popup).</div>`;
     }
-    // NEXT company — prominent; you click (or Alt+Shift+N). Nothing opens by itself.
+    if (!settings.sweepMode) body += autopilotCard();
+    // NEXT company — prominent; you click (or Alt+Shift+N), or the autopilot does.
     const nx = settings.sweepMode ? null : ui.next.find((c) => c.rcs !== rcsOfPage());
     if (nx)
       body += `<a href="#" class="go" data-open="${esc(nx.rcs)}"><span class="lbl">Next${ui.round ? " in round" : ""}</span>
@@ -185,6 +186,8 @@
     root.getElementById("min").onclick = toggleMin;
     root.getElementById("bulk")?.addEventListener("click", saveAllDocuments);
     root.getElementById("stop")?.addEventListener("click", () => bulk && ((bulk.stop = true), (bulk.userStop = true)));
+    root.getElementById("apStart")?.addEventListener("click", autopilotStart);
+    root.getElementById("apStop")?.addEventListener("click", () => autopilotStop("Stopped by you."));
     root.getElementById("sweepGo")?.addEventListener("click", (e) => {
       e.preventDefault();
       send({ type: "open-sweep", item: sx });
@@ -202,7 +205,7 @@
     );
   }
   // Sweep keys — ONE key per search, so the wrist rests: Space / N = next search, X = skip the word.
-  // Still one search per key press of the person: nothing runs by itself (LBR's captcha forbids unattended use).
+  // Searches stay one per key press; the company autopilot (section 3) is the only thing that runs by itself.
   document.addEventListener(
     "keydown",
     async (e) => {
@@ -290,6 +293,7 @@
     const t = text();
     if (CHECK_RE.test(t)) {
       ui.note = "Waiting for LBR's check — complete it on the page.";
+      if (autopilotOn()) await autopilotStop("LBR is showing its check or an access limit. Autopilot paused: finish the check yourself, wait a while, then press Start again.");
       render();
       return null;
     }
@@ -343,10 +347,11 @@
     // Optional: save this company's documents straight away (only for the page you opened, once).
     // Automatic documents only for companies in the document scope (DOCUMENT_SCOPE on the engine) and only the
     // kept filing types (the engine's /filings answer marks each filing "wanted").
-    if (settings.autoDocs && kind === "company" && r.ok && autoDocsDoneFor !== rcsOfPage() && ui.company && ui.company.docs_wanted !== false && ui.company.with_docs > ui.company.docs_saved) {
+    if (!autopilotOn() && settings.autoDocs && kind === "company" && r.ok && autoDocsDoneFor !== rcsOfPage() && ui.company && ui.company.docs_wanted !== false && ui.company.with_docs > ui.company.docs_saved) {
       autoDocsDoneFor = rcsOfPage();
       saveAllDocuments();
     }
+    if (kind === "company") autopilotStep(r);
     return r;
   }
 
@@ -454,8 +459,8 @@
 
   async function saveAllDocuments() {
     const rcs = rcsOfPage();
-    if (!rcs || bulk) return;
-    if (ui.company && ui.company.docs_wanted === false) return; // not in the document scope
+    if (!rcs || bulk) return "busy";
+    if (ui.company && ui.company.docs_wanted === false) return "nothing"; // not in the document scope
     let known = await send({ type: "filings", rcs });
     if (!known.filings || !known.filings.length) {
       // The company page is not saved yet: save it first, so documents are linked to their filings.
@@ -464,20 +469,23 @@
     }
     if (!known.filings || !known.filings.length) {
       ui.note = 'Save the company first: open its "List of filings" tab and wait for "✓ saved".';
-      return render();
+      render();
+      return "error";
     }
     // Only the filing types whose document the engine keeps (annual accounts, articles, registration, some modifications).
     const todo = new Set(known.filings.filter((f) => f.has_documents && !f.saved && f.wanted !== false).map((f) => f.filing_number));
     const rows = filingRows().filter((r) => todo.has(r.filing));
     if (!rows.length) {
       ui.note = todo.size ? `${todo.size} documents to save, but their rows are not on this page (scroll / show all filings?).` : "All key documents of this company are already saved.";
-      return render();
+      render();
+      return "nothing";
     }
     bulk = { total: rows.length, done: 0, stop: false, userStop: false, waitingFor: null, resolve: () => {} };
     // Remember the run: if the page is refreshed (or you come back later), it resumes by itself and skips what
     // is already saved. Only "Stop" or finishing forgets it.
     await chrome.storage.local.set({ bulkResume: { rcs, at: Date.now() } });
     let misses = 0;
+    let outcome = "done";
     render();
     for (const { filing, row } of rows) {
       if (bulk.stop) break;
@@ -488,6 +496,7 @@
       }
       if (checkOnScreen()) {
         ui.note = "LBR is showing its check / a limit — stopped. Continue later with the same button.";
+        outcome = "blocked";
         break;
       }
       const ctl = consultControl(row);
@@ -508,15 +517,18 @@
       misses = ok ? 0 : misses + 1;
       if (misses >= 2) {
         ui.note = "No document arrived for 2 filings in a row — open one document by hand so the flow can be checked. Stopped.";
+        outcome = "error";
         break;
       }
       render();
       await sleep(4000 + Math.random() * 4000); // human pace
     }
     const finished = bulk && !bulk.stop && bulk.done >= bulk.total;
+    if (bulk && bulk.userStop) outcome = "stopped";
     if (finished || (bulk && bulk.userStop)) await chrome.storage.local.remove("bulkResume");
     bulk = null;
     await refresh();
+    return outcome;
   }
 
   /** Resumes an interrupted "Save all documents" for this company (page refreshed / reopened within 12 h). */
@@ -526,8 +538,127 @@
     const { bulkResume } = await chrome.storage.local.get("bulkResume");
     if (!bulkResume || bulkResume.rcs !== rcs || Date.now() - bulkResume.at > 12 * 3600_000) return;
     ui.toast = '<span class="ok">↻ Resuming document saving where it stopped…</span>';
-    saveAllDocuments();
+    return saveAllDocuments();
   }
+
+  // ---------------------------------------------------------------- 3. autopilot (optional)
+  // Start → on each company page: wait for the auto-save, "Save all documents" (kept types, if in scope),
+  // pause, then open the next company of the work list. It stops by itself on LBR's check or access limit
+  // (never touches them; LBR dropped the captcha for certificate login, the access-limit page remains), after AUTOPILOT_MAX companies, after 3 failures in a row, or when the list is empty.
+  // State lives in chrome.storage.local (settings.autopilot), so it survives the page loads it causes.
+  const AUTOPILOT_MAX = 100; // companies per run
+  const AUTOPILOT_PAUSE_MS = [20_000, 40_000]; // between two companies
+  const AUTOPILOT_PAGE_TIMEOUT_MS = 90_000; // a company page that never becomes savable counts as a failure
+  let apTimer = null;
+  let apTick = null;
+  let apNextAt = 0;
+  let apBusy = false;
+  let apWatchdog = null;
+  const autopilotOn = () => !!(settings.autopilot && settings.autopilot.on);
+  const apSave = (patch) => {
+    settings.autopilot = { ...(settings.autopilot || {}), ...patch };
+    return chrome.storage.local.set({ autopilot: settings.autopilot });
+  };
+
+  function autopilotCard() {
+    const ap = settings.autopilot || {};
+    if (!autopilotOn())
+      return `<div class="card"><div class="row"><b>Autopilot</b><button class="btn" id="apStart">▶ Start</button></div>
+        <div class="muted">Saves each company and its key documents, then opens the next one by itself (max ${AUTOPILOT_MAX} per run). Pauses on LBR's check.</div>
+        ${ap.reason ? `<div class="muted">Last run: ${esc(ap.count || 0)} companies — ${esc(ap.reason)}</div>` : ""}</div>`;
+    const secs = apNextAt ? Math.max(0, Math.round((apNextAt - Date.now()) / 1000)) : 0;
+    const what = bulk ? "saving documents…" : apNextAt ? `next company in ${secs} s` : "saving this company…";
+    return `<div class="card"><div class="row"><b>Autopilot ● running</b><button class="btn ghost" id="apStop">⏸ Stop</button></div>
+      <div class="muted">${esc(ap.count || 0)}/${esc(ap.max || AUTOPILOT_MAX)} companies · ${esc(what)}</div></div>`;
+  }
+
+  async function autopilotStart() {
+    await apSave({ on: true, count: 0, max: AUTOPILOT_MAX, fails: 0, startedAt: Date.now(), reason: "" });
+    render();
+    if (pageKind() === "company") {
+      armWatchdog();
+      const r = await maybeCapture(true); // runs autopilotStep when the page is savable
+      if (!r && !capturing && !CHECK_RE.test(text())) render(); // not ready yet: the normal page watcher saves it
+    } else await autopilotNext();
+  }
+
+  async function autopilotStop(reason) {
+    clearTimeout(apTimer);
+    clearInterval(apTick);
+    clearTimeout(apWatchdog);
+    apNextAt = 0;
+    if (bulk) (bulk.stop = true), (bulk.userStop = true);
+    await apSave({ on: false, reason });
+    toast(`<span class="warn">Autopilot stopped — ${esc(reason)}</span>`);
+  }
+
+  /** A company page that never gets saved (layout, error page) must not hang the run. */
+  function armWatchdog() {
+    clearTimeout(apWatchdog);
+    apWatchdog = setTimeout(async () => {
+      if (!autopilotOn() || apBusy || bulk || apNextAt) return;
+      if (CHECK_RE.test(text())) return autopilotStop("LBR is showing its check or an access limit.");
+      await autopilotFailed(rcsOfPage(), "page did not become savable");
+    }, AUTOPILOT_PAGE_TIMEOUT_MS);
+  }
+
+  async function autopilotFailed(rcs, why) {
+    const fails = ((settings.autopilot && settings.autopilot.fails) || 0) + 1;
+    await apSave({ fails });
+    if (fails >= 3) return autopilotStop(`3 companies in a row failed (last: ${rcs || "?"}, ${why}).`);
+    if (rcs) await send({ type: "skip", rcs }); // so the work list moves on
+    await autopilotWaitThenNext();
+  }
+
+  /** After the page was saved: documents, then the next company. */
+  async function autopilotStep(r) {
+    if (!autopilotOn() || apBusy) return;
+    apBusy = true;
+    clearTimeout(apWatchdog);
+    try {
+      if (CHECK_RE.test(text())) return autopilotStop("LBR is showing its check or an access limit.");
+      if (!r || !r.ok) return autopilotFailed(rcsOfPage(), (r && r.error) || "not saved");
+      let outcome = "nothing";
+      if (ui.company && ui.company.docs_wanted !== false && ui.company.with_docs > ui.company.docs_saved) outcome = await saveAllDocuments();
+      if (!autopilotOn()) return; // stopped meanwhile
+      if (outcome === "blocked") return autopilotStop("LBR is showing its check or an access limit.");
+      if (outcome === "error") return autopilotFailed(rcsOfPage(), "documents did not arrive");
+      const count = ((settings.autopilot && settings.autopilot.count) || 0) + 1;
+      await apSave({ count, fails: 0 });
+      if (count >= ((settings.autopilot && settings.autopilot.max) || AUTOPILOT_MAX)) return autopilotStop(`reached ${count} companies (one run). Press Start for more.`);
+      await autopilotWaitThenNext();
+    } finally {
+      apBusy = false;
+    }
+  }
+
+  async function autopilotWaitThenNext() {
+    const [a, b] = AUTOPILOT_PAUSE_MS;
+    apNextAt = Date.now() + a + Math.random() * (b - a);
+    clearInterval(apTick);
+    apTick = setInterval(render, 1000);
+    render();
+    clearTimeout(apTimer);
+    apTimer = setTimeout(() => {
+      clearInterval(apTick);
+      apNextAt = 0;
+      autopilotNext();
+    }, apNextAt - Date.now());
+  }
+
+  async function autopilotNext() {
+    if (!autopilotOn()) return;
+    await refresh();
+    const nx = ui.next.find((c) => c.rcs !== rcsOfPage());
+    if (!nx) return autopilotStop(ui.round ? "the round is complete." : "the work list is empty.");
+    await send({ type: "open-here", rcs: nx.rcs });
+  }
+
+  // A page opened by the autopilot: guard it, so a page that never becomes savable does not stop the run.
+  if (pageKind() === "company")
+    chrome.storage.local.get({ autopilot: null }, (v) => {
+      if (v.autopilot && v.autopilot.on) armWatchdog();
+    });
 
   schedule();
 })();
