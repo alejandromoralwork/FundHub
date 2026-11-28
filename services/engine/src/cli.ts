@@ -7,7 +7,7 @@
  *   engine scheduler                       register cron schedules and keep the clock running
  *   engine rcs:login [--wait]              open the RCS browser; log in with LuxTrust; press Enter (or --wait: auto-detect)
  *   engine capture-server                  receive LBR pages you open in Chrome (browser-extension/)
- *   engine round:start --kind initial|update [--scope sp|am] [--skip-days n]   start a capture round
+ *   engine round:start --kind initial|update [--scope sp|am|cssf] [--skip-days n]   start a capture round
  *   engine round:status | round:list | round:close | round:reset-skipped       capture rounds (register)
  *   engine sweep:plan | sweep:status | sweep:reset-skipped        LBR search sweep (word searches YOU run)
  *   engine rcs:import-captures [--dir d]   re-import saved captures (after a parser update)
@@ -39,7 +39,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db, pool } from "@fundhub/engine-db/client";
-import { censusSnapshots, runs, companies, companyIdentifiers, companyRelations, sessionHealth, sourceRecords } from "@fundhub/engine-db/schema";
+import { censusSnapshots, runs, companies, companyIdentifiers, companyRelations, sessionHealth, sourceRecords, type RoundScope } from "@fundhub/engine-db/schema";
 import { makeContext, type JobContext } from "./jobs/context";
 import { GROUPS, inlineEnqueue, isJob, JOBS, type Group, type JobDef } from "./jobs/index";
 import { setSessionHealth } from "./core/ops";
@@ -215,9 +215,9 @@ async function main(): Promise<number> {
     case "round:start": {
       // A capture round (see packages/engine-db/src/core/rounds.ts): initial = never captured; update = re-visit.
       const kind = flags.kind === "update" ? "update" : flags.kind === "initial" ? "initial" : null;
-      if (!kind) throw new Error("Usage: engine round:start --kind initial|update [--scope all|sp|am] [--text <name or B…>] [--skip-days n] [--name …]");
+      if (!kind) throw new Error("Usage: engine round:start --kind initial|update [--scope all|sp|am|cssf] [--text <name or B…>] [--skip-days n] [--name …]");
       const scope = {
-        filter: (flags.text ? "text" : ((flags.scope as string) ?? "all")) as "all" | "sp" | "am" | "text",
+        filter: (flags.text ? "text" : ((flags.scope as string) ?? "all")) as RoundScope["filter"],
         ...(flags.text ? { text: String(flags.text) } : {}),
         ...(flags.skipDays ? { skipCapturedWithinDays: Number(flags.skipDays) } : {}),
       };

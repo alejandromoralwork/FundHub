@@ -7,7 +7,7 @@
  *   You browse LBR normally in your own Chrome — search, LBR's check, company page — and run the snippet; the
  *   engine never browses LBR itself. It also tells the snippet which RCS number to open next (work list:
  *   known from GLEIF / CSSF, not captured yet, service providers first), so a session resumes where it stopped.
- *   Every capture is also kept as a file (.engine-data/captures/), so pages the parser does not recognise yet
+ *   Every capture is also kept as a gzip JSON file (CAPTURES_DIR, default .engine-data/captures/), so pages the parser does not recognise yet
  *   are not lost: fix the parser, then `engine rcs:import-captures`.
  *   Security: listens on 127.0.0.1 only and accepts requests only from https://www.lbr.lu (CORS + Origin check).
  *   Remote use (engine on a VM, Chrome on your PC): a reverse proxy (Caddy, HTTPS) forwards /engine/* to it, and
@@ -20,12 +20,14 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { documents, filings, type RoundScope } from "@fundhub/engine-db/schema";
 import { withActor } from "@fundhub/engine-db/core/entity";
-import { documentScopeSql, DOCUMENT_SCOPE_LABEL } from "@fundhub/engine-db/core/document-scope";
+import { documentScopeLabel, documentScopeSql } from "@fundhub/engine-db/core/document-scope";
+import { cssfLinkedSql } from "@fundhub/engine-db/core/registry";
 import { nextSweepItems, planSweep, recordSearch, resetSkippedSweep, skipSweepTerm, sweepStats } from "@fundhub/engine-db/core/sweep";
 import { activeRound, closeRound, listRounds, nextItems, recordDocument, recordVisit, resetSkipped, roundStats, skipItem, startRound } from "@fundhub/engine-db/core/rounds";
 import { config } from "./config";
@@ -66,8 +68,20 @@ const personRcs: SourceAdapter = { source: "rcs", parserVersion: RCS_PARSER_VERS
 /** Kind: constant. Adapter for search-list rows (stored as "lbr_bulk": partial register data). */
 const listAdapter: SourceAdapter = { source: "lbr_bulk", parserVersion: LBR_BULK_PARSER_VERSION, fetch: async () => null, parse: parseLbrBulk };
 
-/** Kind: type alias. What the snippet sends. */
-type CaptureBody = { url: string; text: string; html?: string; rcs?: string };
+/**
+ * Kind: type alias. What the snippet / extension sends to /capture.
+ * - url, text: the page (text is what the parser reads); html: the full page, stored with the capture.
+ * - rcs: optional RCS number (the snippet may pass it; the URL wins).
+ * - api: LBR's own JSON answers seen by the page (extension, last 5). Kept in the capture file, not parsed yet.
+ * - ext: extension version (from the X-FundHub-Ext header), recorded in the capture file.
+ */
+type CaptureBody = { url: string; text: string; html?: string; rcs?: string; api?: { url: string; json: unknown }[]; ext?: string };
+
+/** Kind: constant. Largest JSON body accepted (a PDF travels as base64: about 15 MB of PDF). Caddy allows 25 MB. */
+const MAX_BODY = 20_000_000;
+
+/** Kind: class. A request body over MAX_BODY: answered with HTTP 413 (the extension says "too large"). */
+class BodyTooLargeError extends Error {}
 
 /** Kind: function. Reads a JSON request body (max 20 MB). */
 async function readJson<T>(req: IncomingMessage): Promise<T> {
@@ -75,7 +89,7 @@ async function readJson<T>(req: IncomingMessage): Promise<T> {
   let size = 0;
   for await (const c of req) {
     size += (c as Buffer).length;
-    if (size > 20_000_000) throw new Error("Body too large");
+    if (size > MAX_BODY) throw new BodyTooLargeError(`Body too large (over ${MAX_BODY / 1_000_000} MB)`);
     chunks.push(c as Buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as T;
@@ -87,7 +101,7 @@ function send(res: ServerResponse, status: number, body: unknown, origin?: strin
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FundHub-Ext",
     // Chrome's Private Network Access: a public site (lbr.lu) may call localhost only if localhost agrees.
     "Access-Control-Allow-Private-Network": "true",
   });
@@ -206,12 +220,12 @@ export type QueueItem = { rcs: string; name: string; kind: string; serviceProvid
  * Kind: async function. The next companies to open, with what we already know about them (from GLEIF / CSSF).
  * @param skip    RCS numbers skipped in this receiver session.
  * @param n       how many.
- * @param filter  optional: "sp" (service providers), "am" (asset managers), or text to match in the name / number.
+ * @param filter  optional: "sp" (service providers), "am" (asset managers), "cssf" (CSSF entities), or text to match in the name / number.
  */
 export async function nextCompanies(skip: Set<string>, n = 10, filter = ""): Promise<QueueItem[]> {
   const f = filter.trim();
   const where =
-    f === "sp" ? sql`and e.is_service_provider` : f === "am" ? sql`and e.company_kind = 'asset_manager'` : f ? sql`and (e.canonical_name ilike ${"%" + f + "%"} or i.value ilike ${f + "%"})` : sql``;
+    f === "sp" ? sql`and e.is_service_provider` : f === "am" ? sql`and e.company_kind = 'asset_manager'` : f === "cssf" ? sql`and ${cssfLinkedSql("e")}` : f ? sql`and (e.canonical_name ilike ${"%" + f + "%"} or i.value ilike ${f + "%"})` : sql``;
   const rows = (
     await db.execute<{ rcs: string; name: string; kind: string; sp: boolean; category: string | null; status: string }>(sql`
       select i.value as rcs, e.canonical_name as name, e.company_kind as kind, e.is_service_provider as sp, e.status,
@@ -254,7 +268,7 @@ export async function companyStatus(rcs: string) {
   const [row] = (
     await db.execute<{ name: string | null; captured_at: string | null; filings: number; with_docs: number; docs_saved: number; sp: boolean | null; kind: string | null; category: string | null; sources: string[] | null; docs_wanted: boolean; docs_scope: string }>(sql`
       select e.canonical_name as name,
-             ${documentScopeSql("e")} as docs_wanted, ${DOCUMENT_SCOPE_LABEL}::text as docs_scope,
+             ${documentScopeSql("e")} as docs_wanted, ${documentScopeLabel()}::text as docs_scope,
              s.last_changed_at as captured_at,
              (select count(*) from clean.filings f where f.source_record_id = s.id)::int as filings,
              (select count(*) from clean.filings f where f.source_record_id = s.id and f.has_documents)::int as with_docs,
@@ -285,8 +299,9 @@ export async function storeCapture(body: CaptureBody, dir: string, blobs = makeB
   const rcs = list ? null : rcsOf(body);
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   await mkdir(dir, { recursive: true });
-  const file = join(dir, `${list ? "search" : (rcs ?? "unknown")}-${stamp}.json`);
-  await writeFile(file, JSON.stringify({ ...body, rcs, capturedAt: new Date().toISOString() }));
+  // gzip: a page with its HTML is ~10x smaller (importCaptures reads .json and .json.gz).
+  const file = join(dir, `${list ? "search" : (rcs ?? "unknown")}-${stamp}.json.gz`);
+  await writeFile(file, gzipSync(JSON.stringify({ ...body, rcs, capturedAt: new Date().toISOString() })));
   if (list) {
     const { stats, newNumbers, sweep } = await storeListAndSweep(list, body.url, blobs, opts.background ?? false);
     return { ok: true, kind: "list", companies: list.items.length, total: list.total, stats, newNumbers, sweep, file };
@@ -319,72 +334,78 @@ export async function storeCapture(body: CaptureBody, dir: string, blobs = makeB
 
 /**
  * Kind: async function. Links saved documents to their filings when the documents arrived first (the PDF was
- * opened before the company page was saved). Only fills filings that have no document yet.
+ * opened before the company page was saved). Only fills filings that have no document yet, and only when the
+ * company the document was sent for (raw.documents.rcs_number, when known) is the filing's company.
  * @returns `Promise<number>` — how many filings got their document.
  */
 export async function linkPendingDocuments(rcs?: string) {
   const res = await db.execute(sql`
     update clean.filings f set document_sha256 = d.sha256
-    from raw.documents d
+    from raw.documents d, staging.source_records s
     where d.filing_number = f.filing_number and f.document_sha256 is null
-      ${rcs ? sql`and f.source_record_id in (select id from staging.source_records where source = 'rcs' and external_id = ${rcs})` : sql``}`);
+      and s.id = f.source_record_id and (d.rcs_number is null or d.rcs_number = s.external_id)
+      ${rcs ? sql`and s.source = 'rcs' and s.external_id = ${rcs}` : sql``}`);
   return res.rowCount ?? 0;
 }
 
 /** Kind: type alias. A filing document sent by the extension: base64 bytes + where it came from. */
 type DocumentBody = { url: string; contentType?: string; data: string; filingNumber?: string | null; rcs?: string | null };
 
+/** Kind: function. Do these bytes look like a PDF? (The file starts with "%PDF-", possibly after a few bytes.) */
+export const isPdf = (bytes: Buffer) => bytes.subarray(0, 1024).includes("%PDF-");
+
 /**
- * Kind: async function. Stores a filing PDF you opened on LBR: object storage (docs/<sha256>.pdf, stored once),
- * a `documents` row, and the link from its filing (clean.filings.document_sha256) when the filing number is known
- * (from the document URL, or from the filing row you clicked — sent by the extension).
+ * Kind: async function. Stores a filing PDF you opened on LBR: object storage (docs/<2>/<sha256>.pdf, stored
+ * once), a `raw.documents` row, and the link from its filing (clean.filings.document_sha256) when the filing
+ * number is known (from the document URL, or from the filing row you clicked — sent by the extension).
+ * Every check runs BEFORE anything is written: not a PDF, filing of another company, filing already has its
+ * document, company not captured, company outside the document scope (core/document-scope.ts).
  */
 export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(config().storage)) {
   const bytes = Buffer.from(body.data, "base64");
   const mime = (body.contentType ?? "application/pdf").split(";")[0].trim();
+  const scopeLabel = documentScopeLabel();
   if (!bytes.length) return { ok: false, error: "empty document" };
   if (mime === "text/html") return { ok: false, error: "got a web page, not a document (logged out?)" };
-  // Only service providers and fund GPs keep their PDFs (core/document-scope.ts): find the company first.
-  const fnum = body.filingNumber ?? body.url.match(/L\d{9}/)?.[0] ?? null;
+  if (!isPdf(bytes)) return { ok: false, error: "not a PDF (the file does not start with %PDF-)" };
+  const sentRcs = normalizeRcs(body.rcs);
+  const filingNumber = body.filingNumber ?? body.url.match(/L\d{9}/)?.[0] ?? null;
+  // The filing, when its company page was captured: its company, and whether it already has its document.
+  const [filing] = filingNumber
+    ? (
+        await db.execute<{ doc: string | null; rcs: string; company_id: string | null }>(sql`
+          select f.document_sha256 as doc, s.external_id as rcs, s.company_id from clean.filings f
+          join staging.source_records s on s.id = f.source_record_id where f.filing_number = ${filingNumber}`)
+      ).rows
+    : [];
+  if (filing && sentRcs && filing.rcs !== sentRcs) return { ok: false, error: `Not saved: filing ${filingNumber} belongs to ${filing.rcs}, not ${sentRcs}.` };
+  // A second copy (page refreshed during "Save all documents", or opened twice): nothing is stored or counted again.
+  if (filing?.doc) return { ok: true, sha256: filing.doc, bytes: bytes.length, filingNumber, linked: true, alreadySaved: true };
+  const rcs = sentRcs ?? filing?.rcs ?? null;
   const [scope] = (
     await db.execute<{ name: string; wanted: boolean }>(sql`
       select e.canonical_name as name, ${documentScopeSql("e")} as wanted from core.companies e
       where e.id = coalesce(
-        (select i.company_id from core.company_identifiers i where i.scheme = 'rcs' and i.value = ${normalizeRcs(body.rcs) ?? ""} limit 1),
-        (select s.company_id from clean.filings f join staging.source_records s on s.id = f.source_record_id where f.filing_number = ${fnum ?? ""} limit 1))`)
+        (select i.company_id from core.company_identifiers i where i.scheme = 'rcs' and i.value = ${rcs ?? ""} limit 1),
+        ${filing?.company_id ?? null}::uuid)`)
   ).rows;
-  if (!scope) return { ok: false, error: "Not saved: capture the company page first (documents are kept only for " + DOCUMENT_SCOPE_LABEL + ")." };
-  if (!scope.wanted) return { ok: false, skipped: true, error: `Not saved: ${scope.name} is not in the document scope (${DOCUMENT_SCOPE_LABEL}).` };
+  if (!scope) return { ok: false, error: `Not saved: capture the company page first (documents are kept only for ${scopeLabel}).` };
+  if (!scope.wanted) return { ok: false, skipped: true, error: `Not saved: ${scope.name} is not in the document scope (${scopeLabel}).` };
+
   const hash = sha256(bytes);
-  const key = blobKey("docs", hash, mime === "application/pdf" ? "pdf" : "bin");
-  await blobs.put(key, bytes, mime);
-  const filingNumber = body.filingNumber ?? body.url.match(/L\d{9}/)?.[0] ?? null;
-  // Remember the filing even if it is not captured yet: linkPendingDocuments() connects them later.
+  const key = blobKey("docs", hash, "pdf");
+  await blobs.put(key, bytes, "application/pdf");
+  // Remember the filing / company even if the filing is not captured yet: linkPendingDocuments() connects them later.
   await db
     .insert(documents)
-    .values({ sha256: hash, blobKey: key, mime, bytes: bytes.length, filingNumber })
-    .onConflictDoUpdate({ target: documents.sha256, set: { filingNumber: sql`coalesce(${documents.filingNumber}, ${filingNumber})` } });
-  // Link only a filing that has no document yet. A second copy of a document already saved (page refreshed during
-  // "Save all documents", or opened twice) is recognised as such: nothing is stored or counted again.
+    .values({ sha256: hash, blobKey: key, mime: "application/pdf", bytes: bytes.length, filingNumber, rcsNumber: rcs })
+    .onConflictDoUpdate({ target: documents.sha256, set: { filingNumber: sql`coalesce(${documents.filingNumber}, ${filingNumber})`, rcsNumber: sql`coalesce(${documents.rcsNumber}, ${rcs})` } });
   let linked = false;
-  let alreadySaved = false;
-  if (filingNumber) {
-    const [f] = await db.select({ doc: filings.documentSha256 }).from(filings).where(eq(filings.filingNumber, filingNumber));
-    if (f?.doc) {
-      alreadySaved = true;
-      linked = true;
-    } else if (f) {
-      await db.update(filings).set({ documentSha256: hash }).where(eq(filings.filingNumber, filingNumber));
-      linked = true;
-    }
+  if (filing) {
+    const res = await db.update(filings).set({ documentSha256: hash }).where(and(eq(filings.filingNumber, filingNumber!), isNull(filings.documentSha256)));
+    linked = (res.rowCount ?? 0) > 0;
   }
-  if (alreadySaved) return { ok: true, sha256: hash, bytes: bytes.length, filingNumber, linked, alreadySaved };
-  // Count it in the active round (company from the extension, or from the filing).
-  const rcs =
-    normalizeRcs(body.rcs) ??
-    (filingNumber
-      ? ((await db.execute<{ rcs: string }>(sql`select s.external_id as rcs from clean.filings f join staging.source_records s on s.id = f.source_record_id where f.filing_number = ${filingNumber}`)).rows[0]?.rcs ?? null)
-      : null);
+  // Count it in the active round.
   if (rcs && linked) await recordDocument(rcs);
   return { ok: true, sha256: hash, bytes: bytes.length, filingNumber, linked };
 }
@@ -392,7 +413,7 @@ export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(co
 /** Kind: async function. Runs the server until Ctrl+C. */
 export async function startCaptureServer() {
   const cfg = config();
-  const dir = resolve(cfg.rcs.profileDir, "..", "captures");
+  const dir = resolve(cfg.rcs.capturesDir);
   const blobs = makeBlobStore(cfg.storage);
   const skip = new Set<string>();
   const server = createServer(async (req, res) => {
@@ -461,6 +482,8 @@ export async function startCaptureServer() {
       }
       if (req.method === "POST" && url.pathname === "/capture") {
         const body = await readJson<CaptureBody>(req);
+        const ext = req.headers["x-fundhub-ext"];
+        if (body && typeof ext === "string" && ext) body.ext = ext.slice(0, 20);
         if (!body?.text || !body.url?.startsWith(ALLOWED_ORIGIN)) return reply(400, { ok: false, error: "Not an LBR page" });
         // Results pages: booked at once, companies stored in the background (the panel's next search is ready).
         const out = await storeCapture(body, dir, blobs, { background: true });
@@ -495,6 +518,7 @@ export async function startCaptureServer() {
       }
       return reply(404, { ok: false, error: "not found" });
     } catch (err) {
+      if (err instanceof BodyTooLargeError) return send(res, 413, { ok: false, code: "toolarge", error: err.message }, req.headers.origin);
       console.error("capture error:", err);
       return send(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) }, req.headers.origin);
     }
@@ -512,11 +536,14 @@ export async function startCaptureServer() {
  * come back "unchanged", so it is safe to run on the whole folder.
  */
 export async function importCaptures(dir?: string) {
-  const folder = dir ?? resolve(config().rcs.profileDir, "..", "captures");
+  const folder = dir ?? resolve(config().rcs.capturesDir);
   const blobs = makeBlobStore(config().storage);
   const stats: Record<string, number> = {};
-  for (const f of (await readdir(folder)).filter((x) => x.endsWith(".json")).sort()) {
-    const body = JSON.parse(await readFile(join(folder, f), "utf8")) as CaptureBody;
+  // Sorted by name without the .gz: old .json and new .json.gz files of one company stay in time order.
+  const files = (await readdir(folder)).filter((x) => x.endsWith(".json") || x.endsWith(".json.gz")).sort((a, b) => a.replace(/\.gz$/, "").localeCompare(b.replace(/\.gz$/, "")));
+  for (const f of files) {
+    const buf = await readFile(join(folder, f));
+    const body = JSON.parse((f.endsWith(".gz") ? gunzipSync(buf) : buf).toString("utf8")) as CaptureBody;
     // Pages translated by the browser are not LBR's text: never import them.
     if (/<html[^>]*class="[^"]*translated-(ltr|rtl)/i.test(body.html ?? "")) {
       stats.translated_skipped = (stats.translated_skipped ?? 0) + 1;

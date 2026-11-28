@@ -9,6 +9,7 @@
  */
 
 import "dotenv/config";
+import { resolve } from "node:path";
 
 /** Kind: helper. A number from env, or the default. */
 const num = (name: string, def: number) => (process.env[name] ? Number(process.env[name]) : def);
@@ -25,6 +26,8 @@ export type EngineConfig = {
   gleif: { apiBase: string; delayMs: number; pageSize: number };
   rcs: {
     profileDir: string;
+    /** Where the capture server keeps every received page (gzip JSON), for re-imports after a parser fix. */
+    capturesDir: string;
     headless: boolean;
     delayMs: number;
     jitterMs: number;
@@ -78,6 +81,7 @@ export function config(): EngineConfig {
     },
     rcs: {
       profileDir: process.env.RCS_PROFILE_DIR ?? ".engine-data/rcs-profile",
+      capturesDir: process.env.CAPTURES_DIR ?? resolve(process.env.RCS_PROFILE_DIR ?? ".engine-data/rcs-profile", "..", "captures"),
       headless: bool("RCS_HEADLESS", false),
       delayMs: num("RCS_DELAY_MS", 4_000),
       jitterMs: num("RCS_JITTER_MS", 3_000),

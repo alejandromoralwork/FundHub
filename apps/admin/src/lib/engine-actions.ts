@@ -255,7 +255,7 @@ export async function decideMatch(candidateId: number, accept: boolean): Promise
 
 const roundInput = z.object({
   kind: z.enum(["initial", "update"]),
-  filter: z.enum(["all", "sp", "am", "text"]),
+  filter: z.enum(["all", "sp", "am", "cssf", "text"]),
   text: z.string().trim().optional(),
   skipDays: z.number().int().min(0).max(365).optional(),
   name: z.string().trim().max(80).optional(),

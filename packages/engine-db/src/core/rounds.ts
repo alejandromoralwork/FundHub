@@ -15,6 +15,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, type EngineTx } from "../client";
 import { lbrCaptureRoundItems, lbrCaptureRounds, type RoundScope } from "../schema";
+import { cssfLinkedSql } from "./registry";
 
 /** Kind: type alias. One company as shown in the extension / admin. */
 export type RoundItemView = {
@@ -33,6 +34,7 @@ function scopeWhere(scope: RoundScope) {
   const f = scope.filter;
   if (f === "sp") return sql`and e.is_service_provider`;
   if (f === "am") return sql`and e.company_kind = 'asset_manager'`;
+  if (f === "cssf") return sql`and ${cssfLinkedSql("e")}`;
   if (f === "text" && scope.text?.trim()) {
     const t = scope.text.trim();
     return sql`and (e.canonical_name ilike ${"%" + t + "%"} or i.value ilike ${t + "%"})`;

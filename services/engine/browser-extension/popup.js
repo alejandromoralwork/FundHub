@@ -65,8 +65,9 @@ chrome.storage.local.get(DEFAULTS, (v) => {
   $("enabled").checked = v.enabled;
   $("autoDocs").checked = v.autoDocs;
   $("keepLocalCopy").checked = v.keepLocalCopy;
-  $("filter").value = v.filter === "sp" || v.filter === "am" ? v.filter : "";
-  if (v.filter && v.filter !== "sp" && v.filter !== "am") $("search").value = v.filter;
+  const PRESETS = ["sp", "am", "cssf"];
+  $("filter").value = PRESETS.includes(v.filter) ? v.filter : "";
+  if (v.filter && !PRESETS.includes(v.filter)) $("search").value = v.filter;
   syncLinks();
   check();
 });

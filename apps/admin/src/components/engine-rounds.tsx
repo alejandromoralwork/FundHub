@@ -43,7 +43,7 @@ function NewRound({ open, onClose }: { open: boolean; onClose: () => void }) {
           <Radio.Group options={[{ value: "initial", label: "Initial — companies never captured" }, { value: "update", label: "Update — re-visit captured companies (changes + new PDFs only)" }]} />
         </Form.Item>
         <Form.Item name="filter" label="Scope">
-          <Select options={[{ value: "all", label: "All" }, { value: "sp", label: "Service providers" }, { value: "am", label: "Asset managers" }, { value: "text", label: "Name / B-number…" }]} />
+          <Select options={[{ value: "all", label: "All" }, { value: "sp", label: "Service providers" }, { value: "am", label: "Asset managers" }, { value: "cssf", label: "CSSF entities" }, { value: "text", label: "Name / B-number…" }]} />
         </Form.Item>
         {filter === "text" && <Form.Item name="text" label="Name or B-number (prefix)" rules={[{ required: true }]}><Input placeholder="e.g. Arendt or B14" /></Form.Item>}
         {kind === "update" && <Form.Item name="skipDays" label="Skip companies captured in the last … days"><InputNumber min={0} max={365} /></Form.Item>}

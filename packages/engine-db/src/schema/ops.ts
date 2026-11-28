@@ -209,7 +209,7 @@ export const lbrNumberSpace = ops.table("lbr_number_space", {
 });
 
 /** Kind: type alias. Which companies a capture round covers. */
-export type RoundScope = { filter: "all" | "sp" | "am" | "text"; text?: string; skipCapturedWithinDays?: number };
+export type RoundScope = { filter: "all" | "sp" | "am" | "cssf" | "text"; text?: string; skipCapturedWithinDays?: number };
 
 /**
  * Kind: table "ops.lbr_capture_rounds". A planned pass over a list of RCS companies that a person works through

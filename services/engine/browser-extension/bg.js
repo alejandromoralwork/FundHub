@@ -21,7 +21,8 @@ async function engine() {
 
 async function call(path, body) {
   const { base, token } = await engine();
-  const headers = {};
+  // The engine records which extension version sent each capture (capture files keep it for re-imports).
+  const headers = { "X-FundHub-Ext": chrome.runtime.getManifest().version };
   if (token) headers.Authorization = "Bearer " + token;
   if (body) headers["Content-Type"] = "application/json";
   // Every failure carries a `code` so the popup can say what to do: offline | down | token | notengine | toolarge.
