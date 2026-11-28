@@ -122,13 +122,13 @@
                 }</div>`
               : ""
           }
-          <div class="row"><span class="muted">Documents ${esc(c.docs_saved)}/${esc(c.with_docs)}</span><span class="muted">${docPct}%</span></div>
+          <div class="row"><span class="muted" title="${esc(c.docs_filings || "")}">Key documents ${esc(c.docs_saved)}/${esc(c.with_docs)}</span><span class="muted">${docPct}%</span></div>
           <div class="bar"><div style="width:${docPct}%"></div></div>
           ${
             bulk
               ? `<div class="row"><span>📄 Saving documents ${bulk.done}/${bulk.total}…</span><button class="btn ghost" id="stop">Stop</button></div>`
               : c.docs_wanted === false
-                ? `<span class="muted">Documents not kept for this company (only ${esc(c.docs_scope || "service providers and fund GPs")})</span>`
+                ? `<span class="muted">Documents not kept for this company (only ${esc(c.docs_scope || "CSSF entities that are not funds")})</span>`
                 : c.with_docs > c.docs_saved
                 ? `<button class="btn" id="bulk">Save all documents of this company</button>`
                 : c.with_docs
@@ -341,7 +341,8 @@
     // An interrupted "Save all documents" for this company? Continue it (already-saved documents are skipped).
     if (kind === "company" && r.ok) await maybeResumeBulk();
     // Optional: save this company's documents straight away (only for the page you opened, once).
-    // Automatic documents only for companies in the document scope (service providers and fund GPs).
+    // Automatic documents only for companies in the document scope (DOCUMENT_SCOPE on the engine) and only the
+    // kept filing types (the engine's /filings answer marks each filing "wanted").
     if (settings.autoDocs && kind === "company" && r.ok && autoDocsDoneFor !== rcsOfPage() && ui.company && ui.company.docs_wanted !== false && ui.company.with_docs > ui.company.docs_saved) {
       autoDocsDoneFor = rcsOfPage();
       saveAllDocuments();
@@ -465,10 +466,11 @@
       ui.note = 'Save the company first: open its "List of filings" tab and wait for "✓ saved".';
       return render();
     }
-    const todo = new Set(known.filings.filter((f) => f.has_documents && !f.saved).map((f) => f.filing_number));
+    // Only the filing types whose document the engine keeps (annual accounts, articles, registration, some modifications).
+    const todo = new Set(known.filings.filter((f) => f.has_documents && !f.saved && f.wanted !== false).map((f) => f.filing_number));
     const rows = filingRows().filter((r) => todo.has(r.filing));
     if (!rows.length) {
-      ui.note = todo.size ? `${todo.size} documents to save, but their rows are not on this page (scroll / show all filings?).` : "All documents of this company are already saved.";
+      ui.note = todo.size ? `${todo.size} documents to save, but their rows are not on this page (scroll / show all filings?).` : "All key documents of this company are already saved.";
       return render();
     }
     bulk = { total: rows.length, done: 0, stop: false, userStop: false, waitingFor: null, resolve: () => {} };

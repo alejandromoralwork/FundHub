@@ -253,11 +253,21 @@ The LBR filings list is kept for every captured company. The filing PDFs themsel
 | `cssf` (default) | CSSF entities that are not funds: ManCos / AIFMs, banks, financial institutions, supervised service providers, GPs with a CSSF record (about 1,450). Funds (umbrella, sub-fund, standalone, master, feeder) are left out. |
 | `legacy` | service providers and general partners of funds (`fund_role = general_partner`), the rule before the CSSF run |
 
-The rule lives in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for any other company, and the browser extension offers "Save all documents" (and the automatic download) only in scope. To capture the in-scope companies first, use the work-list filter **CSSF entities** (popup, console rounds, `round:start --scope cssf`).
+Within those companies, only useful **filing types** keep their PDF (`DOCUMENT_FILINGS`, default `selected`; `all` keeps every one):
+
+| Kept | Filing type (and details) |
+|---|---|
+| ✔ | Annual accounts (all variants: eCDF, Article 71…) |
+| ✔ | Coordinated articles of association |
+| ✔ | Registration |
+| ✔ | Any "Modification…" whose details include **Trade name(s)**, **Registered office** or **Person(s) in charge of checking the accounts** (auditor). LBR files auditor changes as "Modification relating solely to authorized representatives", so those are kept only when the auditor changed. |
+| ✘ | Modifications of directors / delegates only, authorized signature lists, resignations, NACE updates, consolidated accounts, merger projects, and the rest (the filing row is still kept) |
+
+The rule lives in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for any other company or filing type, and for filings whose company page was not saved yet, and the browser extension offers "Save all documents" (and the automatic download) only in scope. To capture the in-scope companies first, use the work-list filter **CSSF entities** (popup, console rounds, `round:start --scope cssf`).
 
 Before anything is written, the capture server checks that the file is a real PDF (`%PDF-`), that the filing belongs to the company the page was sent for, and that the filing has no document yet (a second copy is answered "already saved"). Each `raw.documents` row records the RCS number it was sent for, so a PDF that arrives before its company page is linked later only to that company's filing.
 
-**Storage:** files are content-addressed (`docs/<2 chars>/<sha256>.pdf`), so identical PDFs are stored once and never renamed. They sit on the VM's data disk (`STORAGE_ROOT`, see [infra/vm/README.md](../infra/vm/README.md#data-disk-for-filing-pdfs)); the database stores only the hash, storage key and size. PDFs are not recompressed (they already are). Off-VM copy: a disk snapshot, or `RCLONE_DOCS_REMOTE` in the nightly backup.
+**Storage:** files are content-addressed (`docs/<2 chars>/<sha256>.pdf`), so identical PDFs are stored once and never renamed. They sit on the VM's data disk (`STORAGE_ROOT`, see [infra/vm/README.md](../infra/vm/README.md#data-disk-for-filing-pdfs)); the database stores only the hash, storage key and size. PDFs are not recompressed (they already are). Off-VM copy: a disk snapshot, or `RCLONE_FILES_REMOTE` in the nightly backup.
 
 ## Where a person decides
 

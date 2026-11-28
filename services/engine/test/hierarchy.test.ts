@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { consolidate, type Claim } from "@fundhub/engine-db/core/golden";
 import { registryStatus } from "@fundhub/engine-db/core/registry";
-import { documentScopeMode, documentScopeSql, wantsDocuments } from "@fundhub/engine-db/core/document-scope";
+import { documentScopeMode, documentScopeSql, filingWantsDocument, wantsDocuments } from "@fundhub/engine-db/core/document-scope";
 import { isPdf } from "../src/capture-server";
 
 const addr = (postcode: string) => ({ raw: `1 rue X, L-${postcode} Luxembourg`, postcode });
@@ -114,4 +114,24 @@ test("capture server: only real PDFs are accepted", () => {
   assert.equal(isPdf(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("%PDF-1.4")])), true);
   assert.equal(isPdf(Buffer.from("<!doctype html><html>login</html>")), false);
   assert.equal(isPdf(Buffer.alloc(0)), false);
+});
+
+test("document filings: only the useful filing types keep their PDF", () => {
+  const keep = (type: string, details: string[] = []) => filingWantsDocument(type, details, "selected");
+  assert.equal(keep("Annual accounts"), true);
+  assert.equal(keep("Annual accounts (eCDF)"), true);
+  assert.equal(keep("Annual accounts (eCDF) - Article 71 of the law of 19 December 2002"), true);
+  assert.equal(keep("Coordinated articles of association"), true);
+  assert.equal(keep("Registration"), true);
+  assert.equal(keep("Modification", ["Registered office"]), true);
+  assert.equal(keep("Modification", ["Administrator(s)/Manager(s)", "Trade name(s)"]), true);
+  assert.equal(keep("Modification", ["Person(s) in charge of checking the accounts"]), true);
+  assert.equal(keep("Modification", ["Administrator(s)/Manager(s)", "Daily Management delegate(s)"]), false);
+  assert.equal(keep("Modification relating solely to authorized representatives", ["Administrator(s)/Manager(s)"]), false);
+  assert.equal(keep("Modification - Change of legal form", ["Legal form"]), false);
+  assert.equal(keep("Authorized signature list"), false);
+  assert.equal(keep("Consolidated accounts"), false);
+  assert.equal(keep("Resignation"), false);
+  assert.equal(keep("NACE code update"), false);
+  assert.equal(filingWantsDocument("Resignation", [], "all"), true);
 });

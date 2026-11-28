@@ -105,6 +105,7 @@ test("storeDocument: checks first, stores each PDF once, links it to its filing"
   const rcsOut = `B7${Date.now() % 1_000_000}`;
   const filingIn = `L9${String(Date.now()).slice(-8)}`;
   const filingOut = `L8${String(Date.now()).slice(-8)}`;
+  const filingSkip = `L7${String(Date.now()).slice(-8)}`;
   const pdf = Buffer.from(`%PDF-1.7\n${tag} test document\n%%EOF`);
   const created: { companies: string[]; records: number[] } = { companies: [], records: [] };
   try {
@@ -118,9 +119,12 @@ test("storeDocument: checks first, stores each PDF once, links it to its filing"
         const [x] = await db.insert(sourceRecords).values({ source: "cssf", externalId: `${tag}-${rcs}`, companyId: c.id }).returning({ id: sourceRecords.id });
         created.records.push(x.id);
       }
-      await db.insert(filings).values({ filingNumber, sourceRecordId: r.id, type: "Dépôt", hasDocuments: true });
+      await db.insert(filings).values({ filingNumber, sourceRecordId: r.id, type: "Annual accounts (eCDF)", hasDocuments: true });
+      return r.id;
     };
-    await mk(`${tag} ManCo`, rcsIn, "asset_manager", true, filingIn);
+    const mancoRecord = await mk(`${tag} ManCo`, rcsIn, "asset_manager", true, filingIn);
+    // A filing of the same company whose type is not kept (only directors changed).
+    await db.insert(filings).values({ filingNumber: filingSkip, sourceRecordId: mancoRecord, type: "Modification relating solely to authorized representatives", details: ["Administrator(s)/Manager(s)"], hasDocuments: true });
     await mk(`${tag} Law Firm`, rcsOut, "service_provider", false, filingOut);
     const url = (f: string) => `https://www.lbr.lu/mjrcs-web-front/document/${f}.pdf`;
     const send = (data: Buffer, filingNumber: string, rcs: string) => storeDocument({ url: url(filingNumber), contentType: "application/pdf", data: data.toString("base64"), filingNumber, rcs }, blobs);
@@ -136,6 +140,15 @@ test("storeDocument: checks first, stores each PDF once, links it to its filing"
     const outOfScope = await send(pdf, filingOut, rcsOut);
     assert.equal(outOfScope.ok, false);
     assert.equal("skipped" in outOfScope && outOfScope.skipped, true);
+
+    const wrongType = await send(pdf, filingSkip, rcsIn);
+    assert.equal(wrongType.ok, false);
+    assert.equal("skipped" in wrongType && wrongType.skipped, true);
+    assert.match(String(wrongType.error), /not a kept filing type/);
+
+    const unknownFiling = await send(pdf, "L000000001", rcsIn);
+    assert.equal(unknownFiling.ok, false);
+    assert.match(String(unknownFiling.error), /not known yet/);
 
     const first = await send(pdf, filingIn, rcsIn);
     assert.equal(first.ok, true);
@@ -156,7 +169,7 @@ test("storeDocument: checks first, stores each PDF once, links it to its filing"
     assert.equal(stored.filter((p) => p.endsWith(".pdf")).length, 1);
     assert.equal(stored.filter((p) => p.endsWith(".tmp")).length, 0);
   } finally {
-    await db.delete(filings).where(inArray(filings.filingNumber, [filingIn, filingOut]));
+    await db.delete(filings).where(inArray(filings.filingNumber, [filingIn, filingOut, filingSkip]));
     await db.delete(documents).where(eq(documents.sha256, sha256(pdf)));
     if (created.records.length) await db.delete(sourceRecords).where(inArray(sourceRecords.id, created.records));
     if (created.companies.length) await db.delete(companies).where(inArray(companies.id, created.companies));

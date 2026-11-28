@@ -26,7 +26,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@fundhub/engine-db/client";
 import { documents, filings, type RoundScope } from "@fundhub/engine-db/schema";
 import { withActor } from "@fundhub/engine-db/core/entity";
-import { documentScopeLabel, documentScopeSql } from "@fundhub/engine-db/core/document-scope";
+import { documentFilingsLabel, documentScopeLabel, documentScopeSql, filingDocumentSql, filingWantsDocument } from "@fundhub/engine-db/core/document-scope";
 import { cssfLinkedSql } from "@fundhub/engine-db/core/registry";
 import { nextSweepItems, planSweep, recordSearch, resetSkippedSweep, skipSweepTerm, sweepStats } from "@fundhub/engine-db/core/sweep";
 import { activeRound, closeRound, listRounds, nextItems, recordDocument, recordVisit, resetSkipped, roundStats, skipItem, startRound } from "@fundhub/engine-db/core/rounds";
@@ -266,13 +266,14 @@ export async function captureStats() {
 /** Kind: async function. What the engine holds for one company (for the panel on its page). */
 export async function companyStatus(rcs: string) {
   const [row] = (
-    await db.execute<{ name: string | null; captured_at: string | null; filings: number; with_docs: number; docs_saved: number; sp: boolean | null; kind: string | null; category: string | null; sources: string[] | null; docs_wanted: boolean; docs_scope: string }>(sql`
+    await db.execute<{ name: string | null; captured_at: string | null; filings: number; with_docs: number; docs_saved: number; sp: boolean | null; kind: string | null; category: string | null; sources: string[] | null; docs_wanted: boolean; docs_scope: string; docs_filings: string }>(sql`
       select e.canonical_name as name,
-             ${documentScopeSql("e")} as docs_wanted, ${documentScopeLabel()}::text as docs_scope,
+             ${documentScopeSql("e")} as docs_wanted, ${documentScopeLabel()}::text as docs_scope, ${documentFilingsLabel()}::text as docs_filings,
              s.last_changed_at as captured_at,
              (select count(*) from clean.filings f where f.source_record_id = s.id)::int as filings,
-             (select count(*) from clean.filings f where f.source_record_id = s.id and f.has_documents)::int as with_docs,
-             (select count(*) from clean.filings f where f.source_record_id = s.id and f.document_sha256 is not null)::int as docs_saved,
+             -- Only the filing types whose document is kept (core/document-scope.ts filingDocumentSql).
+             (select count(*) from clean.filings f where f.source_record_id = s.id and f.has_documents and ${filingDocumentSql("f")})::int as with_docs,
+             (select count(*) from clean.filings f where f.source_record_id = s.id and f.document_sha256 is not null and ${filingDocumentSql("f")})::int as docs_saved,
              e.is_service_provider as sp, e.company_kind as kind,
              (select label from core.activity_categories c where c.id = e.activity_category_id) as category,
              (select array_agg(distinct x.source) from staging.source_records x where x.company_id = e.id and x.state = 'found') as sources
@@ -358,8 +359,9 @@ export const isPdf = (bytes: Buffer) => bytes.subarray(0, 1024).includes("%PDF-"
  * Kind: async function. Stores a filing PDF you opened on LBR: object storage (docs/<2>/<sha256>.pdf, stored
  * once), a `raw.documents` row, and the link from its filing (clean.filings.document_sha256) when the filing
  * number is known (from the document URL, or from the filing row you clicked — sent by the extension).
- * Every check runs BEFORE anything is written: not a PDF, filing of another company, filing already has its
- * document, company not captured, company outside the document scope (core/document-scope.ts).
+ * Every check runs BEFORE anything is written: not a PDF, filing not captured yet, filing type not kept,
+ * filing of another company, filing already has its document, company outside the document scope
+ * (core/document-scope.ts).
  */
 export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(config().storage)) {
   const bytes = Buffer.from(body.data, "base64");
@@ -373,11 +375,14 @@ export async function storeDocument(body: DocumentBody, blobs = makeBlobStore(co
   // The filing, when its company page was captured: its company, and whether it already has its document.
   const [filing] = filingNumber
     ? (
-        await db.execute<{ doc: string | null; rcs: string; company_id: string | null }>(sql`
-          select f.document_sha256 as doc, s.external_id as rcs, s.company_id from clean.filings f
+        await db.execute<{ doc: string | null; rcs: string; company_id: string | null; type: string; details: string[] }>(sql`
+          select f.document_sha256 as doc, s.external_id as rcs, s.company_id, f.type, f.details from clean.filings f
           join staging.source_records s on s.id = f.source_record_id where f.filing_number = ${filingNumber}`)
       ).rows
     : [];
+  // Only some filing types keep their document; the type is known only once the company page is saved.
+  if (!filing) return { ok: false, error: `Not saved: filing ${filingNumber ?? "?"} is not known yet — save the company page first (its "List of filings" tab).` };
+  if (!filingWantsDocument(filing.type, filing.details ?? [])) return { ok: false, skipped: true, error: `Not saved: "${filing.type}" is not a kept filing type (${documentFilingsLabel()}).` };
   if (filing && sentRcs && filing.rcs !== sentRcs) return { ok: false, error: `Not saved: filing ${filingNumber} belongs to ${filing.rcs}, not ${sentRcs}.` };
   // A second copy (page refreshed during "Save all documents", or opened twice): nothing is stored or counted again.
   if (filing?.doc) return { ok: true, sha256: filing.doc, bytes: bytes.length, filingNumber, linked: true, alreadySaved: true };
@@ -495,8 +500,8 @@ export async function startCaptureServer() {
         const rcs = normalizeRcs(url.searchParams.get("rcs"));
         if (!rcs) return reply(400, { ok: false, error: "rcs required" });
         const rows = (
-          await db.execute<{ filing_number: string; has_documents: boolean; saved: boolean }>(sql`
-            select f.filing_number, f.has_documents, f.document_sha256 is not null as saved
+          await db.execute<{ filing_number: string; has_documents: boolean; saved: boolean; wanted: boolean }>(sql`
+            select f.filing_number, f.has_documents, f.document_sha256 is not null as saved, ${filingDocumentSql("f")} as wanted
             from clean.filings f join staging.source_records s on s.id = f.source_record_id
             where s.source = 'rcs' and s.external_id = ${rcs}`)
         ).rows;

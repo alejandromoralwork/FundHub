@@ -133,7 +133,7 @@ Progress: popup (words searched, companies found, numbers known per RCS prefix),
 3. When the page has loaded and LBR's check is gone, the page is **saved automatically**: profile and filings. If LBR shows its check, the panel says so; complete it, and saving follows.
 4. **Documents.**
    * Any document you open is saved and linked to its filing.
-   * The panel's **Save all documents of this company** (shown only for companies in the document scope — by default CSSF entities that are not funds, `DOCUMENT_SCOPE` on the engine) opens the remaining documents 4–8 s apart. It stops on LBR's check, an access limit, or **Stop**.
+   * The panel's **Save all documents of this company** (shown only for companies in the document scope — by default CSSF entities that are not funds, `DOCUMENT_SCOPE` on the engine) opens the remaining **key** documents 4–8 s apart: annual accounts, coordinated articles, registration, and modifications of trade name / registered office / auditor (`DOCUMENT_FILINGS` on the engine). Other filings are listed but their PDFs are not saved. It stops on LBR's check, an access limit, or **Stop**.
    * With the popup switch **Also save every PDF of each company I open** (tab 2), this starts by itself on each company you open.
 
 You can stop at any time. The work list skips everything already captured, so the next session continues where you left off.
