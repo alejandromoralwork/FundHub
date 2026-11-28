@@ -4,6 +4,10 @@
 #   (pg_dump custom format, compressed) to $BACKUP_DIR, keeps $KEEP_DAYS days.
 #   Optional off-VM copy: set RCLONE_REMOTE (e.g. "r2:fundhub-backups/engine") in /etc/default/fundhub-backup
 #   and install/configure rclone. Restore: see infra/vm/README.md.
+#   Optional copy of the filing PDFs: set RCLONE_DOCS_REMOTE (e.g. "r2:fundhub-docs", and DOCS_DIR if the PDFs
+#   are not in /srv/fundhub-data/engine/blobs/docs) — a SEPARATE path, never
+#   pruned (RCLONE_REMOTE is pruned after KEEP_DAYS). PDFs are content-addressed (docs/<2>/<sha256>.pdf) and never
+#   change, so `rclone copy` only uploads new files.
 set -euo pipefail
 [ -f /etc/default/fundhub-backup ] && . /etc/default/fundhub-backup
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/fundhub-engine}"
@@ -26,3 +30,13 @@ for DB in $DBS; do
   find "$BACKUP_DIR" -name "$DB-*.dump" -mtime +"$KEEP_DAYS" -delete
 done
 if [ -n "${RCLONE_REMOTE:-}" ]; then rclone delete "$RCLONE_REMOTE" --min-age "${KEEP_DAYS}d" || true; fi
+
+# DOCS_DIR: the PDF folder (STORAGE_ROOT/docs in services/engine/.env); the data-disk default below.
+if [ -n "${RCLONE_DOCS_REMOTE:-}" ]; then
+  DOCS_DIR="${DOCS_DIR:-/srv/fundhub-data/engine/blobs/docs}"
+  if [ -d "$DOCS_DIR" ]; then
+    rclone copy "$DOCS_DIR" "$RCLONE_DOCS_REMOTE/docs" --immutable --exclude "*.tmp" && echo "documents copied to $RCLONE_DOCS_REMOTE/docs"
+  else
+    echo "RCLONE_DOCS_REMOTE set but $DOCS_DIR does not exist (set DOCS_DIR)" >&2
+  fi
+fi

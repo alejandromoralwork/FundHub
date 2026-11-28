@@ -86,7 +86,7 @@ FundHub keeps **two databases on purpose**:
 
 | Files | Where |
 |---|---|
-| Raw captures and filing PDFs (engine) | Object storage, addressed by SHA-256 (`docs/<sha256>.pdf`). Driver `fs` (folder on the VM) today, `s3` (R2 / MinIO / AWS) when it grows |
+| Raw captures and filing PDFs (engine) | Object storage, addressed by SHA-256 (`docs/<2 chars>/<sha256>.pdf`). Driver `fs` (folder on the VM) today, `s3` (R2 / MinIO / AWS) when it grows |
 | Uploaded report PDFs | Website DB (`reports`) |
 | Internal business documents | The Drive on the VM (`/srv/fundhub-drive`) |
 

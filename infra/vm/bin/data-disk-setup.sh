@@ -4,11 +4,13 @@
 #   - finds the new disk (Azure LUN 0 by default), formats it ext4 with the label "fundhub-data" — ONLY if it is
 #     empty (a disk with partitions or another filesystem is refused);
 #   - mounts it at /srv/fundhub-data for good (fstab by label, nofail: the VM still boots if the disk is missing);
-#   - moves services/engine/.engine-data/blobs there (verified file count), keeps the old folder as *.old;
-#   - sets STORAGE_ROOT in services/engine/.env and restarts the engine services.
+#   - moves services/engine/.engine-data/blobs and …/captures there (verified file count), keeps the old folders
+#     as *.old-<date>;
+#   - sets STORAGE_ROOT and CAPTURES_DIR in services/engine/.env and restarts the engine services.
 #   The database never holds the files: raw.documents / raw.fetches keep only the content hash and the storage
 #   key (e.g. docs/ab/ab12….pdf), so moving the files only changes STORAGE_ROOT.
-# USAGE: 1) Azure portal → VM → Disks → Create and attach a new disk (Standard SSD, 128 GB, LUN 0) → Save.
+# USAGE: 1) Azure portal → VM → Disks → Create and attach a new disk (128 GB, LUN 0) → Save. Standard HDD (S10)
+#           is the cheapest and enough (PDFs are written once, rarely read); Standard SSD (E10) if you prefer.
 #        2) sudo bash infra/vm/bin/data-disk-setup.sh            (or: … /dev/sdX to name the disk yourself)
 #        Safe to re-run: an already formatted "fundhub-data" disk is reused, nothing is formatted twice.
 set -euo pipefail
@@ -21,6 +23,8 @@ APP_USER=${APP_USER:-${SUDO_USER:-$(stat -c %U "$REPO")}}
 ENV_FILE="$REPO/services/engine/.env"
 OLD_BLOBS="$REPO/services/engine/.engine-data/blobs"
 NEW_BLOBS="$MOUNT/engine/blobs"
+OLD_CAPTURES="$REPO/services/engine/.engine-data/captures"
+NEW_CAPTURES="$MOUNT/engine/captures"
 
 [ "$(id -u)" = 0 ] || { echo "Run with sudo." >&2; exit 1; }
 say() { printf '\n== %s\n' "$*"; }
@@ -51,27 +55,38 @@ mkdir -p "$MOUNT"
 grep -q "^LABEL=$LABEL " /etc/fstab || echo "LABEL=$LABEL $MOUNT ext4 defaults,nofail,noatime 0 2" >>/etc/fstab
 mountpoint -q "$MOUNT" || mount "$MOUNT"
 df -h "$MOUNT" | tail -1
-install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$MOUNT/engine" "$NEW_BLOBS"
+install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$MOUNT/engine" "$NEW_BLOBS" "$NEW_CAPTURES"
+
+# move_dir OLD NEW: copies OLD into NEW (verified file count), keeps OLD as OLD.old-<date>. Services stay stopped
+# until the settings below point at NEW.
+move_dir() {
+  local old=$1 new=$2
+  if [ -d "$old" ] && [ ! -L "$old" ]; then
+    systemctl stop fundhub-capture fundhub-engine-worker 2>/dev/null || true
+    rsync -a "$old"/ "$new"/
+    local a b
+    a=$(find "$old" -type f | wc -l); b=$(find "$new" -type f | wc -l)
+    [ "$b" -ge "$a" ] || { echo "copy incomplete ($b of $a files in $new): nothing switched" >&2; systemctl start fundhub-capture fundhub-engine-worker; exit 1; }
+    chown -R "$APP_USER:$APP_USER" "$new"
+    mv "$old" "$old.old-$(date +%Y%m%d)"
+    echo "moved $a files to $new ($(du -sh "$new" | cut -f1)); the old folder is kept as $old.old-$(date +%Y%m%d) — delete it after checking"
+  else
+    echo "nothing to move (no $old folder)"
+  fi
+}
 
 say "Move the engine files"
-if [ -d "$OLD_BLOBS" ] && [ ! -L "$OLD_BLOBS" ]; then
-  systemctl stop fundhub-capture fundhub-engine-worker 2>/dev/null || true
-  rsync -a "$OLD_BLOBS"/ "$NEW_BLOBS"/
-  a=$(find "$OLD_BLOBS" -type f | wc -l); b=$(find "$NEW_BLOBS" -type f | wc -l)
-  [ "$b" -ge "$a" ] || { echo "copy incomplete ($b of $a files): nothing switched" >&2; systemctl start fundhub-capture fundhub-engine-worker; exit 1; }
-  chown -R "$APP_USER:$APP_USER" "$NEW_BLOBS"
-  mv "$OLD_BLOBS" "$OLD_BLOBS.old-$(date +%Y%m%d)"
-  echo "moved $a files ($(du -sh "$NEW_BLOBS" | cut -f1)); the old folder is kept as $OLD_BLOBS.old-$(date +%Y%m%d) — delete it after checking"
-else
-  echo "nothing to move (no $OLD_BLOBS folder)"
-fi
+move_dir "$OLD_BLOBS" "$NEW_BLOBS"
+move_dir "$OLD_CAPTURES" "$NEW_CAPTURES"
 
-say "Engine setting STORAGE_ROOT"
+say "Engine settings STORAGE_ROOT, CAPTURES_DIR"
 touch "$ENV_FILE"
-if grep -q '^STORAGE_ROOT=' "$ENV_FILE"; then sed -i "s#^STORAGE_ROOT=.*#STORAGE_ROOT=$NEW_BLOBS#" "$ENV_FILE"; else echo "STORAGE_ROOT=$NEW_BLOBS" >>"$ENV_FILE"; fi
+setenv() { if grep -q "^$1=" "$ENV_FILE"; then sed -i "s#^$1=.*#$1=$2#" "$ENV_FILE"; else echo "$1=$2" >>"$ENV_FILE"; fi; }
+setenv STORAGE_ROOT "$NEW_BLOBS"
+setenv CAPTURES_DIR "$NEW_CAPTURES"
 grep -q '^STORAGE_DRIVER=' "$ENV_FILE" || echo "STORAGE_DRIVER=fs" >>"$ENV_FILE"
 chown "$APP_USER:$APP_USER" "$ENV_FILE"; chmod 600 "$ENV_FILE"
-grep -E '^STORAGE_(ROOT|DRIVER)=' "$ENV_FILE"
+grep -E '^(STORAGE_ROOT|STORAGE_DRIVER|CAPTURES_DIR)=' "$ENV_FILE"
 
 say "Restart"
 systemctl restart fundhub-capture fundhub-engine-worker fundhub-engine-scheduler 2>/dev/null || true

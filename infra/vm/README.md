@@ -108,18 +108,18 @@ run it end to end).
 
 Filing PDFs and raw captures (the engine's "blobs") live on their own Azure data disk, not on the 30 GB OS disk. The database stores only each file's SHA-256 and its key (`docs/ab/ab12….pdf`), never the bytes. Identical files are stored once.
 
-**Only two groups of companies keep their PDFs:** service providers and fund general partners (`fund_role = general_partner`). The rule is in `packages/engine-db/src/core/document-scope.ts`. The capture server refuses PDFs for other companies, and the browser extension shows "Save all documents" only for those two groups. Every company still keeps its filings list.
+**Only CSSF entities that are not funds keep their PDFs** (supervised firms, ManCos / AIFMs, banks, financial institutions, service providers, GPs with a CSSF record). The rule is in `packages/engine-db/src/core/document-scope.ts` and is chosen with `DOCUMENT_SCOPE` in `services/engine/.env`: `cssf` (default) or `legacy` (service providers and fund GPs, the earlier rule). The capture server refuses PDFs for other companies, and the browser extension shows "Save all documents" only in scope. Every company still keeps its filings list.
 
-**Size:** about 1,200 companies in scope × about 60 filings × about 0.6 MB per PDF comes to at most about 45 GB. 128 GB leaves room.
+**Size:** about 1,400 companies in scope × about 60 filings × about 0.6 MB per PDF comes to at most about 50 GB. 128 GB leaves room. PDFs are not compressed further (they already are); capture files are stored gzipped.
 
-1. Azure portal → VM → **Disks** → *Create and attach a new disk*: Standard SSD (E10), **128 GB**, same region, LUN 0 → **Save**. The disk can be attached while the VM runs.
+1. Azure portal → VM → **Disks** → *Create and attach a new disk*: **Standard HDD (S10)**, **128 GB** (cheapest; PDFs are written once and rarely read — Standard SSD E10 also works), same region, LUN 0 → **Save**. The disk can be attached while the VM runs.
 2. On the VM: `sudo bash infra/vm/bin/data-disk-setup.sh`. The script:
    - formats the empty disk (label `fundhub-data`);
    - mounts it at `/srv/fundhub-data` at every boot;
-   - moves `services/engine/.engine-data/blobs` there (the old folder is kept as `blobs.old-<date>`; delete it after checking);
-   - sets `STORAGE_ROOT=/srv/fundhub-data/engine/blobs` in `services/engine/.env`;
+   - moves `services/engine/.engine-data/blobs` and `…/captures` there (the old folders are kept as `*.old-<date>`; delete them after checking);
+   - sets `STORAGE_ROOT=/srv/fundhub-data/engine/blobs` and `CAPTURES_DIR=/srv/fundhub-data/engine/captures` in `services/engine/.env`;
    - restarts the engine.
-3. **Back up the disk:** Azure portal → the disk → *Create snapshot* (or set up Azure Backup / a daily snapshot policy). The nightly `pg_dump` does not include the files.
+3. **Back up the files:** either an Azure snapshot of the disk (portal → the disk → *Create snapshot*, or a snapshot policy), or set `RCLONE_DOCS_REMOTE` (and `DOCS_DIR` if needed) in `/etc/default/fundhub-backup`: the nightly backup then copies new PDFs off the VM (content-addressed, so only new files are sent; never pruned). The nightly `pg_dump` does not include the files.
 4. **More space later:** Azure portal → the disk → *Size + performance* → enlarge it, then on the VM run `sudo resize2fs $(blkid -L fundhub-data)`. No downtime.
 
 `sudo bash infra/vm/bin/health.sh` reports the disk's usage.
@@ -130,12 +130,12 @@ Filing PDFs and raw captures (the engine's "blobs") live on their own Azure data
 2. On the VM (check the new disk's name with `lsblk`; below it is `sdb`, a disk with **no** partitions):
 
 ```bash
-sudo mkfs.ext4 -L fundhub-data /dev/sdb
+sudo mkfs.ext4 -L fundhub-pg /dev/sdb      # NOT fundhub-data: that label is the PDF disk
 sudo systemctl stop fundhub-capture postgresql
 sudo mkdir /mnt/newpg && sudo mount /dev/sdb /mnt/newpg
 sudo rsync -aHAX /var/lib/postgresql/ /mnt/newpg/
 sudo umount /mnt/newpg && sudo rmdir /mnt/newpg
-echo 'LABEL=fundhub-data /var/lib/postgresql ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
+echo 'LABEL=fundhub-pg /var/lib/postgresql ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
 sudo mv /var/lib/postgresql /var/lib/postgresql.old && sudo mkdir /var/lib/postgresql && sudo mount -a
 sudo systemctl start postgresql fundhub-capture     # check, then: sudo rm -rf /var/lib/postgresql.old
 ```

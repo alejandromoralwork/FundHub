@@ -10,7 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { EngineConfig } from "./config";
@@ -43,7 +43,11 @@ export class FsBlobStore implements BlobStore {
     const path = join(this.root, key);
     if (await this.exists(key)) return;
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, body);
+    // Write to a temporary name, then rename (atomic on one filesystem): a crash never leaves a half file that
+    // exists() would later take for the stored blob.
+    const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tmp, body);
+    await rename(tmp, path);
   }
   async get(key: string) {
     try {
