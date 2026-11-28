@@ -87,6 +87,41 @@ sudo systemctl start fundhub-engine-backup      # backup now
 sudo ls -lh /var/backups/fundhub-engine         # backups
 ```
 
+## Backups
+
+The nightly job (`fundhub-engine-backup.timer`, 03:30 UTC, script `infra/vm/bin/backup-engine-db.sh`, installed at `/usr/local/lib/fundhub/`) backs up:
+
+| What | How | Where | Kept |
+|---|---|---|---|
+| Engine DB, Metabase DB (VM Postgres) | `pg_dump -Fc`, checked with `pg_restore --list` | `/var/backups/fundhub-engine`, plus `RCLONE_REMOTE` | 14 days |
+| Website DB (Neon), with `WEBSITE_BACKUP_URL` set | `pg_dump -Fc` over TLS, checked | same | 14 days |
+| Engine files (PDFs, raw pages, captures), with `RCLONE_FILES_REMOTE` set | `rclone copy --immutable` (only new files) | `RCLONE_FILES_REMOTE` | forever |
+
+Settings live in `/etc/default/fundhub-backup` (root only, `chmod 600`). After editing the script in the repo, reinstall it with `sudo install -m 755 infra/vm/bin/backup-engine-db.sh /usr/local/lib/fundhub/backup-engine-db.sh`. Add Azure Backup of the whole VM on top (portal → VM → Backup).
+
+**Website DB role.** Create it once in Neon's SQL Editor, logged in as the database owner (`neondb_owner`):
+
+```sql
+CREATE ROLE fundhub_backup WITH LOGIN PASSWORD '<long random password>';
+GRANT CONNECT ON DATABASE neondb TO fundhub_backup;
+GRANT USAGE ON SCHEMA public TO fundhub_backup;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO fundhub_backup;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO fundhub_backup;
+-- tables created later by migrations (run as the role that runs the migrations, normally neondb_owner):
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO fundhub_backup;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO fundhub_backup;
+```
+
+Then set `WEBSITE_BACKUP_URL=postgresql://fundhub_backup:<password>@<endpoint>.<region>.aws.neon.tech/neondb?sslmode=require`. Use the host **without** `-pooler`. The script adds certificate checking with the system roots.
+
+**Restore the website DB** into a new Neon branch first (never straight over production). Neon console → Branches → *Create branch* (empty), then:
+
+```bash
+pg_restore --no-owner --no-privileges -d "<new branch connection string>" /var/backups/fundhub-engine/website-<stamp>.dump
+```
+
+Check it, then point the apps at it or copy the needed rows back.
+
 ## Restore a backup
 
 ```bash
@@ -119,7 +154,7 @@ Filing PDFs and raw captures (the engine's "blobs") live on their own Azure data
    - moves `services/engine/.engine-data/blobs` and `…/captures` there (the old folders are kept as `*.old-<date>`; delete them after checking);
    - sets `STORAGE_ROOT=/srv/fundhub-data/engine/blobs` and `CAPTURES_DIR=/srv/fundhub-data/engine/captures` in `services/engine/.env`;
    - restarts the engine.
-3. **Back up the files:** either an Azure snapshot of the disk (portal → the disk → *Create snapshot*, or a snapshot policy), or set `RCLONE_DOCS_REMOTE` (and `DOCS_DIR` if needed) in `/etc/default/fundhub-backup`: the nightly backup then copies new PDFs off the VM (content-addressed, so only new files are sent; never pruned). The nightly `pg_dump` does not include the files.
+3. **Back up the files:** either an Azure snapshot of the disk (portal → the disk → *Create snapshot*, or a snapshot policy), or set `RCLONE_FILES_REMOTE` (and `FILES_DIR` if needed) in `/etc/default/fundhub-backup`: the nightly backup then copies new PDFs, raw pages and captures off the VM (only new files are sent; never pruned). The nightly `pg_dump` does not include the files.
 4. **More space later:** Azure portal → the disk → *Size + performance* → enlarge it, then on the VM run `sudo resize2fs $(blkid -L fundhub-data)`. No downtime.
 
 `sudo bash infra/vm/bin/health.sh` reports the disk's usage.

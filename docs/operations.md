@@ -70,9 +70,9 @@ It cannot run on Vercel: a drive needs a server with a permanent disk.
 
 | Data | Backup | Restore |
 |---|---|---|
-| Website DB | Neon point-in-time restore | Neon console |
+| Website DB | Neon point-in-time restore (its plan's restore window), plus a nightly `pg_dump` from the VM with `WEBSITE_BACKUP_URL` (14 days, copied off-VM with `RCLONE_REMOTE`) | Neon console; [infra/vm/README.md → Backups](../infra/vm/README.md#backups) |
 | Engine DB + Metabase DB | `pg_dump` nightly → `/var/backups/fundhub-engine`, 14 days, verified with `pg_restore --list`; optional off-VM copy with rclone (`RCLONE_REMOTE`) | [deploy/README.md](../infra/vm/README.md#restore-a-backup) |
-| Engine files (captures, PDFs) on the data disk `/srv/fundhub-data` | Azure snapshot of the disk, and/or the nightly off-VM copy of new PDFs (`RCLONE_DOCS_REMOTE`, never pruned) | [infra/vm/README.md → Data disk](../infra/vm/README.md#data-disk-for-filing-pdfs) |
+| Engine files (captures, PDFs) on the data disk `/srv/fundhub-data` | Azure snapshot of the disk, and/or the nightly off-VM copy of new files (`RCLONE_FILES_REMOTE`, never pruned) | [infra/vm/README.md → Data disk](../infra/vm/README.md#data-disk-for-filing-pdfs) |
 | Drive files (`/srv/fundhub-drive`) | none yet — add an off-VM copy before storing real documents | — |
 | Self-hosted tools | `infra/tools/backup.sh` nightly | [infra/tools/README.md](../infra/tools/README.md) |
 

@@ -15,6 +15,7 @@ All project documentation starts here. Component READMEs stay next to their code
 | [troubleshooting.md](troubleshooting.md) | Get into the VM over SSH, find what is down with the health check, fix each service; incident log |
 | [secrets.md](secrets.md) | Every secret, where it lives, what to keep in your password manager, the encrypted VM secrets bundle |
 | [access-and-recovery.md](access-and-recovery.md) | Add or remove people anywhere, and get back in when a password, phone, key or server is lost |
+| [operating-plan.md](operating-plan.md) | The plan: collection cadence per source, time series (history, metrics), financials from PDFs, business workflows, build phases |
 
 ## Component guides
 

@@ -189,7 +189,7 @@ FundHub's internal files: `Finance/Receipts`, `Clients`, `Providers`, `Legal`, `
 
 ## 13. Backups (`fundhub-engine-backup`)
 
-Nightly at 03:30 UTC: `pg_dump` of the engine DB to `/var/backups/fundhub-engine/`, checked readable, 14 days kept; optional off-VM copy with rclone (`RCLONE_REMOTE` in `/etc/default/fundhub-backup`, pruned after 14 days). Filing PDFs: set `RCLONE_DOCS_REMOTE` (and `DOCS_DIR` if not `/srv/fundhub-data/engine/blobs/docs`) for a separate copy that only adds new files and is never pruned.
+Nightly at 03:30 UTC: `pg_dump` of the engine DB to `/var/backups/fundhub-engine/`, checked readable, 14 days kept; optional off-VM copy with rclone (`RCLONE_REMOTE` in `/etc/default/fundhub-backup`, pruned after 14 days). Engine files (PDFs, raw pages, captures): set `RCLONE_FILES_REMOTE` (and `FILES_DIR` if not `/srv/fundhub-data/engine`) for a separate copy that only adds new files and is never pruned.
 
 Run now: `sudo systemctl start fundhub-engine-backup`; list: `sudo ls -lh /var/backups/fundhub-engine`; restore: [infra/vm/README.md → Restore](../infra/vm/README.md#restore-a-backup).
 
